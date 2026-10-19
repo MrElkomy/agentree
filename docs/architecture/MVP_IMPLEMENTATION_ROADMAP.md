@@ -84,16 +84,16 @@ Each slice below lists only what is specific to it.
 - **Objective:** `LLMClient` interface, LiteLLM implementation, scripted fake for tests, usage events.
 - **Acceptance:** a real call with a test key works (manual run, reported); all automated tests use the fake.
 
-### 2.3 Knowledge base v1
+### 2.3 Knowledge base v1 — ✅ partial (Task 06: manual entries, draft→publish, Postgres full-text retrieval; file upload pending)
 - **Objective:** manual entries + file upload (PDF/DOCX/TXT/MD), parse in sandboxed subprocess, chunk, Postgres FTS, draft → publish.
 - **Acceptance:** only published versions are retrievable; business A never retrieves B's chunks.
 - **Security checks:** size/type limits; private object storage; parsing timeouts.
 
-### 2.4 Sales Agent text conversation (dashboard test console)
+### 2.4 Sales Agent text conversation (dashboard test console) — ✅ implemented (Task 06, JSON replies; streaming pending)
 - **Objective:** agent definition, turn loop, retrieval, streaming reply (SSE), messages persisted with retention fields.
 - **Acceptance (phase gate):** the Sales Agent answers using the customer's key and the correct business's knowledge; injected instructions inside a knowledge document do not change behavior (test case).
 
-### 2.5 Fallback, circuit breaker, recovery **[changed]**
+### 2.5 Fallback, circuit breaker, recovery **[changed]** — partial (Task 06: per-turn primary→backup failover on availability errors; circuit breaker/recovery pending)
 - **Objective:** capability profiles, error classification, primary→backup failover between turns, half-open probes, automatic return, dashboard banner + in-app notice.
 - **Acceptance:** with the fake provider: primary outage → backup serves; unsupported task on backup fails safe; primary recovers → returns after cooldown; no flapping under intermittent failure.
 
