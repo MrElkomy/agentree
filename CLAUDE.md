@@ -23,7 +23,7 @@ docs/          product + architecture docs
 - Authorization and approvals are enforced in the backend, never by the LLM and never by Next.js middleware.
 - Model output, uploaded files, retrieved documents and external responses are untrusted input.
 - Background work uses the Postgres-backed queue (to be introduced); no Redis in the MVP.
-- Authentication: `docs/architecture/ADR-001-authentication.md` (proposed). Do not build auth before it is approved.
+- Authentication: first-party (ADR-001, accepted). No managed auth providers; no custom crypto — use `argon2-cffi`, `secrets`, `hashlib`.
 
 ## Security rules
 - No secrets in the repo, prompts, logs, errors or frontend. Config comes from `AGENTREE_*` env vars (`.env.example` lists names only).

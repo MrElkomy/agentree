@@ -17,7 +17,7 @@ Tenancy+RLS ✅ → Auth + memberships + business switcher → BYOK vault + LLM 
 
 | Week | Days | Working product at end of week |
 |---|---|---|
-| 1 | 1–7 | Login (ADR-001 provider), create/switch businesses, invite members with roles, isolation matrix on all endpoints. Next.js shell with dashboard layout. **Staging environment deployed from CI.** |
+| 1 | 1–7 | First-party login (ADR-001), create/switch businesses, invite members with roles, isolation matrix on all endpoints. Next.js shell with dashboard layout. **Staging environment deployed from CI.** |
 | 2 | 8–14 | Owner adds primary + backup key (encrypted), uploads/edits knowledge, chats with the Sales Agent in a dashboard test console with streaming replies grounded in its own knowledge. |
 | 3 | 15–21 | Public AI/Bio page + embeddable widget live on staging; visitors chat with all three public agents, transfers between them keep context; leads auto-created; human takeover from inbox; abuse limits protect customer keys; automatic failover to backup key and recovery. |
 | 4 | 22–30 | Retention (30-day deletion), audit log, operational analytics + Data Analyst on Agentree data and CSV/XLSX, Executive daily report in-app; security review, backup/restore drill, production deploy (with approval), onboarding runbook, first pilot customer onboarded. |
@@ -61,5 +61,5 @@ Each track uses its own branch and PR; tenancy/security code changes only on the
 
 ## Risks to the date
 - 30 days is aggressive for the full MVP V1; the post-launch proposals above are the pressure valves.
-- External accounts needed early: auth provider (week 1), hosting + domain (week 1), transactional email (week 1), object storage (week 2). **Product Owner action.**
+- External accounts needed early: hosting + domain (week 1), transactional email/SMTP (before staging invites, week 1–2), object storage (week 2). **Product Owner action.**
 - Real AI test keys (two providers) needed by week 2 for staging verification.

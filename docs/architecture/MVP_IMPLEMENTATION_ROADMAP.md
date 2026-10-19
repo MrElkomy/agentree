@@ -49,7 +49,7 @@ Each slice below lists only what is specific to it.
 - **Security checks:** app role has no `BYPASSRLS` and does not own tables.
 
 ### 1.2 Users, sessions, login
-- **Precondition:** auth ADR (U-17) approved — managed solution vs in-house. Steps below assume in-house and change if a managed solution is chosen; membership authorization stays server-side either way.
+- **Decision:** first-party auth (ADR-001, accepted). No managed provider.
 - **Objective:** register, login, logout, session management.
 - **Acceptance:** Argon2id hashes; session revocation immediate; rate-limited login; generic errors.
 - **Tests:** auth flows, session expiry, CSRF/Origin check, brute-force limit.

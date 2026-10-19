@@ -1,38 +1,31 @@
 # ADR-001: Authentication approach
 
-Date: 2026-10-19 · Status: **Proposed — needs Product Owner approval** (U-17 / TD-04)
+Date: 2026-10-19 · Status: **Accepted** (Product Owner decision, 2026-10-19) · Resolves U-17 / TD-04
 
-## Context
-Agentree needs sign-up/login, email verification, password reset, Google sign-in soon, MFA before handling sensitive customer data at scale, and an enterprise SSO path later (excluded from MVP). Users belong to many businesses with different roles. Tenant isolation is enforced by Agentree's own memberships + PostgreSQL RLS (`TENANCY.md`), and that must not move to a vendor. Target: commercial launch in ~30 days.
+## Decision
+Authentication is built and operated **inside Agentree** (FastAPI + PostgreSQL) with established, maintained libraries. **No managed/paid auth provider** (WorkOS, Clerk, Auth0 or similar). No custom cryptography or homemade protocols.
 
-## Options
+## Requirements
+- Email/password registration and login.
+- Password hashing: **Argon2id** via `argon2-cffi` (library defaults, rehash on parameter change).
+- **Server-side sessions:** random opaque token (`secrets.token_urlsafe`, ≥256 bits) sent in an `HttpOnly; Secure; SameSite=Lax` cookie; only its SHA-256 hash is stored. Idle + absolute expiry; revocation of one session, all sessions, and on password change/reset.
+- **Email verification and password reset:** single-use, expiring tokens, stored hashed, invalidated on use.
+- **CSRF:** SameSite cookie + Origin/Referer check on every state-changing request.
+- **Rate limiting:** login, registration, reset and verification endpoints, per IP and per account; generic responses (no account enumeration).
+- **Accounts, multi-business memberships, roles (Owner/Admin/Member), invitations** — authorization server-side, tenant context derived from membership (`TENANCY.md`).
+- Email: **Mailpit** in development; production provider configurable via SMTP settings (provider choice open, U-05).
+- Full tenant-isolation and authorization tests.
 
-| | A. Custom FastAPI auth | B. Managed identity (WorkOS AuthKit / Clerk / Auth0) | C. Self-hosted IdP (Keycloak, Ory, Zitadel) |
+## Options considered
+| | Custom FastAPI auth (chosen) | Managed identity (WorkOS / Clerk / Auth0) | Self-hosted IdP (Keycloak / Ory) |
 |---|---|---|---|
-| Time to market | Slowest: we build & test signup, verify, reset, lockout, Google OAuth, MFA, email templates | Fastest: hosted flows, MFA, Google, bot/breach protection out of the box | Medium: setup is quick, hardening and operations are not |
-| Security | Fully ours to get right; every flow is new attack surface | Specialist vendor handles credential storage, MFA, anomaly detection | Strong software, but patching/upgrades/backups are ours |
-| Multi-business memberships | Ours (needed anyway) | Ours — vendor "organizations" not used as source of truth | Ours |
-| Operating cost | No fee; engineering + email provider | Free tiers exist but differ and change; costs grow with users/features (SSO is usually a paid add-on). **Verify current pricing before choosing.** | Hosting + ops time |
-| Operational burden | Medium (email deliverability, abuse) | Low | High (another stateful service) |
-| Vendor dependency | None | Real: user records live with vendor; password-hash export varies by vendor. Mitigated by design below. | None (but Java/Go service to run) |
-| Enterprise SSO later | Large build | Built-in (WorkOS strongest here) | Built-in |
-
-## Decision (recommended)
-**Option B, used for identity only, behind an Agentree boundary.** Primary candidate: **WorkOS AuthKit** (B2B-focused, standard OIDC, clean path to SSO/SCIM). Alternative: **Clerk** (best Next.js developer experience). Final pick after a 1-day spike verifying current pricing, FastAPI integration and data-export terms.
-
-Design that limits lock-in:
-1. **Vendor authenticates; Agentree authorizes.** FastAPI completes the OIDC code flow server-side, verifies the ID token (issuer, audience, signature via JWKS, expiry, nonce).
-2. **Agentree issues its own session:** opaque, hashed, server-side session in an `HttpOnly; Secure; SameSite=Lax` cookie on our domain → instant revocation, same-origin CSRF model, no vendor token in the browser for API calls.
-3. Local `users` table keyed by our UUID with `(provider, provider_subject)`; email verified flag copied from the provider.
-4. Memberships, roles, business switching, invites (our own invite tokens) and RLS context stay 100% in Agentree.
-5. One module (`agentree/identity/provider.py`) wraps the vendor; switching providers = new adapter + user re-link by verified email.
+| Cost | No vendor fee | Usage-based fees, SSO usually paid | Hosting + operations |
+| Vendor dependency | None | User records with vendor | None, but another stateful service |
+| Time to market | Slower (flows built and tested by us) | Fastest | Medium |
+| Security burden | Ours: must follow the requirements above strictly | Vendor carries most | Ours to patch and operate |
 
 ## Consequences
-- Saves an estimated 1–2 weeks versus custom auth and removes the riskiest flows from our code — material for a 30-day launch.
-- Requires a vendor account (Product Owner) and configured redirect URLs per environment.
-- Public visitors (guests) are **not** vendor users; guest/customer identity stays in Agentree (email OTP per TD-08).
-- Revisit if vendor pricing at projected scale exceeds the cost of owning auth.
-
-## Needs approval
-1. Option B with the boundary above.
-2. Vendor: WorkOS AuthKit (recommended) or Clerk — after the spike confirms pricing/terms.
+- Every flow above is new attack surface: covered by dedicated tests (enumeration, token reuse/expiry, session fixation, CSRF, rate limits) and reviewed before launch.
+- Adds roughly one week of backend work versus a managed provider; accepted for cost and independence.
+- MFA (TOTP) and Google sign-in are post-MVP additions using the same session model. Enterprise SSO would need SAML/OIDC work later.
+- Public visitors (guests) are not platform users; customer identity stays separate (TD-08).
