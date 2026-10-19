@@ -7,6 +7,12 @@ Policy contract (fail closed):
 - Policies cover SELECT, INSERT, UPDATE and DELETE (USING + WITH CHECK).
 """
 
+# Tables intentionally outside tenant RLS (platform-level, not owned by one business).
+# Adding a table here is a security decision: it must hold no tenant data.
+GLOBAL_TABLES = frozenset(
+    {"alembic_version", "users", "user_sessions", "auth_tokens", "rate_limit_buckets"}
+)
+
 CURRENT_BUSINESS_FUNCTION = """
 CREATE OR REPLACE FUNCTION agentree_current_business_id() RETURNS uuid
 LANGUAGE sql STABLE PARALLEL SAFE

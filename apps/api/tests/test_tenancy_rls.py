@@ -38,7 +38,7 @@ async def two_tenants(app_factory: Factory) -> tuple[TenantContext, TenantContex
 
 
 async def _count(session: AsyncSession, table: str = "businesses") -> int:
-    return int((await session.execute(text(f"SELECT count(*) FROM {table}"))).scalar_one())  # noqa: S608
+    return int((await session.execute(text(f"SELECT count(*) FROM {table}"))).scalar_one())
 
 
 # --- fail closed without context -------------------------------------------------------
@@ -231,7 +231,7 @@ async def test_app_role_cannot_escalate_or_disable_isolation(
             await session.execute(text(stmt))
 
 
-async def test_every_public_table_has_rls_enabled(app_factory: Factory) -> None:
+async def test_every_public_table_has_rls_unless_explicitly_global(app_factory: Factory) -> None:
     async with app_factory() as session:
         rows = (
             await session.execute(
@@ -240,14 +240,16 @@ async def test_every_public_table_has_rls_enabled(app_factory: Factory) -> None:
                     SELECT c.relname, c.relrowsecurity FROM pg_class c
                     JOIN pg_namespace n ON n.oid = c.relnamespace
                     WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p')
-                      AND c.relname <> 'alembic_version'
                     """
                 )
             )
         ).all()
-    assert rows, "expected tenant tables"
-    unprotected = [name for name, enabled in rows if not enabled]
-    assert unprotected == [], f"tables without RLS: {unprotected}"
+    without_rls = {name for name, enabled in rows if not enabled}
+    assert without_rls == set(rls.GLOBAL_TABLES), (
+        "tables without RLS must be listed in GLOBAL_TABLES"
+    )
+    tenant_tables = {name for name, enabled in rows if enabled}
+    assert {"businesses", "business_memberships", "business_invitations"} <= tenant_tables
 
 
 async def test_enable_tenant_rls_helper_isolates_a_child_table(
@@ -264,7 +266,7 @@ async def test_enable_tenant_rls_helper_isolates_a_child_table(
         for stmt in rls.enable_tenant_rls(table):
             await conn.execute(text(stmt))
         await conn.execute(
-            text(f"INSERT INTO {table} (business_id) VALUES (:a), (:a), (:b)"),  # noqa: S608
+            text(f"INSERT INTO {table} (business_id) VALUES (:a), (:a), (:b)"),
             {"a": a.business_id, "b": b.business_id},
         )
     try:

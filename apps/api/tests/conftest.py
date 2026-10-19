@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from agentree.core.config import Environment, Settings
 from agentree.core.db import create_engine, create_session_factory
 from agentree.core.db_roles import APP_ROLE, MIGRATOR_ROLE, bootstrap_roles
+from agentree.core.email import OutgoingEmail
 from agentree.main import create_app
 
 API_DIR = Path(__file__).resolve().parents[1]
@@ -99,9 +100,52 @@ def db_urls() -> Iterator[DbUrls]:
         )
 
 
+WEB_ORIGIN = "https://app.test"
+
+
 @pytest.fixture(scope="session")
 def settings(db_urls: DbUrls) -> Settings:
-    return Settings(environment=Environment.TEST, database_url=db_urls.app)
+    return Settings(
+        environment=Environment.TEST,
+        database_url=db_urls.app,
+        allowed_origins=[WEB_ORIGIN],
+        public_base_url=WEB_ORIGIN,
+        session_cookie_secure=True,
+    )
+
+
+class FakeMailer:
+    def __init__(self) -> None:
+        self.sent: list[OutgoingEmail] = []
+        self.failing = False  # simulate a provider outage
+
+    async def send(self, message: OutgoingEmail) -> None:
+        if self.failing:
+            raise ConnectionRefusedError("smtp down")
+        self.sent.append(message)
+
+    def last_to(self, to: str) -> OutgoingEmail:
+        return next(m for m in reversed(self.sent) if m.to == to)
+
+    def token_for(self, to: str) -> str:
+        body = self.last_to(to).body
+        return body.split("token=", 1)[1].split()[0]
+
+
+@pytest.fixture
+def mailer() -> FakeMailer:
+    return FakeMailer()
+
+
+@pytest.fixture(autouse=True)
+async def _clear_rate_limits(db_urls: DbUrls) -> AsyncIterator[None]:
+    yield
+    engine = create_engine(db_urls.migrator)
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("DELETE FROM rate_limit_buckets"))
+    finally:
+        await engine.dispose()
 
 
 @pytest.fixture(scope="session")
@@ -136,18 +180,47 @@ async def db_session(app_engine: AsyncEngine) -> AsyncIterator[AsyncSession]:
             await trans.rollback()
 
 
+def _client(app: FastAPI) -> AsyncClient:
+    return AsyncClient(
+        transport=ASGITransport(app=app), base_url="https://api.test",
+        headers={"Origin": WEB_ORIGIN},
+    )  # fmt: skip
+
+
 @asynccontextmanager
 async def running_app(app: FastAPI) -> AsyncIterator[AsyncClient]:
-    async with app.router.lifespan_context(app):
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            yield client
+    async with app.router.lifespan_context(app), _client(app) as client:
+        yield client
+
+
+@dataclass
+class AppHarness:
+    app: FastAPI
+    mailer: FakeMailer
+    clients: list[AsyncClient]
+
+    def new_client(self) -> AsyncClient:
+        """A separate browser (own cookie jar) against the same running app."""
+        c = _client(self.app)
+        self.clients.append(c)
+        return c
 
 
 @pytest.fixture
-async def client(settings: Settings) -> AsyncIterator[AsyncClient]:
-    async with running_app(create_app(settings)) as c:
-        yield c
+async def harness(settings: Settings, mailer: FakeMailer) -> AsyncIterator[AppHarness]:
+    app = create_app(settings, mailer=mailer)
+    async with app.router.lifespan_context(app):
+        h = AppHarness(app, mailer, [])
+        try:
+            yield h
+        finally:
+            for c in h.clients:
+                await c.aclose()
+
+
+@pytest.fixture
+async def client(harness: AppHarness) -> AsyncClient:
+    return harness.new_client()
 
 
 def make_settings(**overrides: Any) -> Settings:

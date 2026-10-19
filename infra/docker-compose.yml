@@ -23,6 +23,13 @@ services:
       timeout: 3s
       retries: 20
 
+  # Development mail catcher: UI at http://localhost:8025, SMTP on 1025.
+  mailpit:
+    image: axllent/mailpit:v1.21
+    ports:
+      - "127.0.0.1:8025:8025"
+      - "127.0.0.1:1025:1025"
+
   # One-shot: create the app/migrator roles, then migrate as the schema owner.
   migrate:
     <<: *api-image
@@ -43,6 +50,12 @@ services:
       AGENTREE_ENVIRONMENT: dev
       # Unprivileged role only: the API refuses to start with a role that can bypass RLS.
       AGENTREE_DATABASE_URL: postgresql+asyncpg://agentree_app:app_dev_only@postgres:5432/agentree
+      AGENTREE_SMTP_HOST: mailpit
+      AGENTREE_SMTP_PORT: "1025"
+      AGENTREE_PUBLIC_BASE_URL: http://localhost:3000
+      AGENTREE_ALLOWED_ORIGINS: '["http://localhost:3000"]'
+      # Local http only. Production keeps the default (Secure, __Host- cookie).
+      AGENTREE_SESSION_COOKIE_SECURE: "false"
     ports:
       - "127.0.0.1:8000:8000"
     healthcheck:
@@ -53,6 +66,8 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+      mailpit:
+        condition: service_started
 
 volumes:
   pgdata:

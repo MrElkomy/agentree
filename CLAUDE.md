@@ -49,7 +49,8 @@ Note: DB roles are cluster-wide. The test harness re-bootstraps `agentree_app`/`
 
 ## Tests
 - DB tests run against real PostgreSQL (no DB mocking). Use the `db_session` fixture (rolled back per test).
-- Every tenant-scoped endpoint must be added to the cross-tenant isolation matrix (from Task 02).
+- Business-scoped endpoints (`/api/businesses/{business_id}/...`) are auto-covered by `tests/test_isolation_matrix.py`; new path params need a real B-owned value there. Other tenant-scoped endpoints need explicit isolation tests.
+- Use `tests/helpers.py` (`signup`, `create_business`, `invite_and_join`) and the `harness` fixture (fake mailer, one client per user).
 - LLM behaviour is tested with the scripted fake provider (to be introduced), never live keys in automated tests.
 
 ## Migrations
