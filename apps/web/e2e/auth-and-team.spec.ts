@@ -1,0 +1,123 @@
+import { expect, test, type Page } from "@playwright/test";
+import { linkFromEmail } from "./mailpit";
+
+const PASSWORD = "correct horse battery staple";
+const run = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+const ownerEmail = `owner-${run}@example.com`;
+const memberEmail = `member-${run}@example.com`;
+const businessName = `Acme Plumbing ${run}`;
+
+async function signUp(page: Page, email: string) {
+  await page.getByLabel("Work email").fill(email);
+  await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
+  await page.getByRole("button", { name: "Create account" }).click();
+  await expect(page.getByRole("heading", { name: "Check your email" })).toBeVisible();
+}
+
+async function verifyFromEmail(page: Page, email: string) {
+  await page.goto(await linkFromEmail(email, "/verify-email"));
+  await expect(page.getByRole("heading", { name: "Email verified" })).toBeVisible();
+  await page.getByRole("link", { name: "Continue to sign in" }).click();
+  await expect(page.getByRole("heading", { name: "Sign in to Agentree" })).toBeVisible();
+}
+
+async function logIn(page: Page, email: string) {
+  await page.getByLabel("Email", { exact: true }).fill(email);
+  await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
+  await page.getByRole("button", { name: "Sign in" }).click();
+}
+
+async function logOut(page: Page) {
+  await page.getByRole("button", { name: "Account menu" }).first().click();
+  await page.getByRole("button", { name: "Log out", exact: true }).click();
+  await expect(page).toHaveURL(/\/login$/);
+}
+
+test("unauthenticated visit to /dashboard goes to sign in", async ({ page }) => {
+  await page.goto("/dashboard");
+  await expect(page).toHaveURL(/\/login\?next=%2Fdashboard$/);
+  await expect(page.getByRole("heading", { name: "Sign in to Agentree" })).toBeVisible();
+});
+
+test("wrong password shows a generic error", async ({ page }) => {
+  await page.goto("/login");
+  await logIn(page, `nobody-${run}@example.com`);
+  await expect(page.getByRole("alert").filter({ hasText: "don't match" })).toBeVisible();
+  await expect(page).toHaveURL(/\/login$/);
+});
+
+test("owner creates a business and invites a member who joins", async ({ browser }) => {
+  // --- Owner: sign up, verify, sign in, create a business --------------------------------
+  const ownerContext = await browser.newContext();
+  const owner = await ownerContext.newPage();
+  await owner.goto("/signup");
+  await signUp(owner, ownerEmail);
+  await verifyFromEmail(owner, ownerEmail);
+  await logIn(owner, ownerEmail);
+  await expect(owner).toHaveURL(/\/dashboard$/);
+  await expect(owner.getByRole("heading", { name: "Set up your first business" })).toBeVisible();
+
+  await owner.getByLabel("Business name").fill(businessName);
+  await expect(owner.getByLabel("URL name")).toHaveValue(`acme-plumbing-${run}`);
+  await owner.getByRole("button", { name: "Create business" }).click();
+  await expect(owner).toHaveURL(/\/b\/[0-9a-f-]{36}$/);
+  await expect(owner.getByRole("heading", { level: 1, name: businessName })).toBeVisible();
+  await expect(owner.getByTestId("current-business")).toHaveText(businessName);
+
+  // The new business appears in the switcher.
+  await owner.getByRole("button", { name: /Switch business/ }).click();
+  const switcher = owner.getByRole("list", { name: "Your businesses" });
+  await expect(switcher.getByRole("link", { name: new RegExp(businessName) })).toBeVisible();
+  await owner.keyboard.press("Escape");
+
+  // --- Owner: invite a member ----------------------------------------------------------
+  await owner.getByRole("link", { name: "Members" }).first().click();
+  await expect(owner.getByRole("heading", { name: "Members", level: 1 })).toBeVisible();
+  await expect(owner.getByTestId("member-row")).toHaveCount(1);
+  await owner.getByLabel("Email", { exact: true }).fill(memberEmail);
+  await owner.getByRole("button", { name: "Send invitation" }).click();
+  await expect(owner.getByText(`Invitation sent to ${memberEmail}.`)).toBeVisible();
+  await expect(owner.getByTestId("invitation-row")).toContainText(memberEmail);
+  await logOut(owner);
+  await ownerContext.close();
+
+  // --- Member: open the invitation, sign up, verify, sign in, accept -------------------
+  const memberContext = await browser.newContext();
+  const member = await memberContext.newPage();
+  const inviteLink = await linkFromEmail(memberEmail, "/invitations/accept");
+  await member.goto(inviteLink);
+  await expect(member).toHaveURL(/\/login\?next=%2Finvitations%2Faccept/);
+  await member.getByRole("link", { name: "Create an account" }).click();
+  await expect(member).toHaveURL(/\/signup\?next=/);
+  await signUp(member, memberEmail);
+  await verifyFromEmail(member, memberEmail);
+  await logIn(member, memberEmail);
+
+  await expect(member).toHaveURL(/\/invitations\/accept\?token=/);
+  await expect(member.getByText(memberEmail)).toBeVisible();
+  await member.getByRole("button", { name: "Accept invitation" }).click();
+  await expect(member.getByRole("heading", { name: `You've joined ${businessName}` })).toBeVisible();
+  await member.getByRole("link", { name: `Open ${businessName}` }).click();
+
+  // --- Member: sees the business as a member, cannot invite ----------------------------
+  await expect(member.getByRole("heading", { level: 1, name: businessName })).toBeVisible();
+  await expect(member.getByText("Your role")).toBeVisible();
+  await expect(member.locator("dd").getByText("Member", { exact: true })).toBeVisible();
+  await member.getByRole("link", { name: "Members" }).first().click();
+  await expect(member.getByRole("heading", { name: "Members", level: 1 })).toBeVisible();
+  await expect(member.getByTestId("member-row")).toHaveCount(2);
+  await expect(member.getByRole("heading", { name: "Invite someone" })).toHaveCount(0);
+  await expect(member.getByRole("button", { name: "Send invitation" })).toHaveCount(0);
+  await expect(member.getByRole("heading", { name: "Pending invitations" })).toHaveCount(0);
+
+  // The member's own dashboard lists the business with the member role.
+  await member.goto("/dashboard");
+  const row = member.getByRole("link", { name: new RegExp(businessName) });
+  await expect(row).toContainText("Member");
+
+  await logOut(member);
+  // After logout the backend session is gone: protected pages send you to sign in.
+  await member.goto("/dashboard");
+  await expect(member).toHaveURL(/\/login\?next=%2Fdashboard$/);
+  await memberContext.close();
+});
