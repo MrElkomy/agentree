@@ -53,6 +53,7 @@ def test_secure_deployed_configuration_is_accepted(environment: str) -> None:
         ({"smtp_password": None}, "smtp_username and smtp_password"),
         ({"mail_from": "Agentree <no-reply@localhost>"}, "mail_from"),
         ({"master_key": None}, "master_key is required"),
+        ({"llm_demo_mode": True}, "llm_demo_mode must be false"),
     ],
 )
 def test_insecure_production_configuration_fails_closed(

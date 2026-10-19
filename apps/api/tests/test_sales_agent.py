@@ -165,6 +165,23 @@ async def test_message_length_limit(harness: AppHarness) -> None:
     assert r.status_code == 422
 
 
+async def test_demo_mode_replaces_providers_without_network(settings, mailer) -> None:  # type: ignore[no-untyped-def]
+    from agentree.llm.fake import DEMO_REPLY
+    from agentree.main import create_app
+    from tests.conftest import AppHarness as H
+
+    app = create_app(settings.model_copy(update={"llm_demo_mode": True}), mailer=mailer)
+    async with app.router.lifespan_context(app):
+        h = H(app, mailer, [], {})
+        try:
+            owner, base = await _business_with_agent(h)
+            r = await owner.client.post(f"{base}/agents/sales/console", json={"message": "Hi"})
+            assert r.status_code == 200 and r.json()["reply"] == DEMO_REPLY
+        finally:
+            for c in h.clients:
+                await c.aclose()
+
+
 # --- grounding: irrelevant queries, conflicts, insufficient information ----------------
 
 

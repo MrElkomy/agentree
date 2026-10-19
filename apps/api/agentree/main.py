@@ -17,12 +17,17 @@ from agentree.health.api import router as health_router
 from agentree.identity.api import router as auth_router
 from agentree.knowledge.api import router as knowledge_router
 from agentree.llm.base import LLMProvider, ProviderName
+from agentree.llm.fake import DemoProvider
 from agentree.llm.http_providers import PROVIDERS
 from agentree.providers.api import router as providers_router
 from agentree.providers.service import build_vault
 from agentree.tenancy.api import router as tenancy_router
 
 logger = logging.getLogger(__name__)
+
+
+def _demo_factory(name: ProviderName) -> Callable[[], LLMProvider]:
+    return lambda: DemoProvider(name=name)
 
 
 def create_app(
@@ -32,6 +37,10 @@ def create_app(
 ) -> FastAPI:
     settings = settings or get_settings()
     mailer = mailer or SmtpEmailSender(settings)
+    providers = llm_providers or dict(PROVIDERS)
+    if llm_providers is None and settings.llm_demo_mode:
+        logger.warning("LLM demo mode is on: AI providers are replaced by canned replies")
+        providers = {n: _demo_factory(n) for n in ProviderName}
     configure_logging(settings.log_level)
 
     @asynccontextmanager
@@ -48,7 +57,7 @@ def create_app(
         app.state.settings = settings
         app.state.mailer = mailer
         app.state.vault = build_vault(settings)
-        app.state.llm_providers = llm_providers or dict(PROVIDERS)
+        app.state.llm_providers = providers
         app.state.engine = engine
         app.state.session_factory = create_session_factory(engine)
         try:

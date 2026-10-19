@@ -57,6 +57,9 @@ class Settings(BaseSettings):
     smtp_password: SecretStr | None = None
     smtp_starttls: bool = False
 
+    # Dev/E2E only: replace every AI provider with a canned demo reply (no network calls).
+    llm_demo_mode: bool = False
+
     # BYOK vault master key: base64 of 32 random bytes. Required to store/read provider keys.
     master_key: SecretStr | None = None
     master_key_id: str = "k1"
@@ -87,6 +90,8 @@ class Settings(BaseSettings):
             problems.append("mail_from must use a real sending domain")
         if self.master_key is None:
             problems.append("master_key is required")
+        if self.llm_demo_mode:
+            problems.append("llm_demo_mode must be false")
         if problems:
             raise ValueError(f"insecure {self.environment} configuration: " + "; ".join(problems))
         return self

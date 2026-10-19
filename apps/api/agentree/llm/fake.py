@@ -22,3 +22,19 @@ class FakeProvider:
             raise ProviderError(self.name, reply)
         return ChatResult(text=reply, provider=self.name, model=request.model,
                           input_tokens=10, output_tokens=len(reply.split()))  # fmt: skip
+
+
+DEMO_REPLY = (
+    "This is a demo reply from Agentree's local demo mode. No AI provider was called. "
+    "Connect a real provider key to get real answers."
+)
+
+
+@dataclass
+class DemoProvider:
+    """Canned replies for local demos and browser E2E tests (llm_demo_mode, dev only)."""
+
+    name: ProviderName = ProviderName.OPENAI
+
+    async def chat(self, api_key: str, request: ChatRequest) -> ChatResult:
+        return ChatResult(text=DEMO_REPLY, provider=self.name, model=request.model)

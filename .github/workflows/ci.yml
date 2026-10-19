@@ -155,6 +155,7 @@ jobs:
     env:
       NEXT_TELEMETRY_DISABLED: "1"
       AGENTREE_API_URL: http://127.0.0.1:8000
+      AGENTREE_LLM_DEMO_MODE: "true"  # canned agent replies; no real AI provider in CI
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Start backend stack (postgres, migrate, api, mailpit)

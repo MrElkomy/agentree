@@ -1,37 +1,11 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+import { logIn, logOut, runId, signUp, verifyFromEmail } from "./helpers";
 import { linkFromEmail } from "./mailpit";
 
-const PASSWORD = "correct horse battery staple";
-const run = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+const run = runId();
 const ownerEmail = `owner-${run}@example.com`;
 const memberEmail = `member-${run}@example.com`;
 const businessName = `Acme Plumbing ${run}`;
-
-async function signUp(page: Page, email: string) {
-  await page.getByLabel("Work email").fill(email);
-  await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
-  await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page.getByRole("heading", { name: "Check your email" })).toBeVisible();
-}
-
-async function verifyFromEmail(page: Page, email: string) {
-  await page.goto(await linkFromEmail(email, "/verify-email"));
-  await expect(page.getByRole("heading", { name: "Email verified" })).toBeVisible();
-  await page.getByRole("link", { name: "Continue to sign in" }).click();
-  await expect(page.getByRole("heading", { name: "Sign in to Agentree" })).toBeVisible();
-}
-
-async function logIn(page: Page, email: string) {
-  await page.getByLabel("Email", { exact: true }).fill(email);
-  await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
-  await page.getByRole("button", { name: "Sign in" }).click();
-}
-
-async function logOut(page: Page) {
-  await page.getByRole("button", { name: "Account menu" }).first().click();
-  await page.getByRole("button", { name: "Log out", exact: true }).click();
-  await expect(page).toHaveURL(/\/login$/);
-}
 
 test("unauthenticated visit to /dashboard goes to sign in", async ({ page }) => {
   await page.goto("/dashboard");

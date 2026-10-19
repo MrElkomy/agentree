@@ -51,21 +51,22 @@ export default function BusinessOverviewPage() {
 
       <section aria-labelledby="next-heading" className="flex flex-col gap-4">
         <h2 id="next-heading" className="text-lg font-semibold">
-          Coming to this workspace
+          Get your Sales Agent answering
         </h2>
-        <ul className="grid gap-px overflow-hidden rounded-lg border border-line bg-line sm:grid-cols-2">
+        <ol className="grid gap-px overflow-hidden rounded-lg border border-line bg-line sm:grid-cols-3">
           {[
-            ["AI Providers", "Connect your own model provider keys."],
-            ["Knowledge", "Upload the documents your agents answer from."],
-            ["Agents", "Create agents for support, sales and bookings."],
-            ["Conversations", "Review what your agents said to customers."],
-          ].map(([title, text]) => (
+            ["1. Connect a provider", "Add your own AI key (and a backup).", "ai-providers"],
+            ["2. Add knowledge", "Write and publish what customers ask about.", "knowledge"],
+            ["3. Try the agent", "Chat with it like a customer would.", "agents/sales"],
+          ].map(([title, text, path]) => (
             <li key={title} className="bg-surface p-5">
-              <p className="font-semibold">{title}</p>
+              <Link href={`/b/${business.id}/${path}`} className="font-semibold text-canopy-deep hover:underline">
+                {title}
+              </Link>
               <p className="mt-1 text-sm text-ink-muted">{text}</p>
             </li>
           ))}
-        </ul>
+        </ol>
       </section>
     </div>
   );
