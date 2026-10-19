@@ -180,3 +180,87 @@ async def test_demo_mode_replaces_providers_without_network(settings, mailer) ->
         finally:
             for c in h.clients:
                 await c.aclose()
+
+
+# --- grounding: irrelevant queries, conflicts, insufficient information ----------------
+
+
+async def _publish(owner: Account, base: str, title: str, body: str) -> None:
+    r = await owner.client.post(f"{base}/knowledge", json={"title": title, "body": body})
+    await owner.client.post(f"{base}/knowledge/{r.json()['id']}/publish")
+
+
+async def _large_kb(owner: Account, base: str) -> None:
+    # Above SMALL_KB_ENTRIES so retrieval is search-based, not "include everything".
+    from agentree.knowledge.service import SMALL_KB_ENTRIES
+
+    for i in range(SMALL_KB_ENTRIES + 1):
+        await _publish(
+            owner, base, f"Chair model {i}", f"Chair model {i} is made of oak and steel."
+        )
+
+
+async def test_irrelevant_question_gets_no_knowledge_and_a_no_guess_instruction(
+    harness: AppHarness,
+) -> None:
+    owner, base = await _business_with_agent(harness)
+    await _large_kb(owner, base)
+    r = await owner.client.post(
+        f"{base}/agents/sales/console", json={"message": "What's the weather on Mars?"}
+    )
+    assert r.status_code == 200 and r.json()["sources"] == []
+    system = harness.llm[ProviderName.OPENAI].calls[-1][1].messages[0].content
+    assert "No published business knowledge matches this message" in system
+    assert "Do not guess" in system
+    assert "oak and steel" not in system and "$299" not in system
+
+
+async def test_insufficient_information_is_not_filled_with_unrelated_entries(
+    harness: AppHarness,
+) -> None:
+    owner, base = await _business_with_agent(harness)  # publishes only "Pricing"
+    await _large_kb(owner, base)
+    r = await owner.client.post(
+        f"{base}/agents/sales/console", json={"message": "Do you offer a warranty?"}
+    )
+    assert r.json()["sources"] == []  # nothing about warranties exists
+    system = harness.llm[ProviderName.OPENAI].calls[-1][1].messages[0].content
+    assert "No published business knowledge matches this message" in system
+
+
+async def test_relevant_entry_is_selected_among_similar_ones(harness: AppHarness) -> None:
+    owner, base = await _business_with_agent(harness)
+    await _large_kb(owner, base)
+    await _publish(owner, base, "Delivery", "We deliver within 5 business days across the US.")
+    r = await owner.client.post(
+        f"{base}/agents/sales/console", json={"message": "How long does delivery take?"}
+    )
+    titles = [s["title"] for s in r.json()["sources"]]
+    assert titles and titles[0] == "Delivery"
+    assert not any(t.startswith("Chair model") for t in titles)
+
+
+async def test_conflicting_entries_are_both_shown_with_a_confirm_rule(harness: AppHarness) -> None:
+    owner, base = await _business_with_agent(harness)  # "Pricing": Ergo chair costs $299
+    await _publish(owner, base, "Old price list", "The Ergo chair costs $349.")
+    r = await owner.client.post(
+        f"{base}/agents/sales/console", json={"message": "Ergo chair price?"}
+    )
+    assert {s["title"] for s in r.json()["sources"]} == {"Pricing", "Old price list"}
+    system = harness.llm[ProviderName.OPENAI].calls[-1][1].messages[0].content
+    assert "$299" in system and "$349" in system  # nothing silently dropped
+    assert "contradict each other, do not pick one" in system
+
+
+async def test_no_published_knowledge_at_all(harness: AppHarness) -> None:
+    owner = await signup(harness)
+    biz = await create_business(owner)
+    base = f"/api/businesses/{biz['id']}"
+    await owner.client.put(f"{base}/ai-providers/primary", json={
+        "provider": "openai", "model": "gpt-4o-mini", "api_key": PRIMARY_KEY, "verify": False})  # fmt: skip
+    r = await owner.client.post(
+        f"{base}/agents/sales/console", json={"message": "Price of the Ergo chair?"}
+    )
+    assert r.status_code == 200 and r.json()["sources"] == []
+    system = harness.llm[ProviderName.OPENAI].calls[-1][1].messages[0].content
+    assert "No published business knowledge matches this message" in system
