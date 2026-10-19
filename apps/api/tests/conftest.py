@@ -1,8 +1,10 @@
 """Test harness backed by a real PostgreSQL server.
 
-AGENTREE_TEST_DATABASE_URL must point at a server where the user may CREATE DATABASE,
-e.g. postgresql+asyncpg://postgres:postgres@localhost:5432/postgres. Each test run
-creates a fresh database, migrates it to head, and drops it afterwards.
+AGENTREE_TEST_DATABASE_URL must point at a server as a superuser (or a role allowed to
+CREATE DATABASE and CREATE ROLE), e.g. postgresql+asyncpg://postgres:postgres@localhost/postgres.
+Each run creates a fresh database, bootstraps the agentree_app / agentree_migrator roles,
+migrates to head as the migrator, and drops the database afterwards. Application code
+under test always connects as agentree_app, so RLS is enforced exactly as in production.
 """
 
 import asyncio
@@ -11,6 +13,7 @@ import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -21,12 +24,24 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 from sqlalchemy.engine import make_url
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from agentree.core.config import Environment, Settings
+from agentree.core.db import create_engine, create_session_factory
+from agentree.core.db_roles import APP_ROLE, MIGRATOR_ROLE, bootstrap_roles
 from agentree.main import create_app
 
 API_DIR = Path(__file__).resolve().parents[1]
+# Test-only credentials for throwaway roles on a throwaway database.
+APP_PASSWORD = "app_test_only"  # noqa: S105
+MIGRATOR_PASSWORD = "migrator_test_only"  # noqa: S105
+
+
+@dataclass(frozen=True)
+class DbUrls:
+    admin: str
+    migrator: str
+    app: str
 
 
 def _in_thread[T](fn: Callable[[], T]) -> T:
@@ -37,7 +52,7 @@ def _in_thread[T](fn: Callable[[], T]) -> T:
 
 
 async def _admin_execute(admin_url: str, sql: str) -> None:
-    engine = create_async_engine(admin_url, isolation_level="AUTOCOMMIT")
+    engine = create_engine(admin_url, isolation_level="AUTOCOMMIT")
     try:
         async with engine.connect() as conn:
             await conn.execute(text(sql))
@@ -52,42 +67,66 @@ def alembic_config(database_url: str) -> Config:
     return cfg
 
 
+def _with(url: str, **parts: Any) -> str:
+    return make_url(url).set(**parts).render_as_string(hide_password=False)
+
+
 @pytest.fixture(scope="session")
-def database_url() -> Iterator[str]:
-    admin_url = os.environ.get("AGENTREE_TEST_DATABASE_URL")
-    if not admin_url:
+def db_urls() -> Iterator[DbUrls]:
+    server_url = os.environ.get("AGENTREE_TEST_DATABASE_URL")
+    if not server_url:
         pytest.fail("AGENTREE_TEST_DATABASE_URL is not set; DB tests need a real PostgreSQL.")
     name = f"agentree_test_{uuid.uuid4().hex[:12]}"
-    url = make_url(admin_url).set(database=name).render_as_string(hide_password=False)
-
-    _in_thread(lambda: asyncio.run(_admin_execute(admin_url, f'CREATE DATABASE "{name}"')))
+    urls = DbUrls(
+        admin=_with(server_url, database=name),
+        migrator=_with(
+            server_url, database=name, username=MIGRATOR_ROLE, password=MIGRATOR_PASSWORD
+        ),
+        app=_with(server_url, database=name, username=APP_ROLE, password=APP_PASSWORD),
+    )
+    _in_thread(lambda: asyncio.run(_admin_execute(server_url, f'CREATE DATABASE "{name}"')))
     try:
-        _in_thread(lambda: command.upgrade(alembic_config(url), "head"))
-        yield url
+        _in_thread(
+            lambda: asyncio.run(bootstrap_roles(urls.admin, APP_PASSWORD, MIGRATOR_PASSWORD))
+        )
+        _in_thread(lambda: command.upgrade(alembic_config(urls.migrator), "head"))
+        yield urls
     finally:
         _in_thread(
             lambda: asyncio.run(
-                _admin_execute(admin_url, f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
+                _admin_execute(server_url, f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
             )
         )
 
 
 @pytest.fixture(scope="session")
-def settings(database_url: str) -> Settings:
-    return Settings(environment=Environment.TEST, database_url=database_url)
+def settings(db_urls: DbUrls) -> Settings:
+    return Settings(environment=Environment.TEST, database_url=db_urls.app)
 
 
 @pytest.fixture(scope="session")
-async def engine(database_url: str) -> AsyncIterator[AsyncEngine]:
-    eng = create_async_engine(database_url)
+async def app_engine(db_urls: DbUrls) -> AsyncIterator[AsyncEngine]:
+    eng = create_engine(db_urls.app)
     yield eng
     await eng.dispose()
 
 
+@pytest.fixture(scope="session")
+async def migrator_engine(db_urls: DbUrls) -> AsyncIterator[AsyncEngine]:
+    eng = create_engine(db_urls.migrator)
+    yield eng
+    await eng.dispose()
+
+
+@pytest.fixture(scope="session")
+def app_factory(app_engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
+    return create_session_factory(app_engine)
+
+
 @pytest.fixture
-async def db_session(engine: AsyncEngine) -> AsyncIterator[AsyncSession]:
-    """Session inside an outer transaction that is always rolled back."""
-    async with engine.connect() as conn:
+async def db_session(app_engine: AsyncEngine) -> AsyncIterator[AsyncSession]:
+    """App-role session inside an outer transaction that is always rolled back."""
+    async with app_engine.connect() as conn:
         trans = await conn.begin()
         session = AsyncSession(bind=conn, join_transaction_mode="create_savepoint")
         try:

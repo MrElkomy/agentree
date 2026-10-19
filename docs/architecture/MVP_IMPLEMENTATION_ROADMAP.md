@@ -40,7 +40,7 @@ Each slice below lists only what is specific to it.
 
 ## Phase 1 — SaaS foundation
 
-### 1.1 Tenancy primitives + RLS
+### 1.1 Tenancy primitives + RLS — ✅ implemented (Task 02, see `TENANCY.md`)
 - **Objective:** `TenantContext`, tenant-aware repository base, RLS policies, app/migration DB roles.
 - **Dependencies:** 0.1.
 - **Expected changes:** `agentree/tenancy/*`, migration creating roles/policies, test fixtures for two businesses.

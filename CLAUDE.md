@@ -19,11 +19,11 @@ docs/          product + architecture docs
 ## Architecture rules (approved)
 - Modular monolith. Modules live in `agentree/<module>/` with `api.py`, `service.py`, `models.py`, `schemas.py`. Other modules call `service.py` only, never another module's models or tables. `agentree/core` must not import feature modules. Enforced by import-linter (`[tool.importlinter]` in `apps/api/pyproject.toml`); add a contract when adding a module.
 - **Tenant context is derived, never accepted.** Business access comes from authenticated membership (dashboard) or validated public page / widget configuration (public). A client-supplied `business_id` only selects; it never authorizes.
-- Every tenant-owned row has `business_id`; PostgreSQL Row-Level Security is enabled on tenant tables from their first migration; the app DB role must not own tables or have `BYPASSRLS`.
+- Every tenant-owned row has `business_id`; RLS enabled in the table's first migration via `enable_tenant_rls()`; tenant tables are only touched inside `tenant_session(factory, ctx)`. The app connects as `agentree_app` (unprivileged; startup guard enforces it); migrations run as `agentree_migrator`. Full rules: `docs/architecture/TENANCY.md`.
 - Authorization and approvals are enforced in the backend, never by the LLM and never by Next.js middleware.
 - Model output, uploaded files, retrieved documents and external responses are untrusted input.
 - Background work uses the Postgres-backed queue (to be introduced); no Redis in the MVP.
-- Authentication solution is **not decided** (TD-04 / U-17); do not build auth before that ADR is approved.
+- Authentication: `docs/architecture/ADR-001-authentication.md` (proposed). Do not build auth before it is approved.
 
 ## Security rules
 - No secrets in the repo, prompts, logs, errors or frontend. Config comes from `AGENTREE_*` env vars (`.env.example` lists names only).
@@ -37,13 +37,15 @@ uv sync                                   # install
 uv run ruff check . && uv run ruff format --check .
 uv run mypy                               # strict
 uv run lint-imports                       # module boundaries
-uv run alembic upgrade head               # needs AGENTREE_DATABASE_URL
-uv run pytest                             # needs AGENTREE_TEST_DATABASE_URL (server where user may CREATE DATABASE)
+uv run python -m agentree.core.db_roles   # once per DB: AGENTREE_ADMIN_DATABASE_URL, AGENTREE_APP_DB_PASSWORD, AGENTREE_MIGRATOR_DB_PASSWORD
+uv run alembic upgrade head               # needs AGENTREE_MIGRATION_DATABASE_URL (agentree_migrator)
+uv run pytest                             # needs AGENTREE_TEST_DATABASE_URL (superuser on a test server)
 uv run uvicorn agentree.main:create_app --factory --reload
 ```
 In the Claude Code cloud container: `service postgresql start`, then use
 `postgresql+asyncpg://postgres:postgres@localhost:5432/postgres` as the test URL (set the password once with `ALTER USER`).
 Dev stack: `docker compose -f infra/docker-compose.yml up --build`.
+Note: DB roles are cluster-wide. The test harness re-bootstraps `agentree_app`/`agentree_migrator` with test passwords, so a local dev database on the same cluster must use those passwords (or a separate cluster).
 
 ## Tests
 - DB tests run against real PostgreSQL (no DB mocking). Use the `db_session` fixture (rolled back per test).

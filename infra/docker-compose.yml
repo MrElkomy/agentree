@@ -1,41 +1,48 @@
 # Development stack. Credentials below are local-only placeholders, not secrets.
 name: agentree-dev
 
+x-api-image: &api-image
+  build:
+    context: ../apps/api
+    dockerfile: ../../infra/Dockerfile.api
+
 services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: agentree
-      POSTGRES_PASSWORD: agentree_dev_only
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_dev_only
       POSTGRES_DB: agentree
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U agentree -d agentree"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d agentree"]
       interval: 2s
       timeout: 3s
       retries: 20
 
+  # One-shot: create the app/migrator roles, then migrate as the schema owner.
   migrate:
-    build:
-      context: ../apps/api
-      dockerfile: ../../infra/Dockerfile.api
+    <<: *api-image
     environment:
-      AGENTREE_DATABASE_URL: postgresql+asyncpg://agentree:agentree_dev_only@postgres:5432/agentree
-    command: ["alembic", "upgrade", "head"]
+      AGENTREE_ADMIN_DATABASE_URL: postgresql+asyncpg://postgres:postgres_dev_only@postgres:5432/agentree
+      AGENTREE_APP_DB_PASSWORD: app_dev_only
+      AGENTREE_MIGRATOR_DB_PASSWORD: migrator_dev_only
+      AGENTREE_MIGRATION_DATABASE_URL: postgresql+asyncpg://agentree_migrator:migrator_dev_only@postgres:5432/agentree
+      AGENTREE_DATABASE_URL: postgresql+asyncpg://agentree_app:app_dev_only@postgres:5432/agentree
+    command: ["sh", "-c", "python -m agentree.core.db_roles && alembic upgrade head"]
     depends_on:
       postgres:
         condition: service_healthy
 
   api:
-    build:
-      context: ../apps/api
-      dockerfile: ../../infra/Dockerfile.api
+    <<: *api-image
     environment:
       AGENTREE_ENVIRONMENT: dev
-      AGENTREE_DATABASE_URL: postgresql+asyncpg://agentree:agentree_dev_only@postgres:5432/agentree
+      # Unprivileged role only: the API refuses to start with a role that can bypass RLS.
+      AGENTREE_DATABASE_URL: postgresql+asyncpg://agentree_app:app_dev_only@postgres:5432/agentree
     ports:
       - "127.0.0.1:8000:8000"
     healthcheck:

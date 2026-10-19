@@ -21,10 +21,13 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="AGENTREE_", extra="ignore")
 
     environment: Environment = Environment.DEV
-    # SecretStr keeps the URL (which may contain a password) out of reprs and logs.
+    # SecretStr keeps URLs (which contain passwords) out of reprs and logs.
+    # The application URL must use the unprivileged `agentree_app` role.
     database_url: SecretStr = Field(
-        description="SQLAlchemy async URL, e.g. postgresql+asyncpg://user:pass@host:5432/db",
+        description="App role URL, e.g. postgresql+asyncpg://agentree_app:pass@host:5432/db",
     )
+    # Migrations run as `agentree_migrator`, the owner of all tables. Never used by the app.
+    migration_database_url: SecretStr | None = None
     db_connect_timeout_seconds: float = Field(default=3.0, gt=0)
     log_level: str = "INFO"
 

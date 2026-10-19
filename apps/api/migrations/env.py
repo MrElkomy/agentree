@@ -7,21 +7,26 @@ from alembic import context
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import create_async_engine
 
+import agentree.tenancy.models  # noqa: F401  (register models on Base.metadata)
 from agentree.core.config import Settings
+from agentree.core.models import Base
 
 config = context.config
 if config.config_file_name is not None and config.attributes.get("configure_logger", True):
     fileConfig(config.config_file_name)
 
-# Populated as modules add SQLAlchemy models.
-target_metadata = None
+target_metadata = Base.metadata
 
 
 def _database_url() -> str:
     url = config.attributes.get("database_url")
     if url:
         return str(url)
-    return Settings().database_url.get_secret_value()
+    # Migrations must run as the schema owner (agentree_migrator), never the app role.
+    migration_url = Settings().migration_database_url
+    if migration_url is None:
+        raise RuntimeError("AGENTREE_MIGRATION_DATABASE_URL is required to run migrations")
+    return migration_url.get_secret_value()
 
 
 def run_migrations_offline() -> None:

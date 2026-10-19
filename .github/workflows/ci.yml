@@ -34,7 +34,11 @@ jobs:
           --health-retries 20
     env:
       AGENTREE_TEST_DATABASE_URL: postgresql+asyncpg://postgres:postgres_ci_only@localhost:5432/postgres
-      AGENTREE_DATABASE_URL: postgresql+asyncpg://postgres:postgres_ci_only@localhost:5432/agentree_ci
+      AGENTREE_ADMIN_DATABASE_URL: postgresql+asyncpg://postgres:postgres_ci_only@localhost:5432/agentree_ci
+      AGENTREE_APP_DB_PASSWORD: app_ci_only
+      AGENTREE_MIGRATOR_DB_PASSWORD: migrator_ci_only
+      AGENTREE_MIGRATION_DATABASE_URL: postgresql+asyncpg://agentree_migrator:migrator_ci_only@localhost:5432/agentree_ci
+      AGENTREE_DATABASE_URL: postgresql+asyncpg://agentree_app:app_ci_only@localhost:5432/agentree_ci
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: astral-sh/setup-uv@e06108dd0aef18192324c70427afc47652e63a82 # v7.5.0
@@ -52,12 +56,14 @@ jobs:
         run: uv run mypy
       - name: Module boundaries
         run: uv run lint-imports
-      - name: Migration round-trip
+      - name: Role bootstrap and migration round-trip (as migrator)
         run: |
           PGPASSWORD=postgres_ci_only psql -h localhost -U postgres -c "CREATE DATABASE agentree_ci"
+          uv run python -m agentree.core.db_roles
           uv run alembic upgrade head
           uv run alembic downgrade base
           uv run alembic upgrade head
+          uv run alembic check
       - name: Tests (real PostgreSQL)
         run: uv run pytest -v
       - name: Worker placeholder starts
@@ -102,6 +108,11 @@ jobs:
           code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/readyz)
           test "$code" = "503"
           curl -fsS http://127.0.0.1:8000/healthz
+      - name: Readiness recovers after database restart
+        run: |
+          docker compose -f infra/docker-compose.yml start postgres
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8000/readyz && break; sleep 2; done
+          curl -fsS http://127.0.0.1:8000/readyz
       - name: API runs as non-root
         run: test "$(docker compose -f infra/docker-compose.yml exec -T api id -u)" = "10001"
       - name: Logs on failure

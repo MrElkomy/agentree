@@ -105,7 +105,7 @@ Rules: at least one Owner always exists; nobody can grant a role higher than the
 | U-10 | Risk-based auto-publish of knowledge | Manual publish | Phase 3 |
 | U-11 | Hosting provider/region, managed vs self-run Postgres | Hetzner US + self-run with WAL-G | Phase 7 |
 | U-12 | Individual (non-verbatim) conversation summaries beyond 30 days | **Unresolved.** Not retained beyond the 30-day raw window until a data-minimization, access, deletion and retention policy is approved. *Approved separately:* privacy-conscious daily aggregated operational metrics, under their own documented retention policy. | Phase 3 |
-| U-17 | Authentication solution (managed vs in-house) | ADR required before slice 1.2 | Phase 1 |
+| U-17 | Authentication solution (managed vs in-house) | ADR-001 proposes managed identity (WorkOS AuthKit candidate) + Agentree-issued sessions; awaiting approval | Phase 1 |
 | U-13 | Memory review schedule | `review_at` = 180 days default | Phase 3 |
 | U-14 | Telegram two-way Executive chat in MVP | Outbound notifications + deep links only | Phase 6 |
 | U-15 | Billing/payment implementation | Out of MVP code until prices exist | Post-MVP |
