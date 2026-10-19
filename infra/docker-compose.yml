@@ -1,0 +1,51 @@
+# Development stack. Credentials below are local-only placeholders, not secrets.
+name: agentree-dev
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: agentree
+      POSTGRES_PASSWORD: agentree_dev_only
+      POSTGRES_DB: agentree
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agentree -d agentree"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    build:
+      context: ../apps/api
+      dockerfile: ../../infra/Dockerfile.api
+    environment:
+      AGENTREE_DATABASE_URL: postgresql+asyncpg://agentree:agentree_dev_only@postgres:5432/agentree
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build:
+      context: ../apps/api
+      dockerfile: ../../infra/Dockerfile.api
+    environment:
+      AGENTREE_ENVIRONMENT: dev
+      AGENTREE_DATABASE_URL: postgresql+asyncpg://agentree:agentree_dev_only@postgres:5432/agentree
+    ports:
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz')"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:
