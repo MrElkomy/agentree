@@ -53,9 +53,17 @@ asyncio_default_test_loop_scope = "session"
 
 [tool.importlinter]
 root_package = "agentree"
+include_external_packages = true
 
 [[tool.importlinter.contracts]]
 name = "core is a foundation layer and must not import feature modules"
 type = "forbidden"
 source_modules = ["agentree.core"]
-forbidden_modules = ["agentree.health", "agentree.main", "agentree.worker"]
+forbidden_modules = ["agentree.health", "agentree.tenancy", "agentree.main", "agentree.worker"]
+
+[[tool.importlinter.contracts]]
+name = "tenancy does not depend on the HTTP layer"
+type = "forbidden"
+source_modules = ["agentree.tenancy"]
+forbidden_modules = ["agentree.health", "agentree.main", "fastapi"]
+allow_indirect_imports = true

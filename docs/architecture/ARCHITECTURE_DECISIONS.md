@@ -54,7 +54,7 @@ Not approved (V2 explicit): risk-based knowledge publishing — remains a recomm
 | TD-01 | ✅ approved — Modular monolith: one Python package (`api` + `worker` entrypoints) + one Next.js app; module boundaries enforced by import-linter. | §2 |
 | TD-02 | ✅ approved — Next.js (App Router, TypeScript strict, Tailwind, shadcn/ui) + FastAPI (Python 3.12+, Pydantic v2). TS client generated from OpenAPI. | §3 |
 | TD-03 | PostgreSQL 16+, SQLAlchemy 2 (async, asyncpg), Alembic. UUIDv7 ids. | §5 |
-| TD-04 | **Not decided.** Before slice 1.2, an ADR compares a mature supported auth solution against in-house FastAPI auth (speed, session security, multi-business membership support, cost, operational burden, extensibility). Server-side membership authorization stays in Agentree either way. | §4 |
+| TD-04 | ✅ approved — First-party authentication in FastAPI: Argon2id, opaque hashed server-side sessions in HttpOnly/Secure/SameSite cookies, hashed single-use expiring tokens for verification/reset, CSRF Origin check, rate limits. No managed auth provider. See ADR-001. | §4 |
 | TD-05 | ✅ approved (RLS) — Tenant context derived from membership; `business_id` on every tenant row; composite FKs; repository layer requires `TenantContext`; **RLS enabled from day one**; auto-generated isolation test matrix. | §5 |
 | TD-06 | ✅ approved — **Deviation from V2 candidate stack (Redis):** Postgres-backed job queue (Procrastinate or custom `SKIP LOCKED` table — final pick in Task 03). No Redis in MVP. | §6 |
 | TD-07 | ✅ approved — Own thin agent runtime; no agent frameworks. Agents = versioned configuration. Routing via validated `transfer_to` tool. | §7 |
@@ -105,7 +105,7 @@ Rules: at least one Owner always exists; nobody can grant a role higher than the
 | U-10 | Risk-based auto-publish of knowledge | Manual publish | Phase 3 |
 | U-11 | Hosting provider/region, managed vs self-run Postgres | Hetzner US + self-run with WAL-G | Phase 7 |
 | U-12 | Individual (non-verbatim) conversation summaries beyond 30 days | **Unresolved.** Not retained beyond the 30-day raw window until a data-minimization, access, deletion and retention policy is approved. *Approved separately:* privacy-conscious daily aggregated operational metrics, under their own documented retention policy. | Phase 3 |
-| U-17 | Authentication solution (managed vs in-house) | ADR required before slice 1.2 | Phase 1 |
+| U-17 | Authentication solution | **Resolved 2026-10-19:** first-party FastAPI auth, no managed provider (ADR-001) | — |
 | U-13 | Memory review schedule | `review_at` = 180 days default | Phase 3 |
 | U-14 | Telegram two-way Executive chat in MVP | Outbound notifications + deep links only | Phase 6 |
 | U-15 | Billing/payment implementation | Out of MVP code until prices exist | Post-MVP |
