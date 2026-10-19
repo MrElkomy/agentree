@@ -47,13 +47,14 @@ def test_matrix_covers_known_routes() -> None:
     assert len(BUSINESS_ROUTES) >= 7, BUSINESS_ROUTES
 
 
-async def _snapshot(client: AsyncClient, business_id: str) -> tuple[object, object, object, object]:
+async def _snapshot(client: AsyncClient, business_id: str) -> tuple[object, ...]:
     base = f"/api/businesses/{business_id}"
     return (
         (await client.get(base)).json(),
         (await client.get(f"{base}/members")).json(),
         (await client.get(f"{base}/invitations")).json(),
         (await client.get(f"{base}/ai-providers")).json(),
+        (await client.get(f"{base}/knowledge")).json(),
     )
 
 
@@ -68,6 +69,13 @@ async def test_owner_of_a_cannot_touch_b(harness: AppHarness, method: str, path:
         f"/api/businesses/{b['id']}/ai-providers/primary", json=PLACEHOLDER_BODIES["PUT"]
     )
     assert r.status_code == 200, r.text
+    entry = await bob.client.post(
+        f"/api/businesses/{b['id']}/knowledge", json={"title": "B only", "body": "B knowledge"}
+    )
+    convo = await bob.client.post(
+        f"/api/businesses/{b['id']}/agents/sales/console", json={"message": "hello"}
+    )
+    assert convo.status_code == 200, convo.text
     pending = await bob.client.post(
         f"/api/businesses/{b['id']}/invitations", json={"email": "p@example.com"}
     )
@@ -77,19 +85,27 @@ async def test_owner_of_a_cannot_touch_b(harness: AppHarness, method: str, path:
         user_id=bob_member.id,  # a real user in B
         invitation_id=pending.json()["id"],  # a real invitation in B
         slot="primary",  # B has a stored primary key
+        entry_id=entry.json()["id"],  # a real knowledge entry in B
+        conversation_id=convo.json()["conversation_id"],  # a real conversation in B
     )
     r = await alice.client.request(method, url, json=PLACEHOLDER_BODIES.get(method))
     assert r.status_code == 404, (method, url, r.status_code, r.text)
 
     after = await _snapshot(bob.client, b["id"])
-    assert after[0] == before[0] and after[1] == before[1] and after[3] == before[3]
+    assert after[0] == before[0] and after[1] == before[1]
+    assert after[3] == before[3] and after[4] == before[4]
 
 
 @pytest.mark.parametrize(("method", "path"), BUSINESS_ROUTES)
 async def test_unknown_business_is_404_not_403(harness: AppHarness, method: str, path: str) -> None:
     alice = await signup(harness)
     url = path.format(
-        business_id=uuid.uuid4(), user_id=uuid.uuid4(), invitation_id=uuid.uuid4(), slot="primary"
+        business_id=uuid.uuid4(),
+        user_id=uuid.uuid4(),
+        invitation_id=uuid.uuid4(),
+        slot="primary",
+        entry_id=uuid.uuid4(),
+        conversation_id=uuid.uuid4(),
     )
     r = await alice.client.request(method, url, json=PLACEHOLDER_BODIES.get(method))
     assert r.status_code == 404
@@ -99,7 +115,12 @@ async def test_unknown_business_is_404_not_403(harness: AppHarness, method: str,
 async def test_anonymous_is_rejected(harness: AppHarness, method: str, path: str) -> None:
     c = harness.new_client()
     url = path.format(
-        business_id=uuid.uuid4(), user_id=uuid.uuid4(), invitation_id=uuid.uuid4(), slot="primary"
+        business_id=uuid.uuid4(),
+        user_id=uuid.uuid4(),
+        invitation_id=uuid.uuid4(),
+        slot="primary",
+        entry_id=uuid.uuid4(),
+        conversation_id=uuid.uuid4(),
     )
     r = await c.request(method, url, json=PLACEHOLDER_BODIES.get(method))
     assert r.status_code == 401

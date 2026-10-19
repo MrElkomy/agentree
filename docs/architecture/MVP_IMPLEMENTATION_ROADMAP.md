@@ -24,6 +24,19 @@ Each slice below lists only what is specific to it.
 
 ---
 
+## Open requirements (NOT done — tracked explicitly)
+
+Partially delivered slices stay open until every item below is implemented and tested.
+
+| Requirement | Slice | Status |
+|---|---|---|
+| Streaming agent replies (SSE) | 2.4 | ❌ Not started. Console returns complete JSON replies. |
+| Circuit breaker with cooldown / half-open probes | 2.5 | ❌ Not started. Only per-turn primary→backup failover exists. |
+| Automatic recovery to primary after an outage (health probes) | 2.5 | ❌ Not started. Each turn simply tries primary first again. |
+| 30-day raw conversation retention (deletion job, legal hold) | 4.6 | ❌ Not started. Messages have indexed `created_at`; nothing deletes them yet. Must ship before any real public visitor. |
+| Knowledge file uploads (PDF/DOCX/TXT/MD) | 2.3 | ❌ Not started. Manual entries only. |
+| Remaining four agent roles, routing and handoff | 3.x | ❌ Not started. |
+
 ## Phase 0 — Engineering foundation
 
 ### 0.1 Repository skeleton, CI, test harness → `TASK_01_SPEC.md`
@@ -84,16 +97,16 @@ Each slice below lists only what is specific to it.
 - **Objective:** `LLMClient` interface, LiteLLM implementation, scripted fake for tests, usage events.
 - **Acceptance:** a real call with a test key works (manual run, reported); all automated tests use the fake.
 
-### 2.3 Knowledge base v1
+### 2.3 Knowledge base v1 — ✅ partial (Task 06: manual entries, draft→publish, Postgres full-text retrieval; file upload pending)
 - **Objective:** manual entries + file upload (PDF/DOCX/TXT/MD), parse in sandboxed subprocess, chunk, Postgres FTS, draft → publish.
 - **Acceptance:** only published versions are retrievable; business A never retrieves B's chunks.
 - **Security checks:** size/type limits; private object storage; parsing timeouts.
 
-### 2.4 Sales Agent text conversation (dashboard test console)
+### 2.4 Sales Agent text conversation (dashboard test console) — ✅ implemented (Task 06, JSON replies; streaming pending)
 - **Objective:** agent definition, turn loop, retrieval, streaming reply (SSE), messages persisted with retention fields.
 - **Acceptance (phase gate):** the Sales Agent answers using the customer's key and the correct business's knowledge; injected instructions inside a knowledge document do not change behavior (test case).
 
-### 2.5 Fallback, circuit breaker, recovery **[changed]**
+### 2.5 Fallback, circuit breaker, recovery **[changed]** — partial (Task 06: per-turn primary→backup failover on availability errors; circuit breaker/recovery pending)
 - **Objective:** capability profiles, error classification, primary→backup failover between turns, half-open probes, automatic return, dashboard banner + in-app notice.
 - **Acceptance:** with the fake provider: primary outage → backup serves; unsupported task on backup fails safe; primary recovers → returns after cooldown; no flapping under intermittent failure.
 

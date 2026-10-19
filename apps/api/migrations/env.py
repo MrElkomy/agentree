@@ -7,7 +7,10 @@ from alembic import context
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import create_async_engine
 
+# Register every module's models on Base.metadata (used by autogenerate / alembic check).
+import agentree.agents.models
 import agentree.identity.models
+import agentree.knowledge.models
 import agentree.providers.models
 import agentree.tenancy.models  # noqa: F401
 from agentree.core.config import Settings
