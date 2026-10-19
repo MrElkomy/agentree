@@ -49,6 +49,7 @@ Each slice below lists only what is specific to it.
 - **Security checks:** app role has no `BYPASSRLS` and does not own tables.
 
 ### 1.2 Users, sessions, login
+- **Precondition:** auth ADR (U-17) approved — managed solution vs in-house. Steps below assume in-house and change if a managed solution is chosen; membership authorization stays server-side either way.
 - **Objective:** register, login, logout, session management.
 - **Acceptance:** Argon2id hashes; session revocation immediate; rate-limited login; generic errors.
 - **Tests:** auth flows, session expiry, CSRF/Origin check, brute-force limit.
@@ -107,7 +108,7 @@ Each slice below lists only what is specific to it.
 - **Acceptance:** entering an email does not unlock history; OTP verification links profiles; OTP attempts rate-limited.
 ### 3.5 Structured customer memory (extraction job, review/edit/delete UI)
 - **Acceptance (phase gate):** agents use memory of the right customer only; unverified sessions cannot read verified memory; no cross-tenant leaks.
-- Requires decisions U-10, U-12, U-13.
+- Requires decisions U-10, U-12, U-13. Daily aggregated metrics job (approved) lands with 5.4.
 
 ## Phase 4 — Customer experience
 

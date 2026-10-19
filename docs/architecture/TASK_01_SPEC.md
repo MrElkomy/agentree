@@ -1,7 +1,7 @@
 # TASK 01 — Repository Skeleton, Backend Foundation, CI
 
 Date: 2026-10-19
-Status: **Specification only. Not started.** Requires Product Owner approval of the architecture and of §2.
+Status: **Approved 2026-10-19** by Product Owner. Implemented on branch `feat/task-01-foundation`.
 
 ## 1. Goal
 
@@ -9,7 +9,7 @@ Create the empty-but-real engineering foundation for Agentree: a backend that bo
 
 ## 2. Precondition
 
-Repository `MrElkomy/agentree` exists (created by Product Owner) and is attached to the session. Remaining precondition: Product Owner approval of the architecture (`ARCHITECTURE_REVIEW.md`) and of this spec.
+Repository `MrElkomy/agentree` exists (created by Product Owner) and is attached to the session. Architecture and this spec approved 2026-10-19. The worker stays a placeholder; no job queue in this task.
 
 ## 3. Scope
 

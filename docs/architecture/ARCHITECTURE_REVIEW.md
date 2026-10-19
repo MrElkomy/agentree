@@ -57,7 +57,9 @@ Frontend specifics: Next.js App Router, Tailwind + shadcn/ui (Radix primitives �
 
 ## 4. Authentication and sessions
 
-**Recommendation: in-house authentication in FastAPI with server-side sessions.**
+> **Status (2026-10-19): not decided.** The Product Owner asked for a formal comparison (ADR) of a mature supported auth solution vs in-house FastAPI auth before slice 1.2. Membership authorization remains server-side in Agentree regardless. The text below is the original recommendation, kept as one option in that comparison.
+
+**Original recommendation: in-house authentication in FastAPI with server-side sessions.**
 - Email + password (Argon2id), email verification, password reset, invite links. Google sign-in can be added later.
 - Opaque session token in an `HttpOnly; Secure; SameSite=Lax` cookie, stored hashed in Postgres → instant revocation, no JWT revocation problem.
 - Same origin for web and API (Caddy routes `/api`) → first-party cookies, simple CSRF defense (SameSite + Origin check on state-changing requests).
@@ -160,7 +162,7 @@ Recommendation:
 - The model writes SQL; **`sqlglot` parses it and only allows a single read-only `SELECT`** over registered tables. Result tables, the executed query and the dataset version are stored as an `analysis_run`.
 - **No fabricated numbers:** the final answer may only cite numbers present in analysis results; a post-check compares cited numbers against the run output and flags mismatches. The UI shows the query and source for verification.
 - No arbitrary Python execution in the MVP. Charts are rendered by the frontend from result tables.
-- **Retention interaction (needs owner awareness):** raw messages are deleted at 30 days, so conversation analysis beyond 30 days uses **daily aggregates and structured, non-verbatim summaries** computed before deletion. See `ARCHITECTURE_DECISIONS.md` U-12.
+- **Retention interaction (decided 2026-10-19):** raw messages are deleted at 30 days. Analysis beyond 30 days uses **privacy-conscious daily aggregated operational metrics** (approved, own retention policy). Individual conversation summaries are **not** kept beyond 30 days until a policy is approved (`ARCHITECTURE_DECISIONS.md` U-12).
 - Google Sheets: Google's OAuth verification for sensitive scopes can take weeks. Use the `drive.file` scope with the Google Picker (non-sensitive) where possible, and start verification early. CSV/XLSX covers the gap.
 
 ## 14. Executive, scheduling and notifications

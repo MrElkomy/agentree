@@ -1,7 +1,11 @@
 # AGENTREE — Architecture Decisions
 
 Date: 2026-10-19
-Legend: **AP** = approved product constraint (Product Owner). **TD** = recommended technical decision (Claude, awaiting approval). **U** = unresolved. **R** = risk. **A** = assumption.
+**AGT/PC** = approved product constraint (Product Owner). **TD** = technical decision; status column shows whether it is approved. **U** = unresolved. **R** = risk. **A** = assumption.
+
+**Approval record (2026-10-19, Product Owner after ChatGPT review):** architecture direction approved — modular monolith; Next.js + FastAPI + PostgreSQL; RLS from the first tenant implementation; Postgres-backed job queue instead of Redis for MVP; thin in-house agent runtime; Agentree-owned LLM adapter with LiteLLM SDK as an *evaluated* implementation; BYOK with capability-aware failover and automatic recovery; manual knowledge publishing as MVP default; phase-gated roadmap. Authentication approach **not** approved (see TD-04). Approvals cover the architecture, not unimplemented features.
+
+Legend:  **U** = unresolved. **R** = risk. **A** = assumption.
 Details and reasoning for each TD are in `ARCHITECTURE_REVIEW.md` (section in brackets).
 
 ## 1. Approved product constraints (do not change without Product Owner approval)
@@ -49,16 +53,16 @@ Not approved (V2 explicit): risk-based knowledge publishing — remains a recomm
 
 | ID | Decision | Ref |
 |---|---|---|
-| TD-01 | Modular monolith: one Python package (`api` + `worker` entrypoints) + one Next.js app; module boundaries enforced by import-linter. | §2 |
-| TD-02 | Next.js (App Router, TypeScript strict, Tailwind, shadcn/ui) + FastAPI (Python 3.12+, Pydantic v2). TS client generated from OpenAPI. | §3 |
+| TD-01 | ✅ approved — Modular monolith: one Python package (`api` + `worker` entrypoints) + one Next.js app; module boundaries enforced by import-linter. | §2 |
+| TD-02 | ✅ approved — Next.js (App Router, TypeScript strict, Tailwind, shadcn/ui) + FastAPI (Python 3.12+, Pydantic v2). TS client generated from OpenAPI. | §3 |
 | TD-03 | PostgreSQL 16+, SQLAlchemy 2 (async, asyncpg), Alembic. UUIDv7 ids. | §5 |
-| TD-04 | In-house auth: Argon2id, server-side sessions in opaque HttpOnly cookie, same-origin API behind Caddy. | §4 |
-| TD-05 | Tenant context derived from membership; `business_id` on every tenant row; composite FKs; repository layer requires `TenantContext`; **RLS enabled from day one**; auto-generated isolation test matrix. | §5 |
-| TD-06 | **Deviation from V2 candidate stack (Redis):** Postgres-backed job queue (Procrastinate or custom `SKIP LOCKED` table — final pick in Task 03). No Redis in MVP. | §6 |
-| TD-07 | Own thin agent runtime; no agent frameworks. Agents = versioned configuration. Routing via validated `transfer_to` tool. | §7 |
+| TD-04 | **Not decided.** Before slice 1.2, an ADR compares a mature supported auth solution against in-house FastAPI auth (speed, session security, multi-business membership support, cost, operational burden, extensibility). Server-side membership authorization stays in Agentree either way. | §4 |
+| TD-05 | ✅ approved (RLS) — Tenant context derived from membership; `business_id` on every tenant row; composite FKs; repository layer requires `TenantContext`; **RLS enabled from day one**; auto-generated isolation test matrix. | §5 |
+| TD-06 | ✅ approved — **Deviation from V2 candidate stack (Redis):** Postgres-backed job queue (Procrastinate or custom `SKIP LOCKED` table — final pick in Task 03). No Redis in MVP. | §6 |
+| TD-07 | ✅ approved — Own thin agent runtime; no agent frameworks. Agents = versioned configuration. Routing via validated `transfer_to` tool. | §7 |
 | TD-08 | Email OTP as first customer verification method. | §8 |
-| TD-09 | Knowledge retrieval: Postgres full-text first; pgvector + platform-run CPU embedding model only if evaluation justifies. Manual publish by default. | §9 |
-| TD-10 | Agentree `LLMClient` interface; LiteLLM SDK (exact-pinned, hash-locked) as first implementation; own fallback, circuit breaker and capability profiles. | §10 |
+| TD-09 | ✅ approved (manual publish) — Knowledge retrieval: Postgres full-text first; pgvector + platform-run CPU embedding model only if evaluation justifies. Manual publish by default. | §9 |
+| TD-10 | ✅ approved (LiteLLM to be evaluated) — Agentree `LLMClient` interface; LiteLLM SDK (exact-pinned, hash-locked) as first implementation; own fallback, circuit breaker and capability profiles. | §10 |
 | TD-11 | Envelope encryption for provider keys (per-business AES-256-GCM data key; master key outside DB). Write-only keys in UI. | §10 |
 | TD-12 | Public abuse controls protecting customer keys: rate limits, daily per-business caps, bot challenge. | §10 |
 | TD-13 | Action registry + Gateway state machine; approval bound to parameter hash; `unknown` outcomes never blindly retried. | §11 |
@@ -102,7 +106,8 @@ Rules: at least one Owner always exists; nobody can grant a role higher than the
 | U-09 | Initial supported providers list | OpenAI-compatible + Anthropic + Google Gemini, verified at Phase 2 | Phase 2 |
 | U-10 | Risk-based auto-publish of knowledge | Manual publish | Phase 3 |
 | U-11 | Hosting provider/region, managed vs self-run Postgres | Hetzner US + self-run with WAL-G | Phase 7 |
-| U-12 | Conversation summaries/aggregates kept after 30 days | Keep non-verbatim summary + daily aggregates (needs owner confirmation that this is consistent with AGT-010) | Phase 3 |
+| U-12 | Individual (non-verbatim) conversation summaries beyond 30 days | **Unresolved.** Not retained beyond the 30-day raw window until a data-minimization, access, deletion and retention policy is approved. *Approved separately:* privacy-conscious daily aggregated operational metrics, under their own documented retention policy. | Phase 3 |
+| U-17 | Authentication solution (managed vs in-house) | ADR required before slice 1.2 | Phase 1 |
 | U-13 | Memory review schedule | `review_at` = 180 days default | Phase 3 |
 | U-14 | Telegram two-way Executive chat in MVP | Outbound notifications + deep links only | Phase 6 |
 | U-15 | Billing/payment implementation | Out of MVP code until prices exist | Post-MVP |
