@@ -5,7 +5,7 @@ Date: 2026-10-19 · Status: **Implemented (Task 05)** — LiteLLM evaluation out
 ## Key vault (envelope encryption)
 - Each stored provider key gets a random 256-bit data key (DEK). Key encrypted with the DEK, DEK wrapped with the master key, both **AES-256-GCM** (`cryptography` library). No custom crypto.
 - **Associated data** `agentree:provider-credential:{business_id}:{credential_id}` binds each ciphertext to its tenant and row: copying it to another business or row fails decryption (tested).
-- Master key from `AGENTREE_MASTER_KEY` (never in the DB). Required in staging/production (startup fails closed). **Rotation:** new `AGENTREE_MASTER_KEY`/`_ID`, old key in `AGENTREE_PREVIOUS_MASTER_KEYS`; secrets re-wrap lazily on next use. A KMS can replace the env key behind `core/vault.py` later.
+- Master key from `AGENTREE_MASTER_KEY` (never in the DB, never committed). Custody, backup, recovery and rotation procedure: `docs/operations/MASTER_KEY.md`. Required in staging/production (startup fails closed). **Rotation:** new `AGENTREE_MASTER_KEY`/`_ID`, old key in `AGENTREE_PREVIOUS_MASTER_KEYS`; secrets re-wrap lazily on next use. A KMS can replace the env key behind `core/vault.py` later.
 - Keys are **write-only** for clients: API returns provider, model, last 4 characters, verification status. Plaintext exists only in memory when saving and when a model call needs it; never logged.
 - Table `provider_credentials` (tenant RLS), one row per `primary` / `backup` slot. Replacing a slot creates a new row id. Admin+ manage; members can view status.
 
