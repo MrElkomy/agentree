@@ -13,7 +13,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from agentree.core.config import Settings
-from agentree.core.email import EmailSender, OutgoingEmail
+from agentree.core.email import EmailSender, OutgoingEmail, send_safely
 from agentree.core.ids import uuid7
 from agentree.core.tokens import hash_token, new_token
 from agentree.identity.models import AuthToken, User, UserSession
@@ -131,7 +131,7 @@ async def register(
                 body="Someone tried to create an Agentree account with this email. "
                 f"If it was you, sign in or reset your password: {settings.public_base_url}/login",
             )
-    await mailer.send(message)
+    await send_safely(mailer, message, kind="registration")
 
 
 async def resend_verification(
@@ -148,12 +148,14 @@ async def resend_verification(
             session, user.id, TokenPurpose.VERIFY_EMAIL,
             timedelta(hours=settings.email_verification_ttl_hours),
         )  # fmt: skip
-    await mailer.send(
+    await send_safely(
+        mailer,
         OutgoingEmail(
             to=normalized,
             subject="Verify your Agentree email",
             body=f"Confirm your email: {settings.public_base_url}/verify-email?token={raw}",
-        )
+        ),
+        kind="verification",
     )
 
 
@@ -276,13 +278,15 @@ async def request_password_reset(
             session, user_id, TokenPurpose.RESET_PASSWORD,
             timedelta(minutes=settings.password_reset_ttl_minutes),
         )  # fmt: skip
-    await mailer.send(
+    await send_safely(
+        mailer,
         OutgoingEmail(
             to=normalized,
             subject="Reset your Agentree password",
             body=f"Reset your password: {settings.public_base_url}/reset-password?token={raw}\n"
             "If you did not ask for this, ignore this email.",
-        )
+        ),
+        kind="password_reset",
     )
 
 

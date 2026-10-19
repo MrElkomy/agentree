@@ -218,3 +218,105 @@ async def test_removed_member_loses_access_immediately(harness: AppHarness) -> N
     assert (await member.client.get(base)).status_code == 200
     assert (await owner.client.delete(f"{base}/members/{member.id}")).status_code == 204
     assert (await member.client.get(base)).status_code == 404
+
+
+# --- concurrency and stale authorization ------------------------------------------------
+
+
+async def test_concurrent_mutual_owner_demotion_keeps_one_owner(harness: AppHarness) -> None:
+    import asyncio
+
+    a = await signup(harness)
+    biz = await create_business(a)
+    b = await invite_and_join(harness, a, biz["id"], "owner")
+    base = f"/api/businesses/{biz['id']}"
+    for _ in range(5):
+        r1, r2 = await asyncio.gather(
+            a.client.patch(f"{base}/members/{b.id}", json={"role": "admin"}),
+            b.client.patch(f"{base}/members/{a.id}", json={"role": "admin"}),
+        )
+        codes = sorted([r1.status_code, r2.status_code])
+        assert codes in ([200, 403], [200, 409]), (r1.text, r2.text)
+        owners = [m for m in (await a.client.get(f"{base}/members")).json() if m["role"] == "owner"]
+        if not owners:
+            owners = [
+                m for m in (await b.client.get(f"{base}/members")).json() if m["role"] == "owner"
+            ]
+        assert len(owners) == 1
+        # restore two owners for the next round
+        owner_client = a.client if owners[0]["user_id"] == str(a.id) else b.client
+        other = b.id if owners[0]["user_id"] == str(a.id) else a.id
+        assert (
+            await owner_client.patch(f"{base}/members/{other}", json={"role": "owner"})
+        ).status_code == 200
+
+
+async def test_concurrent_removal_of_both_owners_keeps_one(harness: AppHarness) -> None:
+    import asyncio
+
+    a = await signup(harness)
+    biz = await create_business(a)
+    b = await invite_and_join(harness, a, biz["id"], "owner")
+    base = f"/api/businesses/{biz['id']}"
+    r1, r2 = await asyncio.gather(
+        a.client.delete(f"{base}/members/{a.id}"),
+        b.client.delete(f"{base}/members/{b.id}"),
+    )
+    assert sorted([r1.status_code, r2.status_code]) == [204, 409], (r1.text, r2.text)
+
+
+async def test_demoted_admin_loses_admin_rights_immediately(harness: AppHarness) -> None:
+    owner = await signup(harness)
+    biz = await create_business(owner)
+    base = f"/api/businesses/{biz['id']}"
+    admin = await invite_and_join(harness, owner, biz["id"], "admin")
+    assert (await admin.client.get(f"{base}/invitations")).status_code == 200
+    assert (
+        await owner.client.patch(f"{base}/members/{admin.id}", json={"role": "member"})
+    ).status_code == 200
+    assert (await admin.client.get(f"{base}/invitations")).status_code == 403
+    r = await admin.client.post(f"{base}/invitations", json={"email": "new@example.com"})
+    assert r.status_code == 403
+
+
+async def test_removal_from_one_business_does_not_affect_another(harness: AppHarness) -> None:
+    alice = await signup(harness)
+    bob = await signup(harness)
+    a = await create_business(alice, "A")
+    b = await create_business(bob, "B")
+    carol = await invite_and_join(harness, alice, a["id"], "member")
+    r = await bob.client.post(
+        f"/api/businesses/{b['id']}/invitations", json={"email": carol.email, "role": "admin"}
+    )
+    assert r.status_code == 201
+    token = harness.mailer.token_for(carol.email)
+    assert (
+        await carol.client.post("/api/invitations/accept", json={"token": token})
+    ).status_code == 200
+
+    assert (
+        await alice.client.delete(f"/api/businesses/{a['id']}/members/{carol.id}")
+    ).status_code == 204
+    assert (await carol.client.get(f"/api/businesses/{a['id']}")).status_code == 404
+    assert (await carol.client.get(f"/api/businesses/{b['id']}/invitations")).status_code == 200
+
+
+async def test_invitation_email_failure_is_reported_and_reinvite_recovers(
+    harness: AppHarness,
+) -> None:
+    owner = await signup(harness)
+    biz = await create_business(owner)
+    invitee = await signup(harness)
+    base = f"/api/businesses/{biz['id']}"
+    harness.mailer.failing = True
+    r = await owner.client.post(f"{base}/invitations", json={"email": invitee.email})
+    assert r.status_code == 201 and r.json()["email_sent"] is False
+    harness.mailer.failing = False
+    r = await owner.client.post(f"{base}/invitations", json={"email": invitee.email})
+    assert r.status_code == 201 and r.json()["email_sent"] is True
+    pending = (await owner.client.get(f"{base}/invitations")).json()
+    assert len(pending) == 1  # the failed one was replaced
+    token = harness.mailer.token_for(invitee.email)
+    assert (
+        await invitee.client.post("/api/invitations/accept", json={"token": token})
+    ).status_code == 200

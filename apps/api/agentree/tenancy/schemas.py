@@ -38,6 +38,7 @@ class InvitationOut(BaseModel):
     email: str
     role: Role
     expires_at: datetime
+    email_sent: bool | None = None  # set on creation; false means re-invite to retry
 
 
 class AcceptInvitationIn(BaseModel):

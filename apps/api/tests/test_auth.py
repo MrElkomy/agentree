@@ -336,3 +336,51 @@ def test_session_cookie_name_without_secure_flag() -> None:
 
     s = Settings(database_url="postgresql+asyncpg://x:y@h/d", session_cookie_secure=False)
     assert s.session_cookie_name == "agentree_session"
+
+
+# --- email delivery failures ------------------------------------------------------------
+
+
+async def test_registration_survives_email_outage_and_resend_recovers(harness: AppHarness) -> None:
+    email = unique_email()
+    c = harness.new_client()
+    harness.mailer.failing = True
+    r = await c.post("/api/auth/register", json={"email": email, "password": PASSWORD})
+    assert r.status_code == 202 and r.json() == {"status": "accepted"}  # same as success
+    harness.mailer.failing = False
+    assert (await c.post("/api/auth/resend-verification", json={"email": email})).status_code == 202
+    token = harness.mailer.token_for(email)
+    assert (await c.post("/api/auth/verify-email", json={"token": token})).status_code == 200
+    assert (
+        await c.post("/api/auth/login", json={"email": email, "password": PASSWORD})
+    ).status_code == 200
+
+
+async def test_password_reset_survives_email_outage_and_retry_recovers(harness: AppHarness) -> None:
+    acc = await signup(harness)
+    harness.mailer.failing = True
+    r = await acc.client.post("/api/auth/password-reset/request", json={"email": acc.email})
+    assert r.status_code == 202
+    harness.mailer.failing = False
+    assert (
+        await acc.client.post("/api/auth/password-reset/request", json={"email": acc.email})
+    ).status_code == 202
+    token = harness.mailer.token_for(acc.email)
+    r = await acc.client.post(
+        "/api/auth/password-reset/confirm",
+        json={"token": token, "new_password": "fresh long passphrase"},
+    )
+    assert r.status_code == 200
+
+
+async def test_email_failure_is_logged_without_recipient(
+    harness: AppHarness, caplog: pytest.LogCaptureFixture
+) -> None:
+    email = unique_email()
+    harness.mailer.failing = True
+    await harness.new_client().post(
+        "/api/auth/register", json={"email": email, "password": PASSWORD}
+    )
+    records = [r for r in caplog.records if r.getMessage() == "email delivery failed"]
+    assert records and records[0].kind == "registration"  # type: ignore[attr-defined]
+    assert email not in caplog.text

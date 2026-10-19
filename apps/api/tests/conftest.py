@@ -117,8 +117,11 @@ def settings(db_urls: DbUrls) -> Settings:
 class FakeMailer:
     def __init__(self) -> None:
         self.sent: list[OutgoingEmail] = []
+        self.failing = False  # simulate a provider outage
 
     async def send(self, message: OutgoingEmail) -> None:
+        if self.failing:
+            raise ConnectionRefusedError("smtp down")
         self.sent.append(message)
 
     def last_to(self, to: str) -> OutgoingEmail:

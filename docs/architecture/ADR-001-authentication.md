@@ -37,4 +37,7 @@ Authentication is built and operated **inside Agentree** (FastAPI + PostgreSQL) 
 - CSRF: `core/csrf.py` Origin/Referer allowlist (`AGENTREE_ALLOWED_ORIGINS`) on non-GET `/api/*`.
 - Rate limits: `core/ratelimit.py`, Postgres fixed window, identifiers hashed in keys.
 - Enumeration: register, resend and reset-request return the same `202` regardless of account existence; login errors are generic; unknown-account login still runs a hash verification.
+- Email failures never fail the request: auth flows still answer 202 (user retries via resend / new reset request), invitations return `email_sent: false` (re-invite issues a new token). Failures are logged without recipient or body.
+- Staging/production settings fail closed at startup: Secure cookies, https public origins only, non-local SMTP with STARTTLS and credentials, real sending domain.
+- Membership mutations lock the business row (deterministic lock order, no deadlocks) and re-read the actor's role inside the transaction.
 - Known gaps (post-MVP): MFA, breached-password check, trusted-proxy client IP (set at deployment), email change flow, account deletion.

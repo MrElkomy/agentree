@@ -9,7 +9,7 @@ from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from agentree.core.config import Settings
-from agentree.core.email import EmailSender, OutgoingEmail
+from agentree.core.email import EmailSender, OutgoingEmail, send_safely
 from agentree.core.ids import uuid7
 from agentree.core.tokens import hash_token, new_token
 from agentree.tenancy.context import TenantContext, TenantSource
@@ -68,6 +68,7 @@ class InvitationInfo:
     email: str
     role: Role
     expires_at: datetime
+    email_sent: bool | None = None
 
 
 def _now() -> datetime:
@@ -164,14 +165,34 @@ async def list_members(factory: Factory, ctx: TenantContext) -> list[MemberInfo]
     return [MemberInfo(r[0], r[1], Role(r[2])) for r in rows]
 
 
-async def _locked_membership(
-    session: AsyncSession, ctx: TenantContext, user_id: UUID
-) -> Membership:
+async def _lock_memberships(session: AsyncSession, ctx: TenantContext, actor_id: UUID) -> Role:
+    """Serialize membership changes per business and return the actor's *current* role.
+
+    Locking the business row first gives every membership mutation the same lock order
+    (no deadlocks) and re-reading the actor's role under the lock closes the gap between
+    request authorization and the write (a just-demoted or removed actor is refused).
+    """
+    await session.execute(
+        select(Business.id).where(Business.id == ctx.business_id).with_for_update()
+    )
+    role = (
+        await session.execute(
+            select(Membership.role).where(
+                Membership.business_id == ctx.business_id, Membership.user_id == actor_id
+            )
+        )
+    ).scalar_one_or_none()
+    if role is None:
+        raise ForbiddenError
+    return Role(role)
+
+
+async def _membership(session: AsyncSession, ctx: TenantContext, user_id: UUID) -> Membership:
     m = (
         await session.execute(
-            select(Membership)
-            .where(Membership.business_id == ctx.business_id, Membership.user_id == user_id)
-            .with_for_update()
+            select(Membership).where(
+                Membership.business_id == ctx.business_id, Membership.user_id == user_id
+            )
         )
     ).scalar_one_or_none()
     if m is None:
@@ -180,13 +201,12 @@ async def _locked_membership(
 
 
 async def _ensure_other_owner(session: AsyncSession, ctx: TenantContext, user_id: UUID) -> None:
-    # Lock all owner rows so two concurrent demotions cannot remove the last owner.
     owners = (
         (
             await session.execute(
-                select(Membership.user_id)
-                .where(Membership.business_id == ctx.business_id, Membership.role == Role.OWNER)
-                .with_for_update()
+                select(Membership.user_id).where(
+                    Membership.business_id == ctx.business_id, Membership.role == Role.OWNER
+                )
             )
         )
         .scalars()
@@ -201,7 +221,8 @@ async def change_member_role(
     target_user_id: UUID, new_role: Role,
 ) -> None:  # fmt: skip
     async with tenant_session(factory, ctx) as session:
-        target = await _locked_membership(session, ctx, target_user_id)
+        actor_role = await _lock_memberships(session, ctx, actor_id)
+        target = await _membership(session, ctx, target_user_id)
         current = Role(target.role)
         if not (can_manage(actor_role, current) and can_grant(actor_role, new_role)):
             raise ForbiddenError
@@ -214,7 +235,8 @@ async def remove_member(
     factory: Factory, ctx: TenantContext, *, actor_id: UUID, actor_role: Role, target_user_id: UUID
 ) -> None:
     async with tenant_session(factory, ctx) as session:
-        target = await _locked_membership(session, ctx, target_user_id)
+        actor_role = await _lock_memberships(session, ctx, actor_id)
+        target = await _membership(session, ctx, target_user_id)
         current = Role(target.role)
         if target_user_id != actor_id and not can_manage(actor_role, current):
             raise ForbiddenError
@@ -230,12 +252,12 @@ async def create_invitation(
     factory: Factory, settings: Settings, mailer: EmailSender, ctx: TenantContext, *,
     actor_id: UUID, actor_role: Role, email: str, role: Role,
 ) -> InvitationInfo:  # fmt: skip
-    if not can_grant(actor_role, role):
-        raise ForbiddenError
     normalized = email.strip().lower()
     raw, digest = new_token()
     expires = _now() + timedelta(days=settings.invitation_ttl_days)
     async with tenant_session(factory, ctx) as session:
+        if not can_grant(await _lock_memberships(session, ctx, actor_id), role):
+            raise ForbiddenError
         business = await session.get(Business, ctx.business_id)
         if business is None:
             raise NotFoundError
@@ -253,15 +275,18 @@ async def create_invitation(
         )  # fmt: skip
         session.add(inv)
         business_name = business.name
-    await mailer.send(
+    sent = await send_safely(
+        mailer,
         OutgoingEmail(
             to=normalized,
             subject=f"You're invited to {business_name} on Agentree",
             body="Accept the invitation: "
             f"{settings.public_base_url}/invitations/accept?token={raw}",
-        )
+        ),
+        kind="invitation",
     )
-    return InvitationInfo(inv.id, normalized, role, expires)
+    # If delivery failed the invitation stays pending; re-inviting issues a fresh token.
+    return InvitationInfo(inv.id, normalized, role, expires, email_sent=sent)
 
 
 async def list_invitations(factory: Factory, ctx: TenantContext) -> list[InvitationInfo]:

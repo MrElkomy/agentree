@@ -121,7 +121,10 @@ async def create_invitation(
         )  # fmt: skip
     except service.ForbiddenError:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "insufficient_role") from None
-    return InvitationOut(id=inv.id, email=inv.email, role=inv.role, expires_at=inv.expires_at)
+    return InvitationOut(
+        id=inv.id, email=inv.email, role=inv.role, expires_at=inv.expires_at,
+        email_sent=inv.email_sent,
+    )  # fmt: skip
 
 
 @router.get("/businesses/{business_id}/invitations")

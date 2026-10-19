@@ -1,6 +1,7 @@
 """Outbound email. SMTP in all environments (Mailpit in development)."""
 
 import asyncio
+import logging
 import smtplib
 import ssl
 from dataclasses import dataclass
@@ -8,6 +9,8 @@ from email.message import EmailMessage
 from typing import Protocol
 
 from agentree.core.config import Settings
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -40,3 +43,20 @@ class SmtpEmailSender:
 
     async def send(self, message: OutgoingEmail) -> None:
         await asyncio.to_thread(self._send_sync, message)
+
+
+async def send_safely(mailer: EmailSender, message: OutgoingEmail, *, kind: str) -> bool:
+    """Send without failing the caller's request. Returns False if delivery failed.
+
+    Every email flow is retryable by the user (resend verification, request reset again,
+    re-invite), so a provider outage must not turn into a 500 or reveal account state.
+    The recipient and body are never logged.
+    """
+    try:
+        await mailer.send(message)
+    except Exception as exc:
+        logger.warning(
+            "email delivery failed", extra={"kind": kind, "error_type": type(exc).__name__}
+        )
+        return False
+    return True
