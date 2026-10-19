@@ -24,6 +24,19 @@ Each slice below lists only what is specific to it.
 
 ---
 
+## Open requirements (NOT done — tracked explicitly)
+
+Partially delivered slices stay open until every item below is implemented and tested.
+
+| Requirement | Slice | Status |
+|---|---|---|
+| Streaming agent replies (SSE) | 2.4 | ❌ Not started. Console returns complete JSON replies. |
+| Circuit breaker with cooldown / half-open probes | 2.5 | ❌ Not started. Only per-turn primary→backup failover exists. |
+| Automatic recovery to primary after an outage (health probes) | 2.5 | ❌ Not started. Each turn simply tries primary first again. |
+| 30-day raw conversation retention (deletion job, legal hold) | 4.6 | ❌ Not started. Messages have indexed `created_at`; nothing deletes them yet. Must ship before any real public visitor. |
+| Knowledge file uploads (PDF/DOCX/TXT/MD) | 2.3 | ❌ Not started. Manual entries only. |
+| Remaining four agent roles, routing and handoff | 3.x | ❌ Not started. |
+
 ## Phase 0 — Engineering foundation
 
 ### 0.1 Repository skeleton, CI, test harness → `TASK_01_SPEC.md`
