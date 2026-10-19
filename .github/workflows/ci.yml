@@ -36,8 +36,8 @@ jobs:
       AGENTREE_TEST_DATABASE_URL: postgresql+asyncpg://postgres:postgres_ci_only@localhost:5432/postgres
       AGENTREE_DATABASE_URL: postgresql+asyncpg://postgres:postgres_ci_only@localhost:5432/agentree_ci
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: astral-sh/setup-uv@e06108dd0aef18192324c70427afc47652e63a82 # v7.5.0
         with:
           version: "0.11.32"
       - name: Install Python 3.13 and dependencies
@@ -67,7 +67,7 @@ jobs:
     name: Security (secrets, dependencies)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
       - name: Gitleaks (full history)
@@ -75,7 +75,7 @@ jobs:
           curl -sSL -o /tmp/gitleaks.tgz https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz
           tar xzf /tmp/gitleaks.tgz -C /tmp gitleaks
           /tmp/gitleaks git . --no-banner --redact --exit-code 1
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@e06108dd0aef18192324c70427afc47652e63a82 # v7.5.0
         with:
           version: "0.11.32"
       - name: pip-audit (runtime dependencies)
@@ -88,7 +88,7 @@ jobs:
     name: Docker dev stack smoke test
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Build and start stack
         run: docker compose -f infra/docker-compose.yml up -d --build
       - name: Health and readiness
