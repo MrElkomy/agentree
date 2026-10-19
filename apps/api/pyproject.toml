@@ -13,13 +13,14 @@ dependencies = [
     "alembic>=1.14",
     "argon2-cffi>=23.1",
     "email-validator>=2.2",
+    "cryptography>=43.0",
+    "httpx>=0.28",
 ]
 
 [dependency-groups]
 dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
-    "httpx>=0.28",
     "ruff>=0.8",
     "mypy>=1.13",
     "import-linter>=2.1",
@@ -63,6 +64,7 @@ type = "forbidden"
 source_modules = ["agentree.core"]
 forbidden_modules = [
     "agentree.health", "agentree.identity", "agentree.tenancy", "agentree.main", "agentree.worker",
+    "agentree.providers", "agentree.llm", "agentree.knowledge", "agentree.agents",
 ]
 
 [[tool.importlinter.contracts]]
@@ -81,3 +83,12 @@ name = "identity does not depend on tenancy"
 type = "forbidden"
 source_modules = ["agentree.identity"]
 forbidden_modules = ["agentree.tenancy"]
+
+[[tool.importlinter.contracts]]
+name = "llm adapters are independent of the rest of the application"
+type = "forbidden"
+source_modules = ["agentree.llm"]
+forbidden_modules = [
+    "agentree.identity", "agentree.tenancy", "agentree.providers", "agentree.knowledge",
+    "agentree.agents", "agentree.main", "fastapi",
+]

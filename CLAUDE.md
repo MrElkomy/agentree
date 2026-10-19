@@ -24,6 +24,7 @@ docs/          product + architecture docs
 - Authorization and approvals are enforced in the backend, never by the LLM and never by Next.js middleware.
 - Model output, uploaded files, retrieved documents and external responses are untrusted input.
 - Background work uses the Postgres-backed queue (to be introduced); no Redis in the MVP.
+- AI calls go through `agentree/llm` (`LLMProvider` interface) with the customer's key resolved per call from `agentree/providers` (BYOK vault, ADR-002). Never call vendor APIs or SDKs elsewhere; tests use `FakeProvider` via the `harness` fixture.
 - Authentication: first-party (ADR-001, accepted). No managed auth providers; no custom crypto — use `argon2-cffi`, `secrets`, `hashlib`.
 
 ## Security rules

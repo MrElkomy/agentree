@@ -56,6 +56,8 @@ services:
       AGENTREE_ALLOWED_ORIGINS: '["http://localhost:3000"]'
       # Local http only. Production keeps the default (Secure, __Host- cookie).
       AGENTREE_SESSION_COOKIE_SECURE: "false"
+      # Dev-only BYOK vault master key (base64 of the ASCII text "dev-only-master-key-000..."). Never use outside local dev.
+      AGENTREE_MASTER_KEY: ZGV2LW9ubHktbWFzdGVyLWtleS0wMDAwMDAwMDAwMDA=  # gitleaks:allow (dev-only)
     ports:
       - "127.0.0.1:8000:8000"
     healthcheck:
