@@ -11,6 +11,12 @@ export type Me = Schemas["MeOut"];
 export type Business = Schemas["BusinessOut"];
 export type Member = Schemas["MemberOut"];
 export type Invitation = Schemas["InvitationOut"];
+export type Credential = Schemas["CredentialOut"];
+export type ProviderName = Schemas["ProviderName"];
+export type Slot = Schemas["Slot"];
+export type KnowledgeEntry = Schemas["EntryOut"];
+export type ConsoleReply = Schemas["ConsoleReplyOut"];
+export type ChatMessage = Schemas["MessageOut"];
 
 export class ApiError extends Error {
   constructor(
@@ -22,7 +28,7 @@ export class ApiError extends Error {
   }
 }
 
-type Method = "GET" | "POST" | "PATCH" | "DELETE";
+type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 function codeFrom(body: unknown): string {
   if (body && typeof body === "object" && "detail" in body) {
@@ -30,6 +36,11 @@ function codeFrom(body: unknown): string {
     if (typeof detail === "string") return detail;
     // FastAPI request validation errors are a list.
     if (Array.isArray(detail)) return "validation_error";
+    // Structured errors, e.g. {"code": "ai_unavailable", "errors": [...]}.
+    if (detail && typeof detail === "object" && "code" in detail) {
+      const code = (detail as { code: unknown }).code;
+      if (typeof code === "string") return code;
+    }
   }
   return "unknown_error";
 }

@@ -23,7 +23,25 @@ const MESSAGES: Record<string, string> = {
   not_authenticated: "Your session has ended. Sign in again.",
   network_error: "Can't reach Agentree right now. Check your connection and try again.",
   validation_error: "Some fields are invalid. Check them and try again.",
+  key_rejected: "The provider rejected this API key. Check that you copied the whole key.",
+  model_rejected: "The provider rejected this model name. Check the model ID for your account.",
+  invalid_model: "That model name isn't valid. Use the model ID from your provider.",
+  invalid_api_key_format: "That doesn't look like an API key. Paste the key without spaces.",
+  provider_unavailable: "The provider is having problems right now. Try again shortly, or save without testing.",
+  provider_transient: "We couldn't reach the provider. Try again, or save without testing.",
+  provider_auth: "The provider rejected this key. It may have been revoked; enter a new one.",
+  provider_bad_request: "The provider rejected the request. Check the model name.",
+  provider_rate_limit: "The provider is rate-limiting this key. Try again in a minute.",
+  provider_quota: "This key's account is out of credit or quota. Top it up with your provider.",
+  key_vault_unavailable: "Secure key storage isn't available on this server. Contact support.",
+  key_unreadable_reenter: "This stored key can no longer be read. Enter the key again.",
+  no_ai_provider_configured: "Connect an AI provider key first, then try again.",
+  ai_unavailable: "None of your AI providers could answer right now. Check your keys on the AI Providers page.",
 };
+
+export function messageForCode(code: string): string {
+  return MESSAGES[code] ?? "Something went wrong. Try again.";
+}
 
 export function messageFor(err: unknown): string {
   if (err instanceof ApiError) {
