@@ -1,11 +1,9 @@
 # AGENTREE — Architecture Decisions
 
 Date: 2026-10-19
-**AGT/PC** = approved product constraint (Product Owner). **TD** = technical decision; status column shows whether it is approved. **U** = unresolved. **R** = risk. **A** = assumption.
-
 **Approval record (2026-10-19, Product Owner after ChatGPT review):** architecture direction approved — modular monolith; Next.js + FastAPI + PostgreSQL; RLS from the first tenant implementation; Postgres-backed job queue instead of Redis for MVP; thin in-house agent runtime; Agentree-owned LLM adapter with LiteLLM SDK as an *evaluated* implementation; BYOK with capability-aware failover and automatic recovery; manual knowledge publishing as MVP default; phase-gated roadmap. Authentication approach **not** approved (see TD-04). Approvals cover the architecture, not unimplemented features.
 
-Legend:  **U** = unresolved. **R** = risk. **A** = assumption.
+Legend: **AGT/PC** = approved product constraint (Product Owner). **TD** = technical decision (✅ marks Product Owner approval; unmarked = recommendation within approved direction). **U** = unresolved. **R** = risk. **A** = assumption.
 Details and reasoning for each TD are in `ARCHITECTURE_REVIEW.md` (section in brackets).
 
 ## 1. Approved product constraints (do not change without Product Owner approval)
