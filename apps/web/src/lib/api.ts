@@ -1,0 +1,81 @@
+/**
+ * Same-origin API client. The browser only talks to the Next.js origin; `/api/*` is
+ * rewritten to FastAPI. The session lives in an HttpOnly cookie set by the backend and is
+ * never readable here. The backend is the only authority for authentication and roles.
+ */
+import type { components } from "./api-types";
+
+export type Schemas = components["schemas"];
+export type Role = Schemas["Role"];
+export type Me = Schemas["MeOut"];
+export type Business = Schemas["BusinessOut"];
+export type Member = Schemas["MemberOut"];
+export type Invitation = Schemas["InvitationOut"];
+
+export class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    readonly code: string,
+  ) {
+    super(`${status} ${code}`);
+    this.name = "ApiError";
+  }
+}
+
+type Method = "GET" | "POST" | "PATCH" | "DELETE";
+
+function codeFrom(body: unknown): string {
+  if (body && typeof body === "object" && "detail" in body) {
+    const detail = (body as { detail: unknown }).detail;
+    if (typeof detail === "string") return detail;
+    // FastAPI request validation errors are a list.
+    if (Array.isArray(detail)) return "validation_error";
+  }
+  return "unknown_error";
+}
+
+export async function api<T>(path: string, method: Method = "GET", body?: unknown): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(path, {
+      method,
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  } catch {
+    throw new ApiError(0, "network_error");
+  }
+  if (res.status === 204) return undefined as T;
+  let parsed: unknown = null;
+  const text = await res.text();
+  if (text) {
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      parsed = null;
+    }
+  }
+  if (!res.ok) throw new ApiError(res.status, codeFrom(parsed));
+  return parsed as T;
+}
+
+export const isApiError = (e: unknown, status?: number, code?: string): e is ApiError =>
+  e instanceof ApiError &&
+  (status === undefined || e.status === status) &&
+  (code === undefined || e.code === code);
+
+/** Path to the login page that returns to `next` afterwards (same-origin paths only). */
+export function loginHref(next?: string): string {
+  const safe = safeNext(next);
+  return safe ? `/login?next=${encodeURIComponent(safe)}` : "/login";
+}
+
+/** Only allow local absolute paths as post-login redirects (no open redirects). */
+export function safeNext(next: string | null | undefined): string | null {
+  if (!next || !next.startsWith("/") || next.startsWith("//") || next.startsWith("/\\")) {
+    return null;
+  }
+  return next;
+}
