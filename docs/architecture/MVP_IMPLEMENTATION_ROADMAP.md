@@ -48,18 +48,18 @@ Each slice below lists only what is specific to it.
 - **Tests:** RLS tests that bypass the repository layer on purpose.
 - **Security checks:** app role has no `BYPASSRLS` and does not own tables.
 
-### 1.2 Users, sessions, login
+### 1.2 Users, sessions, login — ✅ implemented (Task 03)
 - **Decision:** first-party auth (ADR-001, accepted). No managed provider.
 - **Objective:** register, login, logout, session management.
 - **Acceptance:** Argon2id hashes; session revocation immediate; rate-limited login; generic errors.
 - **Tests:** auth flows, session expiry, CSRF/Origin check, brute-force limit.
 - **Security checks:** cookie flags; no password/token in logs.
 
-### 1.3 Email verification, password reset
+### 1.3 Email verification, password reset — ✅ implemented (Task 03)
 - **Dependencies:** 1.2, U-05 (Mailpit in dev).
 - **Acceptance:** single-use, expiring tokens stored hashed.
 
-### 1.4 Businesses and memberships
+### 1.4 Businesses and memberships — ✅ implemented (Task 03)
 - **Objective:** create business, invite by email, accept invite, Owner/Admin/Member, role changes, remove member.
 - **Acceptance:** permission matrix enforced server-side; last Owner cannot be removed; nobody grants above own role.
 - **Tests:** full matrix role × permission; isolation matrix.

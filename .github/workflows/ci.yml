@@ -102,6 +102,8 @@ jobs:
           for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8000/healthz && break; sleep 2; done
           curl -fsS http://127.0.0.1:8000/healthz
           curl -fsS http://127.0.0.1:8000/readyz
+      - name: Auth end-to-end (register, Mailpit verification, login, business, CSRF, logout)
+        run: infra/smoke_auth.sh
       - name: Readiness fails when database is down, liveness stays up
         run: |
           docker compose -f infra/docker-compose.yml stop postgres

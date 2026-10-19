@@ -11,6 +11,8 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.0.36",
     "asyncpg>=0.30",
     "alembic>=1.14",
+    "argon2-cffi>=23.1",
+    "email-validator>=2.2",
 ]
 
 [dependency-groups]
@@ -38,7 +40,7 @@ target-version = "py313"
 select = ["E", "F", "W", "I", "B", "UP", "S", "ASYNC", "RUF"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101"]
+"tests/**" = ["S101", "S608", "E501"]
 
 [tool.mypy]
 strict = true
@@ -59,11 +61,23 @@ include_external_packages = true
 name = "core is a foundation layer and must not import feature modules"
 type = "forbidden"
 source_modules = ["agentree.core"]
-forbidden_modules = ["agentree.health", "agentree.tenancy", "agentree.main", "agentree.worker"]
+forbidden_modules = [
+    "agentree.health", "agentree.identity", "agentree.tenancy", "agentree.main", "agentree.worker",
+]
 
 [[tool.importlinter.contracts]]
-name = "tenancy does not depend on the HTTP layer"
+name = "tenancy and identity domain code does not depend on the HTTP layer"
 type = "forbidden"
-source_modules = ["agentree.tenancy"]
-forbidden_modules = ["agentree.health", "agentree.main", "fastapi"]
+source_modules = [
+    "agentree.tenancy.context", "agentree.tenancy.db", "agentree.tenancy.models",
+    "agentree.tenancy.rls", "agentree.tenancy.roles", "agentree.tenancy.service",
+    "agentree.identity.models", "agentree.identity.passwords", "agentree.identity.service",
+]
+forbidden_modules = ["fastapi", "agentree.main", "agentree.health"]
 allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "identity does not depend on tenancy"
+type = "forbidden"
+source_modules = ["agentree.identity"]
+forbidden_modules = ["agentree.tenancy"]

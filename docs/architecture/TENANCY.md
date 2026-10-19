@@ -25,11 +25,18 @@ async with tenant_session(session_factory, ctx) as session:
 ## Adding a tenant table (checklist)
 1. Column `business_id uuid NOT NULL REFERENCES businesses(id)`; composite FK `(business_id, x_id)` when referencing another tenant table.
 2. In the migration: `for s in enable_tenant_rls("table"): op.execute(s)`; downgrade with `disable_tenant_rls`.
-3. `test_every_public_table_has_rls_enabled` fails if RLS is missing.
-4. Add the new endpoints to the cross-tenant isolation matrix (when HTTP endpoints exist).
+3. `test_every_public_table_has_rls_unless_explicitly_global` fails if RLS is missing.
+4. Routes under `/api/businesses/{business_id}/...` are picked up automatically by `tests/test_isolation_matrix.py` (discovered from OpenAPI); give new path parameters a real B-owned value there.
 
 ## Cross-tenant lookups
-Only through narrow `SECURITY DEFINER` functions owned by the migrator, with pinned `search_path`, returning minimal data, `EXECUTE` revoked from PUBLIC and granted to `agentree_app`. Current: `agentree_resolve_business_slug(slug) → uuid` (public page routing). Membership listing for a user will follow the same pattern in slice 1.4.
+Only through narrow `SECURITY DEFINER` functions owned by the migrator, with pinned `search_path`, returning minimal data, `EXECUTE` revoked from PUBLIC and granted to `agentree_app`:
+- `agentree_resolve_business_slug(slug) → uuid` — public page routing.
+- `agentree_membership_role(user, business) → role` — authorizes a business-scoped request *before* a TenantContext exists.
+- `agentree_user_businesses(user)` — business switcher (id, name, slug, role).
+- `agentree_claim_invitation(token_hash, user)` — atomic, single-use; checks the user's stored verified email matches the invitation.
+
+## Global tables
+`rls.GLOBAL_TABLES` lists the only tables without tenant RLS (`users`, `user_sessions`, `auth_tokens`, `rate_limit_buckets`, `alembic_version`). A test fails if any other table lacks RLS. Adding to this list is a security decision: the table must hold no tenant data.
 
 ## Known limits
 - `businesses.slug` is globally unique, so a create attempt can reveal that a slug is taken (acceptable: slugs are public).
