@@ -11,7 +11,8 @@ Read before changing code. Product source of truth: `docs/product/AGENTREE_MASTE
 ## Layout
 ```
 apps/api/      Python package `agentree` (FastAPI api + worker entrypoints, Alembic migrations)
-apps/web/      Next.js (not built yet)
+apps/web/      Next.js dashboard (App Router, TS strict, Tailwind); /api/* proxied to FastAPI (same-origin
+               cookie), Playwright E2E in apps/web/e2e; see apps/web/README.md (npm run lint/typecheck/build/e2e)
 infra/         Dockerfile(s), docker-compose for dev
 docs/          product + architecture docs
 ```

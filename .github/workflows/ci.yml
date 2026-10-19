@@ -123,3 +123,82 @@ jobs:
       - name: Tear down
         if: always()
         run: docker compose -f infra/docker-compose.yml down -v
+
+  web:
+    name: Web (lint, types, build)
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: apps/web
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: ESLint
+        run: npm run lint
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Build
+        run: npm run build
+
+  e2e:
+    name: Web end-to-end (Playwright against the dev stack)
+    runs-on: ubuntu-24.04
+    needs: web
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      AGENTREE_API_URL: http://127.0.0.1:8000
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Start backend stack (postgres, migrate, api, mailpit)
+        run: docker compose -f infra/docker-compose.yml up -d --build
+      - name: Wait for API readiness
+        run: |
+          for i in $(seq 1 60); do curl -fsS http://127.0.0.1:8000/readyz && break; sleep 2; done
+          curl -fsS http://127.0.0.1:8000/readyz
+          curl -fsS http://127.0.0.1:8025/api/v1/info > /dev/null
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install dependencies
+        working-directory: apps/web
+        run: npm ci
+      - name: Build and start Next.js on :3000
+        working-directory: apps/web
+        run: |
+          npm run build
+          nohup npm run start > /tmp/next.log 2>&1 &
+          for i in $(seq 1 60); do curl -fsS -o /dev/null http://localhost:3000/login && break; sleep 1; done
+          curl -fsS -o /dev/null http://localhost:3000/login
+      - name: Install Playwright Chromium
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+      - name: Playwright E2E
+        working-directory: apps/web
+        run: npx playwright test
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: playwright-report
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+          retention-days: 7
+      - name: Logs on failure
+        if: failure()
+        run: |
+          cat /tmp/next.log || true
+          docker compose -f infra/docker-compose.yml logs
+      - name: Tear down
+        if: always()
+        run: docker compose -f infra/docker-compose.yml down -v
