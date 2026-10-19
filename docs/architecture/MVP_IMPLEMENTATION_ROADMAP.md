@@ -74,13 +74,13 @@ Each slice below lists only what is specific to it.
 
 ## Phase 2 — First working agent (BYOK)
 
-### 2.1 Provider credentials (BYOK vault)
+### 2.1 Provider credentials (BYOK vault) — ✅ implemented (Task 05)
 - **Objective:** add/replace/remove primary and backup keys, encrypted; validation call on save.
 - **Acceptance:** UI never shows key after save (last 4 only); DB holds ciphertext only.
 - **Tests:** encryption round-trip, key rotation, redaction (key never appears in logs/errors/API responses).
 - **Security checks:** master key loaded from secret file/env, not the repo.
 
-### 2.2 LLM client + fake provider
+### 2.2 LLM client + fake provider — ✅ implemented (Task 05; streaming lands with 2.4)
 - **Objective:** `LLMClient` interface, LiteLLM implementation, scripted fake for tests, usage events.
 - **Acceptance:** a real call with a test key works (manual run, reported); all automated tests use the fake.
 

@@ -10,6 +10,8 @@ from urllib.parse import urlsplit
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from agentree.core.vault import parse_master_key
+
 
 class Environment(StrEnum):
     DEV = "dev"
@@ -55,6 +57,12 @@ class Settings(BaseSettings):
     smtp_password: SecretStr | None = None
     smtp_starttls: bool = False
 
+    # BYOK vault master key: base64 of 32 random bytes. Required to store/read provider keys.
+    master_key: SecretStr | None = None
+    master_key_id: str = "k1"
+    # Retired keys still needed to decrypt older secrets: JSON {"k0": "<base64>"}.
+    previous_master_keys: dict[str, SecretStr] = {}
+
     @model_validator(mode="after")
     def _deployed_environments_must_be_secure(self) -> "Settings":
         """Fail closed at startup on insecure cookie, origin or email settings."""
@@ -77,8 +85,19 @@ class Settings(BaseSettings):
             problems.append("smtp_username and smtp_password are required")
         if "localhost" in self.mail_from:
             problems.append("mail_from must use a real sending domain")
+        if self.master_key is None:
+            problems.append("master_key is required")
         if problems:
             raise ValueError(f"insecure {self.environment} configuration: " + "; ".join(problems))
+        return self
+
+    @model_validator(mode="after")
+    def _master_keys_are_valid(self) -> "Settings":
+        for value in [self.master_key, *self.previous_master_keys.values()]:
+            if value is not None:
+                parse_master_key(value.get_secret_value())
+        if self.master_key_id in self.previous_master_keys:
+            raise ValueError("master_key_id must differ from previous key ids")
         return self
 
     @property
