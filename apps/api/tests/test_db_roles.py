@@ -41,6 +41,9 @@ async def test_readyz_reports_ok_for_app_role(client: AsyncClient) -> None:
 
 
 def test_uuid7_is_version_7_and_time_ordered() -> None:
-    ids = [uuid7() for _ in range(50)]
+    ids = [uuid7() for _ in range(500)]
     assert all(i.version == 7 and i.variant == "specified in RFC 4122" for i in ids)
-    assert ids == sorted(ids) or len({i.int >> 80 for i in ids}) == 1
+    # Ordered by millisecond timestamp; order within one millisecond is random by design.
+    timestamps = [i.int >> 80 for i in ids]
+    assert timestamps == sorted(timestamps)
+    assert len(set(ids)) == len(ids)
