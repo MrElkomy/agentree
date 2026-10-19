@@ -2,6 +2,7 @@ import pytest
 from pydantic import ValidationError
 
 from agentree.core.config import Settings
+from agentree.core.vault import generate_master_key
 
 
 def test_settings_require_database_url(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -29,6 +30,7 @@ SECURE_PROD: dict[str, object] = {
     "smtp_username": "apikey",
     "smtp_password": "not-a-real-secret",
     "mail_from": "Agentree <no-reply@agentree.com>",
+    "master_key": generate_master_key(),
 }
 
 
@@ -50,6 +52,7 @@ def test_secure_deployed_configuration_is_accepted(environment: str) -> None:
         ({"smtp_starttls": False}, "smtp_starttls"),
         ({"smtp_password": None}, "smtp_username and smtp_password"),
         ({"mail_from": "Agentree <no-reply@localhost>"}, "mail_from"),
+        ({"master_key": None}, "master_key is required"),
     ],
 )
 def test_insecure_production_configuration_fails_closed(
@@ -61,3 +64,9 @@ def test_insecure_production_configuration_fails_closed(
 
 def test_dev_defaults_are_allowed_outside_deployed_environments() -> None:
     Settings(database_url="postgresql+asyncpg://u:p@localhost/d", session_cookie_secure=False)
+
+
+@pytest.mark.parametrize("value", ["not-base64!!", "c2hvcnQ="])
+def test_malformed_master_key_rejected(value: str) -> None:
+    with pytest.raises(ValidationError):
+        Settings(database_url="postgresql+asyncpg://u:p@h/d", master_key=value)

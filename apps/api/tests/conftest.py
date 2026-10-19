@@ -30,6 +30,9 @@ from agentree.core.config import Environment, Settings
 from agentree.core.db import create_engine, create_session_factory
 from agentree.core.db_roles import APP_ROLE, MIGRATOR_ROLE, bootstrap_roles
 from agentree.core.email import OutgoingEmail
+from agentree.core.vault import generate_master_key
+from agentree.llm.base import ProviderName
+from agentree.llm.fake import FakeProvider
 from agentree.main import create_app
 
 API_DIR = Path(__file__).resolve().parents[1]
@@ -111,6 +114,7 @@ def settings(db_urls: DbUrls) -> Settings:
         allowed_origins=[WEB_ORIGIN],
         public_base_url=WEB_ORIGIN,
         session_cookie_secure=True,
+        master_key=generate_master_key(),
     )
 
 
@@ -198,6 +202,7 @@ class AppHarness:
     app: FastAPI
     mailer: FakeMailer
     clients: list[AsyncClient]
+    llm: dict[ProviderName, FakeProvider]
 
     def new_client(self) -> AsyncClient:
         """A separate browser (own cookie jar) against the same running app."""
@@ -206,11 +211,19 @@ class AppHarness:
         return c
 
 
+def _returning(fake: FakeProvider) -> Callable[[], FakeProvider]:
+    return lambda: fake
+
+
 @pytest.fixture
 async def harness(settings: Settings, mailer: FakeMailer) -> AsyncIterator[AppHarness]:
-    app = create_app(settings, mailer=mailer)
+    # One scripted fake per provider; the app never reaches a real AI provider in tests.
+    fakes = {name: FakeProvider(name=name) for name in ProviderName}
+    app = create_app(
+        settings, mailer=mailer, llm_providers={n: _returning(f) for n, f in fakes.items()}
+    )
     async with app.router.lifespan_context(app):
-        h = AppHarness(app, mailer, [])
+        h = AppHarness(app, mailer, [], fakes)
         try:
             yield h
         finally:

@@ -8,6 +8,7 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import create_async_engine
 
 import agentree.identity.models
+import agentree.providers.models
 import agentree.tenancy.models  # noqa: F401
 from agentree.core.config import Settings
 from agentree.core.models import Base
