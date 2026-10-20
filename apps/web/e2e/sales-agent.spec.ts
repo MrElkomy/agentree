@@ -55,4 +55,11 @@ test("owner connects a key, publishes knowledge and chats with the Sales Agent",
   await expect(answer).toContainText(DEMO_REPLY_START);
   // Published knowledge was used: no "nothing matched" warning under the reply.
   await expect(answer).not.toContainText("No published knowledge matched");
+  // The reply is labelled "<business> Sales Agent", not with provider internals.
+  await expect(answer).toContainText(`${businessName} Sales Agent`);
+
+  // The conversation survives a page refresh.
+  await page.reload();
+  await expect(page.getByTestId("chat-user")).toHaveText("How much is the Ergo chair?");
+  await expect(page.getByTestId("chat-assistant")).toContainText(DEMO_REPLY_START);
 });

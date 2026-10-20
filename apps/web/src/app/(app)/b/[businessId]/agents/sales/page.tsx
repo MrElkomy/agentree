@@ -5,12 +5,25 @@ import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 
 import { useBusiness } from "@/components/business-shell";
 import { RichText } from "@/components/rich-text";
 import { Alert, Button, buttonClass } from "@/components/ui";
-import { api, isApiError, type ConsoleReply } from "@/lib/api";
+import { api, isApiError, type ChatMessage, type ConsoleReply } from "@/lib/api";
 import { messageFor } from "@/lib/messages";
 
 type Turn =
   | { role: "user"; content: string }
-  | { role: "assistant"; content: string; meta: Pick<ConsoleReply, "sources" | "provider" | "model" | "slot" | "fallback_used"> };
+  // meta exists only for replies received in this page session (restored history has none).
+  | { role: "assistant"; content: string; meta?: Pick<ConsoleReply, "sources" | "fallback_used"> };
+
+// The open conversation survives a page refresh (per business, this browser only).
+const storageKey = (businessId: string) => `agentree:sales-conversation:${businessId}`;
+
+function remember(businessId: string, id: string | null) {
+  try {
+    if (id) localStorage.setItem(storageKey(businessId), id);
+    else localStorage.removeItem(storageKey(businessId));
+  } catch {
+    // storage unavailable (private mode): the chat simply isn't restored
+  }
+}
 
 const SUGGESTIONS = ["What do you sell?", "How much does it cost?", "Do you offer a warranty?"];
 
@@ -28,6 +41,31 @@ export default function SalesAgentPage() {
     endRef.current?.scrollIntoView?.({ behavior: "smooth", block: "end" });
   }, [turns, busy]);
 
+  useEffect(() => {
+    let saved: string | null = null;
+    try {
+      saved = localStorage.getItem(storageKey(business.id));
+    } catch {
+      return;
+    }
+    if (!saved) return;
+    let cancelled = false;
+    api<ChatMessage[]>(`${base}/conversations/${encodeURIComponent(saved)}/messages`)
+      .then((messages) => {
+        if (cancelled) return;
+        setConversationId(saved);
+        setTurns(
+          messages.map((m) =>
+            m.role === "user" ? { role: "user", content: m.content } : { role: "assistant", content: m.content },
+          ),
+        );
+      })
+      .catch(() => remember(business.id, null)); // deleted (e.g. 30-day retention) or not ours
+    return () => {
+      cancelled = true;
+    };
+  }, [base, business.id]);
+
   async function send(message: string) {
     const text = message.trim();
     if (!text || busy) return;
@@ -41,12 +79,13 @@ export default function SalesAgentPage() {
         conversation_id: conversationId,
       });
       setConversationId(r.conversation_id);
+      remember(business.id, r.conversation_id);
       setTurns((t) => [
         ...t,
         {
           role: "assistant",
           content: r.reply,
-          meta: { sources: r.sources, provider: r.provider, model: r.model, slot: r.slot, fallback_used: r.fallback_used },
+          meta: { sources: r.sources, fallback_used: r.fallback_used },
         },
       ]);
     } catch (err) {
@@ -91,6 +130,7 @@ export default function SalesAgentPage() {
             onClick={() => {
               setTurns([]);
               setConversationId(null);
+              remember(business.id, null);
               setError(null);
             }}
           >
@@ -127,14 +167,14 @@ export default function SalesAgentPage() {
                 <RichText text={t.content} />
               </div>
               <p className="text-xs text-ink-muted">
-                {t.meta.sources.length ? null : (
+                {business.name} Sales Agent
+                {t.meta && !t.meta.sources.length ? (
                   <>
-                    <span className="font-semibold text-warn">No published knowledge matched this question.</span>
                     {" · "}
+                    <span className="font-semibold text-warn">No published knowledge matched this question.</span>
                   </>
-                )}
-                {t.meta.provider} {t.meta.model}
-                {t.meta.fallback_used ? " · answered by backup provider" : ""}
+                ) : null}
+                {t.meta?.fallback_used ? " · answered by backup provider" : ""}
               </p>
             </div>
           ),
