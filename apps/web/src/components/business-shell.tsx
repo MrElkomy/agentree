@@ -182,7 +182,7 @@ function NavItem({ href, label }: { href: string; label: string }) {
         aria-current={active ? "page" : undefined}
         className={[
           "flex rounded-md px-3 py-2 text-sm font-semibold",
-          active ? "bg-leaf text-canopy-deep" : "text-ink hover:bg-leaf/60",
+          active ? "bg-brand-soft text-brand-deep" : "text-ink hover:bg-brand-soft/60",
         ].join(" ")}
       >
         {label}
@@ -196,7 +196,7 @@ function BusinessSwitcher({ current }: { current: Business | null }) {
   return (
     <Popover
       label={current ? `Switch business, current: ${current.name}` : "Switch business"}
-      buttonClassName="flex w-full items-center justify-between gap-3 rounded-lg border border-line-strong bg-paper px-3 py-2.5 text-left hover:border-canopy"
+      buttonClassName="flex w-full items-center justify-between gap-3 rounded-lg border border-line-strong bg-paper px-3 py-2.5 text-left hover:border-brand"
       panelClassName="w-full"
       button={
         <>
@@ -221,7 +221,7 @@ function BusinessSwitcher({ current }: { current: Business | null }) {
                   href={`/b/${b.id}`}
                   onClick={close}
                   aria-current={current?.id === b.id ? "page" : undefined}
-                  className={`${menuItemClass} ${current?.id === b.id ? "bg-leaf/60" : ""}`}
+                  className={`${menuItemClass} ${current?.id === b.id ? "bg-brand-soft/60" : ""}`}
                 >
                   <span className="truncate">{b.name}</span>
                   <RoleBadge role={b.role} />

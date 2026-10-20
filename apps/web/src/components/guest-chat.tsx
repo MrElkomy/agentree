@@ -77,7 +77,7 @@ export function GuestChat({
           t.role === "user" ? (
             <div
               key={i}
-              className="ms-auto max-w-[85%] rounded-lg bg-canopy px-4 py-2.5 text-white"
+              className="ms-auto max-w-[85%] rounded-lg bg-brand px-4 py-2.5 text-white"
               data-testid="guest-user"
             >
               <p dir={textDirection(t.content)} className="break-words whitespace-pre-wrap">
@@ -130,7 +130,7 @@ export function GuestChat({
             placeholder="Type your message…"
             aria-describedby={counterId}
             aria-invalid={over || undefined}
-            className="min-h-11 flex-1 resize-none rounded-md border border-line-strong bg-surface px-3 py-2 text-base focus-visible:border-canopy"
+            className="min-h-11 flex-1 resize-none rounded-md border border-line-strong bg-surface px-3 py-2 text-base focus-visible:border-brand"
           />
           <Button type="submit" busy={busy} disabled={!draft.trim() || over}>
             Send

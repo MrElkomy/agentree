@@ -64,7 +64,7 @@ export function SignupForm() {
           </Button>
           <Link
             href={withNext("/login", next)}
-            className="text-center text-sm font-semibold text-canopy underline-offset-4 hover:underline"
+            className="text-center text-sm font-semibold text-brand underline-offset-4 hover:underline"
           >
             Back to sign in
           </Link>
@@ -110,7 +110,7 @@ export function SignupForm() {
         Already have an account?{" "}
         <Link
           href={withNext("/login", next)}
-          className="font-semibold text-canopy underline-offset-4 hover:underline"
+          className="font-semibold text-brand underline-offset-4 hover:underline"
         >
           Sign in
         </Link>

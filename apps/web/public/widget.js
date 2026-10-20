@@ -24,8 +24,8 @@
     return;
   }
 
-  // Mirrors the app's --color-canopy token; host pages cannot read our stylesheet.
-  var ACCENT = "#1e5a44";
+  // Mirrors the app's --color-brand token; host pages cannot read our stylesheet.
+  var ACCENT = "#0052fc";
   var rtl = (document.documentElement.getAttribute("dir") || "").toLowerCase() === "rtl";
   var side = rtl ? "left" : "right";
   var open = false;

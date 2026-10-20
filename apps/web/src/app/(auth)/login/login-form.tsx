@@ -83,7 +83,7 @@ export function LoginForm() {
           onChange={(e) => setPassword(e.target.value)}
         />
         <div className="-mt-2 flex justify-end">
-          <Link href="/reset-password" className="text-sm font-semibold text-canopy underline-offset-4 hover:underline">
+          <Link href="/reset-password" className="text-sm font-semibold text-brand underline-offset-4 hover:underline">
             Forgot your password?
           </Link>
         </div>
@@ -95,7 +95,7 @@ export function LoginForm() {
         New to Agentree?{" "}
         <Link
           href={withNext("/signup", next)}
-          className="font-semibold text-canopy underline-offset-4 hover:underline"
+          className="font-semibold text-brand underline-offset-4 hover:underline"
         >
           Create an account
         </Link>

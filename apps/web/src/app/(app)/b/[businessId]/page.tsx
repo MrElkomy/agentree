@@ -60,7 +60,7 @@ export default function BusinessOverviewPage() {
             ["3. Try the agent", "Chat with it like a customer would.", "agents/sales"],
           ].map(([title, text, path]) => (
             <li key={title} className="bg-surface p-5">
-              <Link href={`/b/${business.id}/${path}`} className="font-semibold text-canopy-deep hover:underline">
+              <Link href={`/b/${business.id}/${path}`} className="font-semibold text-brand-deep hover:underline">
                 {title}
               </Link>
               <p className="mt-1 text-sm text-ink-muted">{text}</p>

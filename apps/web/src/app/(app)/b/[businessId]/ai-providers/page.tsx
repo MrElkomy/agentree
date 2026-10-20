@@ -163,7 +163,7 @@ function SlotCard({
             {credential.last_error_kind ? (
               <span className="font-semibold text-danger">Last call failed ({credential.last_error_kind})</span>
             ) : credential.last_verified_at ? (
-              <span className="font-semibold text-canopy-deep">
+              <span className="font-semibold text-brand-deep">
                 Working · checked {new Date(credential.last_verified_at).toLocaleString()}
               </span>
             ) : (

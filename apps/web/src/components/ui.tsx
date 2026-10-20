@@ -76,7 +76,7 @@ export function TextField({ label, hint, error, id, className = "", ...rest }: F
         aria-describedby={[hintId, errorId].filter(Boolean).join(" ") || undefined}
         className={[
           "min-h-11 rounded-md border bg-surface px-3 text-base text-ink",
-          "placeholder:text-ink-muted/70 focus-visible:border-canopy",
+          "placeholder:text-ink-muted/70 focus-visible:border-brand",
           error ? "border-danger" : "border-line-strong",
         ].join(" ")}
         {...rest}
@@ -107,7 +107,7 @@ export function SelectField({ label, hideLabel, id, className = "", children, ..
       </label>
       <select
         id={selectId}
-        className="min-h-11 rounded-md border border-line-strong bg-surface px-3 text-base text-ink focus-visible:border-canopy"
+        className="min-h-11 rounded-md border border-line-strong bg-surface px-3 text-base text-ink focus-visible:border-brand"
         {...rest}
       >
         {children}
@@ -120,7 +120,7 @@ type Tone = "error" | "success" | "warning" | "info";
 
 const TONES: Record<Tone, string> = {
   error: "border-danger/30 bg-danger-soft text-danger",
-  success: "border-canopy/25 bg-leaf text-canopy-deep",
+  success: "border-brand/25 bg-brand-soft text-brand-deep",
   warning: "border-warn/25 bg-warn-soft text-warn",
   info: "border-line bg-surface text-ink",
 };
@@ -137,8 +137,8 @@ export function Alert({ tone = "info", children }: { tone?: Tone; children: Reac
 }
 
 const ROLE_STYLE: Record<Role, string> = {
-  owner: "bg-canopy text-white",
-  admin: "bg-leaf text-canopy-deep ring-1 ring-canopy/30",
+  owner: "bg-brand text-white",
+  admin: "bg-brand-soft text-brand-deep ring-1 ring-brand/30",
   member: "bg-surface text-ink-muted ring-1 ring-line-strong",
 };
 

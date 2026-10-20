@@ -133,7 +133,7 @@ function EntryForm({
           required
           maxLength={MAX_BODY}
           rows={6}
-          className="rounded-md border border-line-strong bg-surface px-3 py-2 text-base focus-visible:border-canopy"
+          className="rounded-md border border-line-strong bg-surface px-3 py-2 text-base focus-visible:border-brand"
         />
         <p className="text-sm text-ink-muted">
           {body.length.toLocaleString()} / {MAX_BODY.toLocaleString()} characters
@@ -202,7 +202,7 @@ function EntryItem({
             <h3 className="font-semibold break-words">{entry.title}</h3>
             <span
               className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                isPublished ? "bg-canopy text-white" : "bg-warn-soft text-warn ring-1 ring-warn/30"
+                isPublished ? "bg-brand text-white" : "bg-warn-soft text-warn ring-1 ring-warn/30"
               }`}
             >
               {isPublished ? "Published" : "Draft"}

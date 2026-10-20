@@ -158,7 +158,7 @@ export default function SalesAgentPage() {
         ) : null}
         {turns.map((t, i) =>
           t.role === "user" ? (
-            <div key={i} className="ml-auto max-w-[85%] rounded-lg bg-canopy px-4 py-3 text-white" data-testid="chat-user">
+            <div key={i} className="ml-auto max-w-[85%] rounded-lg bg-brand px-4 py-3 text-white" data-testid="chat-user">
               <p dir={textDirection(t.content)} className="whitespace-pre-wrap break-words">{t.content}</p>
             </div>
           ) : (
@@ -211,7 +211,7 @@ export default function SalesAgentPage() {
           rows={3}
           maxLength={4000}
           placeholder="Ask about your products, prices or policies…"
-          className="rounded-md border border-line-strong bg-surface px-3 py-2 text-base focus-visible:border-canopy"
+          className="rounded-md border border-line-strong bg-surface px-3 py-2 text-base focus-visible:border-brand"
         />
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs text-ink-muted">Enter to send · Shift+Enter for a new line</p>
