@@ -65,6 +65,7 @@ source_modules = ["agentree.core"]
 forbidden_modules = [
     "agentree.health", "agentree.identity", "agentree.tenancy", "agentree.main", "agentree.worker",
     "agentree.providers", "agentree.llm", "agentree.knowledge", "agentree.agents",
+    "agentree.retention",
 ]
 
 [[tool.importlinter.contracts]]
@@ -91,4 +92,14 @@ source_modules = ["agentree.llm"]
 forbidden_modules = [
     "agentree.identity", "agentree.tenancy", "agentree.providers", "agentree.knowledge",
     "agentree.agents", "agentree.main", "fastapi",
+]
+
+[[tool.importlinter.contracts]]
+name = "retention depends only on core (purges via its SECURITY DEFINER function)"
+type = "forbidden"
+source_modules = ["agentree.retention"]
+forbidden_modules = [
+    "agentree.identity", "agentree.tenancy", "agentree.providers", "agentree.llm",
+    "agentree.knowledge", "agentree.agents", "agentree.health", "agentree.main",
+    "agentree.worker", "fastapi",
 ]

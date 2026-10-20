@@ -34,6 +34,7 @@ Only through narrow `SECURITY DEFINER` functions owned by the migrator, with pin
 - `agentree_membership_role(user, business) → role` — authorizes a business-scoped request *before* a TenantContext exists.
 - `agentree_user_businesses(user)` — business switcher (id, name, slug, role).
 - `agentree_claim_invitation(token_hash, user)` — atomic, single-use; checks the user's stored verified email matches the invitation.
+- `agentree_purge_expired_conversations(cutoff, max_rows) → integer` — retention worker only (AGT-010): deletes, across all tenants, at most `max_rows` conversations (with their messages) whose last activity is before `cutoff` and that are not on `legal_hold`; returns a count, never content. Refuses cutoffs newer than one day and `max_rows` outside 1..10000; skips rows locked by an in-flight turn.
 
 ## Global tables
 `rls.GLOBAL_TABLES` lists the only tables without tenant RLS (`users`, `user_sessions`, `auth_tokens`, `rate_limit_buckets`, `alembic_version`). A test fails if any other table lacks RLS. Adding to this list is a security decision: the table must hold no tenant data.

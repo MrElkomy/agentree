@@ -1,13 +1,15 @@
 """Conversations and messages. RLS: tenant-scoped on business_id.
 
-Raw message content is subject to the 30-day retention policy (AGT-010); `created_at`
-drives the deletion job (Phase 4).
+Raw message content is subject to the 30-day retention policy (AGT-010): the worker's
+retention job (`agentree.retention`) hard-deletes conversations whose last activity is older
+than the window, unless `legal_hold` is set (no API sets it yet).
 """
 
 from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import (
+    Boolean,
     DateTime,
     ForeignKey,
     ForeignKeyConstraint,
@@ -15,6 +17,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    false,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -39,6 +42,8 @@ class Conversation(Base):
     last_message_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+    # Exempts the conversation from retention deletion. Owner-only, audited API: not built yet.
+    legal_hold: Mapped[bool] = mapped_column(Boolean, server_default=false())
 
 
 class Message(Base):

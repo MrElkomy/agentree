@@ -66,8 +66,8 @@ jobs:
           uv run alembic check
       - name: Tests (real PostgreSQL)
         run: uv run pytest -v
-      - name: Worker placeholder starts
-        run: uv run python -m agentree.worker
+      - name: Worker starts and runs one retention pass (as agentree_app)
+        run: uv run python -m agentree.worker --once
 
   security:
     name: Security (secrets, dependencies)
