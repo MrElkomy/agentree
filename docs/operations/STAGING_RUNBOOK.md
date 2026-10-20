@@ -1,4 +1,4 @@
-# Staging runbook: demo.tryagentree.com on the shared Hetzner CX23
+# Staging runbook: tryagentree.com on the shared Hetzner CX23
 
 Status: **prepared, not deployed.** Every step that changes the live server is run by the
 Product Owner (PO) after approval. Supersedes the topology in `STAGING_DEPLOYMENT_PROPOSAL.md`
@@ -9,6 +9,9 @@ Product Owner (PO) after approval. Supersedes the topology in `STAGING_DEPLOYMEN
   the Telegram bridge and video rendering. If measurements show it is tight, the same server
   is upgraded in place (more CPU/RAM). An upgrade adds capacity, **not isolation**.
 - Synthetic test data only, and a dedicated low-budget demo AI key.
+- The demo is served on the main domain `tryagentree.com` (`www` redirects to it), not a
+  subdomain. When production launches, it takes the main domain and staging moves to a
+  subdomain: only `AGENTREE_PUBLIC_HOST` and the Caddy site address change.
 - No existing service is modified. The only shared touch point is one new Caddy site block.
 
 ## What gets added (nothing else changes)
@@ -20,7 +23,7 @@ Product Owner (PO) after approval. Supersedes the topology in `STAGING_DEPLOYMEN
 | Measurements | `~/agentree-measurements/` | text snapshots from `measure.sh` |
 | Docker project | `agentree-staging` | 5 containers (postgres, one-shot migrate, api, web, retention worker), volume `agentree-staging-pgdata` |
 | Port | `127.0.0.1:3103` | loopback only (TRACK 3102, IELTS 3101) |
-| Caddy | one `demo.tryagentree.com { … }` block | `infra/staging/Caddyfile.snippet` |
+| Caddy | `tryagentree.com` block + `www` redirect | `infra/staging/Caddyfile.snippet` |
 | Packages | `age` (+ `rclone` for off-server copies) | apt |
 | Cron (user `me`) | nightly backup 03:30 Cairo | outside the 14:45–15:20 publishing window |
 
@@ -50,13 +53,14 @@ web container is published, and only on 127.0.0.1; Caddy is the single public en
   postgres 28 MiB; images 0.9 GB). The server measurements are the numbers that count.
 
 ## Changes that need PO approval (applied by the PO, in this order)
-1. **DNS:** `A demo.tryagentree.com → <server IPv4>` (plus `AAAA → <server IPv6>` if the TRACK
-   record has one). This affects nothing else. Caddy gets the TLS certificate automatically on
-   first request (ports 80/443 are already open).
+1. **DNS (done 2026-10-20 at Spaceship):** `A @` and `A www` → the server IPv4 (no `AAAA`,
+   matching the TRACK record). Caddy gets the TLS certificates automatically on first request
+   (ports 80/443 are already open). Check the existing Caddyfile for a `tryagentree.com`/`www`
+   block first: if there is one, replace it rather than adding a duplicate.
 2. **SMTP (Brevo free tier, 300 emails/day):** create the account, add the sender domain
-   `tryagentree.com`, and add the TXT/CNAME records Brevo shows (domain code, DKIM, and
-   optionally DMARC). If an SPF TXT record already exists, **merge** `include:spf.brevo.com`
-   into it; never add a second SPF record. Create an SMTP key and type it only into
+   `tryagentree.com`, and add the TXT/CNAME records Brevo shows (domain code, two DKIM
+   CNAMEs). An existing `_dmarc` record is **edited** to add the `rua` tag, never duplicated
+   (done 2026-10-20). If an SPF TXT record exists, merge into it; never add a second one. Create an SMTP key and type it only into
    `staging.env`.
 3. **Packages:** `sudo apt install age rclone`.
 4. **Caddy:** append the snippet, validate, reload (graceful: TRACK/IELTS keep serving).
