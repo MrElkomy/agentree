@@ -35,6 +35,7 @@ Partially delivered slices stay open until every item below is implemented and t
 | Automatic recovery to primary after an outage (health probes) | 2.5 | ❌ Not started. Each turn simply tries primary first again. |
 | 30-day raw conversation retention (deletion job, legal hold) | 4.6 | 🟡 Deletion job implemented (Task 08, pending Product Owner approval): worker loop (`python -m agentree.worker`, every `AGENTREE_RETENTION_INTERVAL_SECONDS`, default 3600) hard-deletes conversations idle longer than `AGENTREE_RETENTION_DAYS` (default 30, max 30) via `agentree_purge_expired_conversations`, batched, one worker at a time. `conversations.legal_hold` exempts a conversation. ❌ Still open: Owner-only audited legal-hold API, persisted deletion audit record (`deletion_job`; counts are only logged today), worker deployment in the dev stack (staging: `worker` service in `infra/staging`), backup-window policy. |
 | Knowledge file uploads (PDF/DOCX/TXT/MD) | 2.3 | ❌ Not started. Manual entries only. |
+| Custom agent display name (e.g. "Sara from Track") set by the owner in settings | 2.4 | ❌ Not started (PO request 2026-10-20). Chat shows "Sales Agent · <business>" until then. |
 | Remaining four agent roles, routing and handoff | 3.x | ❌ Not started. |
 
 ## Phase 0 — Engineering foundation
