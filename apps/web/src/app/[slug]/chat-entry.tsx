@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { GuestChat } from "@/components/guest-chat";
-import { buttonClass } from "@/components/ui";
 import { hasGuestConversation } from "@/lib/guest-chat";
 import { useClientValue } from "@/lib/use-client-value";
 
@@ -25,24 +24,38 @@ export function ChatEntry({ slug, displayName }: { slug: string; displayName: st
         aria-expanded={open}
         aria-controls="public-chat"
         onClick={() => setToggled(!open)}
-        className={`${buttonClass("primary")} min-h-14 w-full text-base`}
+        className="flex min-h-16 w-full items-center gap-4 rounded-xl bg-brand px-4 py-3 text-start text-white shadow-sm transition-colors hover:bg-brand-hover"
       >
-        <svg viewBox="0 0 20 20" aria-hidden="true" className="size-5 shrink-0">
-          <path
-            d="M4 4h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H9l-4 3v-3H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.6"
-            strokeLinejoin="round"
-          />
+        <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-full bg-white/15">
+          <svg viewBox="0 0 20 20" className="size-5">
+            <path
+              d="M4 4h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H9l-4 3v-3H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="font-semibold">Chat with our Sales Agent</span>
+          <span className="text-sm text-white/80">
+            {open ? "Hide the conversation" : "Questions about products or prices? Get an answer now."}
+          </span>
+        </span>
+        <svg
+          viewBox="0 0 20 20"
+          aria-hidden="true"
+          className={`size-5 shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
+        >
+          <path d="m5 8 5 5 5-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
-        {open ? "Hide chat" : "Chat with our Sales Agent"}
       </button>
       <div
         id="public-chat"
         ref={panelRef}
         hidden={!open}
-        className="overflow-hidden rounded-lg border border-line bg-surface"
+        className="overflow-hidden rounded-xl border border-line bg-surface"
       >
         {open ? (
           <>

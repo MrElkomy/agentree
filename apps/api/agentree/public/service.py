@@ -32,6 +32,7 @@ MAX_BIO = 500
 MAX_LINKS = 10
 MAX_LINK_LABEL = 60
 MAX_LINK_URL = 500
+MAX_LINK_DESCRIPTION = 160
 MAX_ORIGINS = 10
 MAX_ORIGIN = 300
 MAX_REPLY_BUDGET = 5000
@@ -67,6 +68,7 @@ class InvalidLinkError(ValueError):
 class Link:
     label: str
     url: str
+    description: str = ""
 
 
 @dataclass(frozen=True)
@@ -157,7 +159,11 @@ def validate_link_url(value: str) -> str:
 
 
 def _links(raw: list[dict[str, Any]]) -> list[Link]:
-    return [Link(str(item["label"]), str(item["url"])) for item in raw]
+    # Links saved before descriptions existed have no "description" key.
+    return [
+        Link(str(item["label"]), str(item["url"]), str(item.get("description") or ""))
+        for item in raw
+    ]
 
 
 def _profile_info(p: PublicProfile | None) -> ProfileInfo:
@@ -197,7 +203,10 @@ async def save_profile(
         "enabled": enabled,
         "display_name": display_name,
         "bio": bio,
-        "links": [{"label": link.label, "url": link.url} for link in links],
+        "links": [
+            {"label": link.label, "url": link.url, "description": link.description}
+            for link in links
+        ],
         "widget_origins": origins,
         "daily_reply_budget": daily_reply_budget,
         "updated_at": _now(),

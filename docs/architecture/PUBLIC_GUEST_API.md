@@ -13,7 +13,7 @@ All error bodies are FastAPI's `{"detail": <string>}`.
 | GET | `/api/businesses/{business_id}/public-profile` | Member+ | Defaults when never saved (`enabled: false`). |
 | PUT | `/api/businesses/{business_id}/public-profile` | Admin+ | Full replacement; omitted fields reset to defaults. 403 `insufficient_role`; 422 (schema), `invalid_widget_origin`, `invalid_link`. |
 
-Body: `{enabled, display_name?: ≤80 | null, bio?: ≤500, links?: [{label 1..60, url https:// ≤500}] ≤10, widget_origins?: [string] ≤10, daily_reply_budget?: 1..5000 (default 200)}` — unknown fields rejected.
+Body: `{enabled, display_name?: ≤80 | null, bio?: ≤500, links?: [{label 1..60, url https:// ≤500, description? ≤160 (one line)}] ≤10, widget_origins?: [string] ≤10, daily_reply_budget?: 1..5000 (default 200)}` — unknown fields rejected.
 Response: the same fields plus `slug` and `updated_at` (null until first save).
 Origins: exact `https://host[:port]`, DNS names only, lowercased, `:443` dropped, duplicates removed; no path/query/fragment/credentials/wildcards/IP literals. `http://localhost:<port>` only when `AGENTREE_ENVIRONMENT` is `dev`/`test`. Values are safe to place in a CSP `frame-ancestors` header.
 

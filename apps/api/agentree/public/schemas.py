@@ -8,6 +8,7 @@ from agentree.public.service import (
     MAX_BIO,
     MAX_DISPLAY_NAME,
     MAX_GUEST_MESSAGE,
+    MAX_LINK_DESCRIPTION,
     MAX_LINK_LABEL,
     MAX_LINK_URL,
     MAX_LINKS,
@@ -26,6 +27,7 @@ class LinkIn(BaseModel):
 
     label: str = Field(min_length=1, max_length=MAX_LINK_LABEL)
     url: str = Field(min_length=1, max_length=MAX_LINK_URL)
+    description: str = Field(default="", max_length=MAX_LINK_DESCRIPTION)
 
     @field_validator("label")
     @classmethod
@@ -34,6 +36,11 @@ class LinkIn(BaseModel):
         if not v:
             raise ValueError("label must not be blank")
         return v
+
+    @field_validator("description")
+    @classmethod
+    def _description(cls, v: str) -> str:
+        return " ".join(v.split())  # one line on the page
 
     @field_validator("url")
     @classmethod
@@ -47,6 +54,7 @@ class LinkIn(BaseModel):
 class LinkOut(BaseModel):
     label: str
     url: str
+    description: str
 
 
 class PublicProfileIn(BaseModel):

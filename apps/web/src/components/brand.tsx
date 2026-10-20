@@ -15,10 +15,12 @@ export function Mark({ className = "size-8", inverted = false }: { className?: s
   );
 }
 
+/** The logo with the slogan, the PO's chosen lockup for the app chrome. Keep it at h-10 or taller
+ * so the slogan stays legible; the bare wordmark files remain for tiny placements. */
 export function Wordmark({
   href = "/dashboard",
   inverted = false,
-  className = "h-7",
+  className = "h-11",
 }: {
   href?: string;
   inverted?: boolean;
@@ -28,8 +30,8 @@ export function Wordmark({
     <Link href={href} className="inline-flex items-center rounded-md">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={inverted ? "/brand/agentree-wordmark-reversed.svg" : "/brand/agentree-wordmark.svg"}
-        alt="Agentree"
+        src={inverted ? "/brand/agentree-logo-slogan-reversed.svg" : "/brand/agentree-logo-slogan.svg"}
+        alt="Agentree — Your AI Team. Always On."
         className={`w-auto ${className}`}
       />
     </Link>

@@ -4,7 +4,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   return (
     <div className="grid min-h-dvh grid-rows-[auto_1fr] lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:grid-rows-1">
       <aside className="relative flex flex-col justify-between gap-8 overflow-hidden bg-brand-deep px-6 py-6 text-white sm:px-10 lg:py-10">
-        <Wordmark href="/login" inverted className="h-8" />
+        <Wordmark href="/login" inverted className="h-14" />
         <div className="hidden flex-col gap-10 lg:flex">
           <BrandTree />
           <div className="flex max-w-md flex-col gap-3">
