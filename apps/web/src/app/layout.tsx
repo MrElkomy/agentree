@@ -1,19 +1,21 @@
 import type { Metadata, Viewport } from "next";
-import { Bricolage_Grotesque, Public_Sans } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-// Self-hosted at build time by next/font: no runtime requests to Google.
-const publicSans = Public_Sans({
-  subsets: ["latin"],
+// Font files are committed (latin subset, variable weight; SIL OFL, see fonts/LICENSE-*), so
+// builds never download from Google Fonts and the browser never calls Google either.
+const publicSans = localFont({
+  src: "./fonts/public-sans-latin-wght.woff2",
+  weight: "100 900",
   variable: "--font-public-sans",
   display: "swap",
 });
 
-const bricolage = Bricolage_Grotesque({
-  subsets: ["latin"],
+const bricolage = localFont({
+  src: "./fonts/bricolage-grotesque-latin-wght.woff2",
+  weight: "200 800",
   variable: "--font-bricolage",
   display: "swap",
-  weight: ["600", "700"],
 });
 
 export const metadata: Metadata = {
