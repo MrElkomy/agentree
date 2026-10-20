@@ -5,7 +5,9 @@
  * and the website widget iframe. Both run on our own origin, so the public API's
  * same-origin check passes; customer websites only ever embed the iframe.
  *
- * The guest token is an opaque bearer credential for this browser and this business only.
+ * The guest token is an opaque credential for this browser and this business only, sent in
+ * the X-Agentree-Guest header. Same-origin requests also carry the browser's HTTP basic auth
+ * for a gate in front of the app (staging); the public API ignores the dashboard cookie.
  * It is kept in localStorage (`agentree:guest:{slug}`) because the widget runs in a
  * third-party iframe where cookies are unreliable; when storage is blocked it lives in
  * memory for this tab. It is never put in a URL. The backend decides everything: a token
@@ -67,7 +69,7 @@ export function guestErrorMessage(err: unknown): string {
 
 const base = (slug: string) => `/api/public/${encodeURIComponent(slug)}`;
 // Public calls never send the dashboard cookie; the guest token is the only credential.
-const opts = (bearer?: string) => ({ bearer, credentials: "omit" as const });
+const opts = (guestToken?: string) => ({ guestToken });
 
 async function newToken(slug: string): Promise<string> {
   const s = await api<GuestSession>(`${base(slug)}/sessions`, "POST", undefined, opts());

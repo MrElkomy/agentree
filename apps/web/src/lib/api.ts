@@ -52,10 +52,8 @@ function codeFrom(body: unknown): string {
 }
 
 type Options = {
-  /** Guest session token for the public chat API (sent as a bearer header, never a cookie). */
-  bearer?: string;
-  /** Public pages send no cookies: the guest API never uses the dashboard session. */
-  credentials?: RequestCredentials;
+  /** Guest session token for the public chat API (its own header, never a cookie). */
+  guestToken?: string;
 };
 
 export async function api<T>(
@@ -66,12 +64,13 @@ export async function api<T>(
 ): Promise<T> {
   const headers: Record<string, string> = {};
   if (body !== undefined) headers["Content-Type"] = "application/json";
-  if (options.bearer) headers.Authorization = `Bearer ${options.bearer}`;
+  // Not `Authorization`: that header carries HTTP basic auth of a gate in front of the app.
+  if (options.guestToken) headers["X-Agentree-Guest"] = options.guestToken;
   let res: Response;
   try {
     res = await fetch(path, {
       method,
-      credentials: options.credentials ?? "same-origin",
+      credentials: "same-origin",
       cache: "no-store",
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),

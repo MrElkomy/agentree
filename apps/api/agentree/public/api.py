@@ -2,9 +2,10 @@
 
 Public routes (`/api/public/{slug}/...`) need no login: the tenant comes only from the slug
 of an *enabled* public page. Unknown slugs and disabled pages both return 404 `not_found`.
-Visitors get an opaque guest token (Authorization: Bearer) and only ever see their own
-conversations. Responses never include provider, model, key slot or knowledge sources, and
-every failure of the customer's AI setup is reported as a generic 503 `agent_unavailable`.
+Visitors get an opaque guest token (sent in the `X-Agentree-Guest` header) and only ever
+see their own conversations. Responses never include provider, model, key slot or knowledge
+sources, and every failure of the customer's AI setup is reported as a generic 503
+`agent_unavailable`.
 """
 
 from datetime import UTC, datetime
@@ -12,7 +13,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.security import APIKeyHeader
 
 from agentree.agents import service as agents
 from agentree.core import ratelimit
@@ -37,8 +38,13 @@ from agentree.tenancy.roles import Role
 owner_router = APIRouter(prefix="/api/businesses/{business_id}", tags=["public-page"])
 public_router = APIRouter(prefix="/api/public/{slug}", tags=["public"])
 
-_bearer = HTTPBearer(auto_error=False, description="Guest session token from POST /sessions")
-GuestToken = Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)]
+# A dedicated header, not `Authorization`: browsers reuse `Authorization` for HTTP basic auth
+# in front of the app (e.g. the staging gate), and a Bearer value would replace it.
+GUEST_HEADER = "X-Agentree-Guest"
+_guest_header = APIKeyHeader(
+    name=GUEST_HEADER, auto_error=False, description="Guest session token from POST /sessions"
+)
+GuestToken = Annotated[str | None, Depends(_guest_header)]
 
 
 def _links(links: list[service.Link]) -> list[LinkOut]:
@@ -101,10 +107,7 @@ def _busy() -> HTTPException:
 
 
 def _invalid_session() -> HTTPException:
-    return HTTPException(
-        status.HTTP_401_UNAUTHORIZED, "guest_session_invalid",
-        headers={"WWW-Authenticate": "Bearer"},
-    )  # fmt: skip
+    return HTTPException(status.HTTP_401_UNAUTHORIZED, "guest_session_invalid")
 
 
 async def _page(request: Request, slug: str) -> service.PublicPage:
@@ -153,10 +156,8 @@ async def create_guest_session(slug: str, request: Request) -> GuestSessionOut:
 
 
 async def _guest(
-    request: Request, page: service.PublicPage, creds: HTTPAuthorizationCredentials | None,
-    *, touch: bool,
-) -> UUID:  # fmt: skip
-    token = creds.credentials if creds is not None else None
+    request: Request, page: service.PublicPage, token: str | None, *, touch: bool
+) -> UUID:
     guest = await service.authenticate_guest(
         request.app.state.session_factory, page.tenant, token, touch=touch
     )

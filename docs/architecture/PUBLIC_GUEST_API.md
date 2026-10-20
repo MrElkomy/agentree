@@ -23,8 +23,8 @@ Origins: exact `https://host[:port]`, DNS names only, lowercased, `:443` dropped
 | GET | `/api/public/{slug}` | — | 200 `{slug, display_name, bio, links, chat_enabled: true}` | 404 `not_found` |
 | GET | `/api/public/{slug}/widget-config` | — | 200 `{widget_origins}` | 404 |
 | POST | `/api/public/{slug}/sessions` | — (same-origin POST) | 201 `{token, expires_at}` | 404, 429 `busy`, 403 `origin_not_allowed` |
-| POST | `/api/public/{slug}/chat` | `Authorization: Bearer <token>` | 200 `{conversation_id, reply}` | 404, 401 `guest_session_invalid`, 422, 429 `busy`, 503 `agent_unavailable`, 403 `origin_not_allowed` |
-| GET | `/api/public/{slug}/conversations/{conversation_id}/messages` | Bearer | 200 `[{role, content, created_at}]` | 404, 401 |
+| POST | `/api/public/{slug}/chat` | `X-Agentree-Guest: <token>` | 200 `{conversation_id, reply}` | 404, 401 `guest_session_invalid`, 422, 429 `busy`, 503 `agent_unavailable`, 403 `origin_not_allowed` |
+| GET | `/api/public/{slug}/conversations/{conversation_id}/messages` | `X-Agentree-Guest` | 200 `[{role, content, created_at}]` | 404, 401 |
 
 Chat body: `{message: 1..1000 chars (not blank), conversation_id?: uuid, channel?: "public" | "widget" (default "public")}`; unknown fields rejected. Omit `conversation_id` to start a conversation; the channel is fixed when the conversation is created.
 
@@ -48,7 +48,7 @@ All return 429 `busy`. The business budget is consumed before the AI call (a fai
 
 ## Guest sessions
 - Token: `secrets.token_urlsafe(32)` (256 bits), returned once; only SHA-256 stored (`guest_sessions.token_hash`). Fixed 30-day lifetime; `last_seen_at` updated on each chat.
-- Sent as a bearer header (not a cookie): the widget iframe is third-party context where cookies are unreliable, and a header keeps the token out of URLs and access logs.
+- Sent in the dedicated `X-Agentree-Guest` header (not a cookie, not `Authorization`): the widget iframe is third-party context where cookies are unreliable, a header keeps the token out of URLs and access logs, and `Authorization` must stay free for HTTP basic auth of a gate in front of the app (the staging gate broke Bearer tokens).
 - Retention: stale sessions are deleted by the retention purge once none of their conversations remain (see `TENANCY.md`).
 
 ## CSRF / framing
