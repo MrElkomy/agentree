@@ -1,0 +1,145 @@
+# Staging stack for a shared host (Hetzner CX23 with other sites behind a host-level Caddy).
+# Run only through infra/staging/deploy.sh, or with:
+#   docker compose -p agentree-staging -f infra/staging/docker-compose.yml --env-file <secrets file> ...
+# Every value comes from the secrets file (template: infra/staging/staging.env.example);
+# nothing secret is written here.
+#
+# Shared-host rules:
+#   - Only the web container publishes a port, and only on 127.0.0.1 (Docker-published
+#     ports bypass UFW). Postgres and the API stay on the private compose network.
+#   - Hard memory/CPU caps with no swap, so a runaway container is restarted instead of
+#     pushing the other sites into swap.
+name: agentree-staging
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-api-image: &api-image
+  image: agentree-api:${AGENTREE_IMAGE_TAG:-local}
+  build:
+    context: ../../apps/api
+    dockerfile: ../../infra/Dockerfile.api
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?set in the secrets file}
+      POSTGRES_DB: agentree
+    # Sized for a 4 GB host shared with other services.
+    command:
+      - postgres
+      - -c
+      - shared_buffers=64MB
+      - -c
+      - effective_cache_size=192MB
+      - -c
+      - work_mem=4MB
+      - -c
+      - maintenance_work_mem=32MB
+      - -c
+      - max_connections=40
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d agentree"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 384m
+    memswap_limit: 384m
+    cpus: 1.0
+    logging: *logging
+
+  # One-shot: create/update the app and migrator roles, then migrate as the schema owner.
+  migrate:
+    <<: *api-image
+    restart: "no"
+    environment:
+      AGENTREE_ADMIN_DATABASE_URL: postgresql+asyncpg://postgres:${POSTGRES_ADMIN_PASSWORD}@postgres:5432/agentree
+      AGENTREE_APP_DB_PASSWORD: ${AGENTREE_APP_DB_PASSWORD:?set in the secrets file}
+      AGENTREE_MIGRATOR_DB_PASSWORD: ${AGENTREE_MIGRATOR_DB_PASSWORD:?set in the secrets file}
+      AGENTREE_MIGRATION_DATABASE_URL: postgresql+asyncpg://agentree_migrator:${AGENTREE_MIGRATOR_DB_PASSWORD}@postgres:5432/agentree
+      AGENTREE_DATABASE_URL: postgresql+asyncpg://agentree_app:${AGENTREE_APP_DB_PASSWORD}@postgres:5432/agentree
+    command: ["sh", "-c", "python -m agentree.core.db_roles && alembic upgrade head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    mem_limit: 256m
+    memswap_limit: 256m
+    cpus: 1.0
+    logging: *logging
+
+  api:
+    <<: *api-image
+    restart: unless-stopped
+    # The client IP for rate limits comes from AGENTREE_TRUSTED_PROXY_COUNT, not uvicorn.
+    command:
+      [
+        "uvicorn", "agentree.main:create_app", "--factory",
+        "--host", "0.0.0.0", "--port", "8000", "--no-proxy-headers",
+      ]
+    environment:
+      # Staging refuses to start with insecure settings (see core/config.py).
+      AGENTREE_ENVIRONMENT: staging
+      AGENTREE_DATABASE_URL: postgresql+asyncpg://agentree_app:${AGENTREE_APP_DB_PASSWORD}@postgres:5432/agentree
+      AGENTREE_PUBLIC_BASE_URL: https://${AGENTREE_PUBLIC_HOST:?set in the secrets file}
+      AGENTREE_ALLOWED_ORIGINS: '["https://${AGENTREE_PUBLIC_HOST}"]'
+      # Host Caddy is the only proxy that appends to X-Forwarded-For (Next.js passes it through).
+      AGENTREE_TRUSTED_PROXY_COUNT: "1"
+      AGENTREE_MASTER_KEY: ${AGENTREE_MASTER_KEY:?set in the secrets file}
+      AGENTREE_MASTER_KEY_ID: ${AGENTREE_MASTER_KEY_ID:-staging-k1}
+      AGENTREE_MAIL_FROM: ${AGENTREE_MAIL_FROM:?set in the secrets file}
+      AGENTREE_SMTP_HOST: ${AGENTREE_SMTP_HOST:?set in the secrets file}
+      AGENTREE_SMTP_PORT: ${AGENTREE_SMTP_PORT:-587}
+      AGENTREE_SMTP_STARTTLS: "true"
+      AGENTREE_SMTP_USERNAME: ${AGENTREE_SMTP_USERNAME:?set in the secrets file}
+      AGENTREE_SMTP_PASSWORD: ${AGENTREE_SMTP_PASSWORD:?set in the secrets file}
+      AGENTREE_LOG_LEVEL: INFO
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz')"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    mem_limit: 384m
+    memswap_limit: 384m
+    cpus: 1.0
+    logging: *logging
+
+  web:
+    image: agentree-web:${AGENTREE_IMAGE_TAG:-local}
+    build:
+      context: ../../apps/web
+      dockerfile: ../../infra/Dockerfile.web
+      args:
+        AGENTREE_API_URL: http://api:8000
+    restart: unless-stopped
+    environment:
+      NODE_OPTIONS: --max-old-space-size=192
+    ports:
+      # Loopback only: the host Caddy proxies demo.<domain> here.
+      - "127.0.0.1:${AGENTREE_WEB_PORT:-3103}:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/login').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+    depends_on:
+      api:
+        condition: service_healthy
+    mem_limit: 256m
+    memswap_limit: 256m
+    cpus: 0.75
+    logging: *logging
+
+volumes:
+  pgdata:
+    name: agentree-staging-pgdata

@@ -1,0 +1,30 @@
+# syntax=docker/dockerfile:1
+# Build context: apps/web. Produces a self-contained Next.js server (output: "standalone").
+FROM node:22-alpine AS deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
+
+FROM node:22-alpine AS build
+WORKDIR /app
+ENV NEXT_TELEMETRY_DISABLED=1 \
+    NEXT_OUTPUT=standalone
+# /api/* rewrites are resolved at build time: point them at the API service on the private network.
+ARG AGENTREE_API_URL=http://api:8000
+ENV AGENTREE_API_URL=$AGENTREE_API_URL
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+RUN npm run build
+
+FROM node:22-alpine
+WORKDIR /app
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=3000 \
+    HOSTNAME=0.0.0.0
+RUN addgroup -S -g 10001 agentree && adduser -S -u 10001 -G agentree -H agentree
+COPY --from=build --chown=agentree:agentree /app/.next/standalone ./
+COPY --from=build --chown=agentree:agentree /app/.next/static ./.next/static
+USER agentree
+EXPOSE 3000
+CMD ["node", "server.js"]
