@@ -1,12 +1,14 @@
 # Agentree staging site block for the EXISTING host Caddy (/etc/caddy/Caddyfile).
-# Append this block; do not change the TRACK/IELTS blocks. Then:
+# Append these blocks; do not change the TRACK/IELTS blocks. If the Caddyfile already has a
+# block for tryagentree.com or www.tryagentree.com, replace that block instead of adding a
+# second one (`caddy validate` rejects duplicate site addresses). Then:
 #   sudo caddy validate --config /etc/caddy/Caddyfile && sudo systemctl reload caddy
 # (reload is graceful: other sites keep serving).
 #
 # Replace <DEMO_USER> and <BCRYPT_HASH> (from `caddy hash-password`). The gate keeps the
 # demo private and out of search engines on top of Agentree's own login.
 # Caddy older than 2.8 spells the directive `basicauth`.
-demo.tryagentree.com {
+tryagentree.com {
 	basic_auth {
 		<DEMO_USER> <BCRYPT_HASH>
 	}
@@ -19,4 +21,9 @@ demo.tryagentree.com {
 	# Caddy sets X-Forwarded-For to the real client and ignores client-sent values
 	# (no trusted_proxies configured), which AGENTREE_TRUSTED_PROXY_COUNT=1 relies on.
 	reverse_proxy 127.0.0.1:3103
+}
+
+# www → apex (permanent redirect, keeps the path).
+www.tryagentree.com {
+	redir https://tryagentree.com{uri} permanent
 }

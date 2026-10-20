@@ -142,7 +142,7 @@ services:
     environment:
       NODE_OPTIONS: --max-old-space-size=192
     ports:
-      # Loopback only: the host Caddy proxies demo.<domain> here.
+      # Loopback only: the host Caddy proxies the public host here.
       - "127.0.0.1:${AGENTREE_WEB_PORT:-3103}:3000"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/login').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
