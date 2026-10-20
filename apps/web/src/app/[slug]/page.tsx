@@ -38,7 +38,7 @@ export default async function PublicBusinessPage({ params }: Props) {
 
   return (
     <div className="flex min-h-dvh flex-col items-center px-4 py-10 sm:py-16">
-      <main className="flex w-full max-w-xl flex-col items-center gap-8">
+      <main className="flex w-full max-w-lg flex-col items-center gap-8">
         <header className="flex flex-col items-center gap-4 text-center">
           <div
             aria-hidden="true"
@@ -56,10 +56,20 @@ export default async function PublicBusinessPage({ params }: Props) {
           ) : null}
         </header>
 
-        {page.chat_enabled ? <ChatEntry slug={page.slug} displayName={page.display_name} /> : null}
+        {page.chat_enabled ? (
+          <section aria-labelledby="agents-heading" className="flex w-full flex-col gap-3">
+            <h2 id="agents-heading" className="text-sm font-semibold tracking-normal text-ink-muted">
+              Talk to our team
+            </h2>
+            <ChatEntry slug={page.slug} displayName={page.display_name} />
+          </section>
+        ) : null}
 
         {page.links.length ? (
-          <nav aria-label={`${page.display_name} links`} className="w-full">
+          <section aria-labelledby="links-heading" className="flex w-full flex-col gap-3">
+            <h2 id="links-heading" className="text-sm font-semibold tracking-normal text-ink-muted">
+              Links
+            </h2>
             <ul className="flex flex-col gap-3">
               {page.links.map((link, i) => (
                 <li key={`${i}-${link.url}`}>
@@ -67,15 +77,34 @@ export default async function PublicBusinessPage({ params }: Props) {
                     href={link.url}
                     target="_blank"
                     rel="noopener noreferrer nofollow"
-                    dir="auto"
-                    className="flex min-h-12 w-full items-center justify-center rounded-lg border border-line-strong bg-surface px-4 py-3 text-center font-semibold text-ink transition-colors hover:border-brand hover:text-brand"
+                    className="group flex min-h-14 w-full items-center gap-4 rounded-xl border border-line bg-surface px-4 py-3 shadow-sm transition-colors hover:border-brand"
                   >
-                    {link.label}
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span dir="auto" className="font-semibold text-ink group-hover:text-brand">
+                        {link.label}
+                      </span>
+                      {link.description ? (
+                        <span dir="auto" className="text-sm text-ink-muted">
+                          {link.description}
+                        </span>
+                      ) : null}
+                    </span>
+                    <svg viewBox="0 0 20 20" aria-hidden="true" className="size-4 shrink-0 text-ink-muted group-hover:text-brand">
+                      <path
+                        d="M8 4H4.5A.5.5 0 0 0 4 4.5v11a.5.5 0 0 0 .5.5h11a.5.5 0 0 0 .5-.5V12M11 4h5v5M16 4l-7 7"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.6"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                    <span className="sr-only">(opens in a new tab)</span>
                   </a>
                 </li>
               ))}
             </ul>
-          </nav>
+          </section>
         ) : null}
       </main>
       <footer className="mt-auto pt-12 text-center text-xs text-ink-muted">

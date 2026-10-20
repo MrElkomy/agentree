@@ -60,6 +60,7 @@ test("owner publishes a public page; visitors chat privately; widget is framable
   await page.getByRole("button", { name: "Add link" }).click();
   await page.getByLabel("Link 1 label").fill("Our shop");
   await page.getByLabel("Link 1 address").fill("https://shop.example.com/desks");
+  await page.getByLabel("Link 1 description (optional)").fill("Every desk we make, with prices");
   // localhost origins are accepted only in dev/test (the CI stack runs AGENTREE_ENVIRONMENT=dev).
   await page.getByLabel("Websites allowed to show the chat").fill("https://www.example.com\nhttp://localhost:4000");
   await page.getByRole("button", { name: "Save" }).click();
@@ -76,6 +77,7 @@ test("owner publishes a public page; visitors chat privately; widget is framable
   await expect(link).toHaveAttribute("href", "https://shop.example.com/desks");
   await expect(link).toHaveAttribute("target", "_blank");
   await expect(link).toHaveAttribute("rel", "noopener noreferrer nofollow");
+  await expect(link).toContainText("Every desk we make, with prices");
 
   await v1.getByRole("button", { name: "Chat with our Sales Agent" }).click();
   await expect(v1.getByText("You're chatting with an AI assistant.")).toBeVisible();

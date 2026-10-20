@@ -14,6 +14,7 @@ const MAX_BIO = 500;
 const MAX_LINKS = 10;
 const MAX_LABEL = 60;
 const MAX_URL = 500;
+const MAX_DESCRIPTION = 160;
 const MAX_ORIGINS = 10;
 const MAX_BUDGET = 5000;
 
@@ -22,7 +23,7 @@ const MAX_BUDGET = 5000;
 const ORIGIN_HINT_RE = /^https:\/\/[a-z0-9-]+(\.[a-z0-9-]+)+(:\d{1,5})?\/?$/i;
 const LOCAL_RE = /^http:\/\/localhost:\d{1,5}\/?$/i;
 
-type LinkRow = { key: number; label: string; url: string };
+type LinkRow = { key: number; label: string; url: string; description: string };
 type Form = {
   enabled: boolean;
   displayName: string;
@@ -33,14 +34,14 @@ type Form = {
 };
 
 let nextKey = 1;
-const row = (label = "", url = ""): LinkRow => ({ key: nextKey++, label, url });
+const row = (label = "", url = "", description = ""): LinkRow => ({ key: nextKey++, label, url, description });
 
 function toForm(p: PublicProfile): Form {
   return {
     enabled: p.enabled,
     displayName: p.display_name ?? "",
     bio: p.bio,
-    links: p.links.map((l) => row(l.label, l.url)),
+    links: p.links.map((l) => row(l.label, l.url, l.description)),
     origins: p.widget_origins.join("\n"),
     budget: String(p.daily_reply_budget),
   };
@@ -102,7 +103,7 @@ export default function PublicPageSettings() {
       bio: form.bio.trim(),
       links: form.links
         .filter((l) => l.label.trim() || l.url.trim())
-        .map((l) => ({ label: l.label.trim(), url: l.url.trim() })),
+        .map((l) => ({ label: l.label.trim(), url: l.url.trim(), description: l.description.trim() })),
       widget_origins: originLines(form.origins),
       daily_reply_budget: Number(form.budget),
     };
@@ -366,8 +367,8 @@ function LinksEditor({
     <fieldset className="flex flex-col gap-3">
       <legend className="text-sm font-semibold">Links</legend>
       <p className="-mt-1 text-sm text-ink-muted">
-        Buttons on your page, in this order — your website, menu, booking or social profiles. Up
-        to {MAX_LINKS}; each must start with https://.
+        Shown under your agents, in this order — your website, menu, booking or social profiles.
+        Up to {MAX_LINKS}; each must start with https://. A short description is optional.
       </p>
       {links.length === 0 ? <p className="text-sm text-ink-muted">No links yet.</p> : null}
       <ol className="flex flex-col gap-3">
@@ -376,31 +377,41 @@ function LinksEditor({
           return (
             <li
               key={l.key}
-              className="flex flex-col gap-3 rounded-lg border border-line bg-surface p-4 sm:flex-row sm:items-start"
+              className="flex flex-col gap-3 rounded-lg border border-line bg-surface p-4"
               data-testid="link-row"
             >
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+                <TextField
+                  label={`Link ${i + 1} label`}
+                  value={l.label}
+                  onChange={(e) => set(i, { label: e.target.value })}
+                  maxLength={MAX_LABEL}
+                  placeholder="Our website"
+                  dir="auto"
+                  className="sm:w-48"
+                />
+                <TextField
+                  label={`Link ${i + 1} address`}
+                  type="url"
+                  value={l.url}
+                  onChange={(e) => set(i, { url: e.target.value })}
+                  maxLength={MAX_URL}
+                  placeholder="https://www.example.com"
+                  dir="ltr"
+                  error={urlBad ? "Must start with https://" : null}
+                  className="min-w-0 flex-1"
+                />
+              </div>
               <TextField
-                label={`Link ${i + 1} label`}
-                value={l.label}
-                onChange={(e) => set(i, { label: e.target.value })}
-                maxLength={MAX_LABEL}
-                placeholder="Our website"
+                label={`Link ${i + 1} description (optional)`}
+                value={l.description}
+                onChange={(e) => set(i, { description: e.target.value })}
+                maxLength={MAX_DESCRIPTION}
+                placeholder="Browse our packages and prices"
                 dir="auto"
-                className="sm:w-48"
-              />
-              <TextField
-                label={`Link ${i + 1} address`}
-                type="url"
-                value={l.url}
-                onChange={(e) => set(i, { url: e.target.value })}
-                maxLength={MAX_URL}
-                placeholder="https://www.example.com"
-                dir="ltr"
-                error={urlBad ? "Must start with https://" : null}
-                className="min-w-0 flex-1"
               />
               {canEdit ? (
-                <div className="flex gap-1 sm:pt-7">
+                <div className="flex justify-end gap-1">
                   <Button variant="ghost" size="sm" onClick={() => move(i, -1)} disabled={i === 0} aria-label={`Move link ${i + 1} up`}>
                     ↑
                   </Button>

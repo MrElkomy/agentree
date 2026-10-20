@@ -823,6 +823,11 @@ export interface components {
             label: string;
             /** Url */
             url: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
         };
         /** LinkOut */
         LinkOut: {
@@ -830,6 +835,8 @@ export interface components {
             label: string;
             /** Url */
             url: string;
+            /** Description */
+            description: string;
         };
         /** LoginIn */
         LoginIn: {

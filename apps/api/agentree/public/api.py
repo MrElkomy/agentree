@@ -48,7 +48,7 @@ GuestToken = Annotated[str | None, Depends(_guest_header)]
 
 
 def _links(links: list[service.Link]) -> list[LinkOut]:
-    return [LinkOut(label=link.label, url=link.url) for link in links]
+    return [LinkOut(label=x.label, url=x.url, description=x.description) for x in links]
 
 
 # --- owner (dashboard) ------------------------------------------------------------------
@@ -81,7 +81,7 @@ async def put_public_profile(
         p = await service.save_profile(
             st.session_factory, member.tenant, enabled=body.enabled,
             display_name=body.display_name, bio=body.bio,
-            links=[service.Link(link.label, link.url) for link in body.links],
+            links=[service.Link(link.label, link.url, link.description) for link in body.links],
             widget_origins=body.widget_origins, daily_reply_budget=body.daily_reply_budget,
             allow_localhost=st.settings.environment in (Environment.DEV, Environment.TEST),
         )  # fmt: skip

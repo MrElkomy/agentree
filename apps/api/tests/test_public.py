@@ -104,7 +104,11 @@ async def test_profile_defaults_then_admin_saves_and_member_reads(harness: AppHa
 
     body = {
         "enabled": True, "display_name": "  Acme Store  ", "bio": "Chairs since 1999.",
-        "links": [{"label": " Shop ", "url": "https://acme.example.com/shop"}],
+        "links": [
+            {"label": " Shop ", "url": "https://acme.example.com/shop",
+             "description": "  Chairs,\n tables  and more. "},
+            {"label": "Blog", "url": "https://acme.example.com/blog"},
+        ],
         "widget_origins": ["HTTPS://Shop.Example.COM/", "https://shop.example.com:443",
                            "https://shop.example.com:8443", "http://localhost:3000"],
         "daily_reply_budget": 50,
@@ -113,7 +117,15 @@ async def test_profile_defaults_then_admin_saves_and_member_reads(harness: AppHa
     assert r.status_code == 200, r.text
     out = r.json()
     assert out["display_name"] == "Acme Store"
-    assert out["links"] == [{"label": "Shop", "url": "https://acme.example.com/shop"}]
+    # Descriptions are optional and collapsed to one line.
+    assert out["links"] == [
+        {
+            "label": "Shop",
+            "url": "https://acme.example.com/shop",
+            "description": "Chairs, tables and more.",
+        },
+        {"label": "Blog", "url": "https://acme.example.com/blog", "description": ""},
+    ]
     # Lowercased, default port dropped, duplicates removed; localhost allowed in test env.
     assert out["widget_origins"] == [
         "https://shop.example.com", "https://shop.example.com:8443", "http://localhost:3000"
@@ -145,6 +157,10 @@ BAD_PROFILES: list[tuple[str, dict[str, Any]]] = [
     ("credential_link", {"links": [{"label": "l", "url": "https://u:p@a.example.com"}]}),
     ("space_link", {"links": [{"label": "l", "url": "https://a.example.com/a b"}]}),
     ("long_link", {"links": [{"label": "l", "url": "https://a.example.com/" + "x" * 480}]}),
+    (
+        "description_161",
+        {"links": [{"label": "l", "url": "https://a.example.com", "description": "x" * 161}]},
+    ),
     ("link_extra_field", {"links": [{"label": "l", "url": "https://a.example.com", "x": 1}]}),
     ("eleven_origins", {"widget_origins": [f"https://s{i}.example.com" for i in range(11)]}),
     ("budget_0", {"daily_reply_budget": 0}),
@@ -184,6 +200,12 @@ async def test_invalid_widget_origins_rejected(harness: AppHarness, origin: str)
     assert r.status_code == 422, (origin, r.text)
 
 
+def test_links_saved_before_descriptions_read_as_empty() -> None:
+    assert public._links([{"label": "Shop", "url": "https://a.example.com"}]) == [
+        public.Link("Shop", "https://a.example.com", "")
+    ]
+
+
 def test_localhost_origin_only_outside_deployed_environments() -> None:
     assert public.normalize_origin("http://localhost:3000", allow_localhost=True) == (
         "http://localhost:3000"
@@ -221,14 +243,15 @@ def test_short_and_file_like_slugs_are_rejected(slug: str) -> None:
 async def test_public_page_shows_only_safe_fields(harness: AppHarness) -> None:
     biz = await _business(
         harness, bio="Comfortable chairs.", widget_origins=["https://shop.example.com"],
-        links=[{"label": "Shop", "url": "https://acme.example.com"}],
+        links=[{"label": "Shop", "url": "https://acme.example.com", "description": "Our store"}],
     )  # fmt: skip
     c = harness.new_client()
     r = await c.get(biz.pub)
     assert r.status_code == 200
     assert r.json() == {
         "slug": biz.slug, "display_name": "Acme Chairs", "bio": "Comfortable chairs.",
-        "links": [{"label": "Shop", "url": "https://acme.example.com"}], "chat_enabled": True,
+        "links": [{"label": "Shop", "url": "https://acme.example.com", "description": "Our store"}],
+        "chat_enabled": True,
     }  # fmt: skip
     r = await c.get(f"{biz.pub}/widget-config")
     assert r.status_code == 200
