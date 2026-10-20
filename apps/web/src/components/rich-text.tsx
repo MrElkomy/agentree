@@ -1,8 +1,9 @@
 import { Fragment, type ReactNode } from "react";
 
 // Renders model output as plain React nodes: paragraphs, "- " bullet lists and **bold**.
-// No HTML is ever interpreted (model output is untrusted). Each block picks its own text
-// direction, so Arabic replies read right-to-left and English left-to-right.
+// No HTML is ever interpreted (model output is untrusted). The whole message takes the
+// direction of its main language, so an Arabic reply reads right-to-left (bullets on the
+// right) even when a line starts with a Latin word such as a package name.
 // A chat bubble can't show tables, so a markdown table becomes one bullet per row
 // ("Header: value · Header: value"); headings lose their "#", code fences are dropped.
 
@@ -10,6 +11,14 @@ const BULLET = /^\s*(?:[-*•])\s+/;
 const TABLE_ROW = /^\s*\|.*\|\s*$/;
 const TABLE_RULE = /^[\s|:-]+$/;
 const HEADING = /^\s*#{1,6}\s+/;
+const RTL_CHAR = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/g;
+const LTR_CHAR = /[A-Za-z\u00C0-\u024F]/g;
+
+export function textDirection(text: string): "rtl" | "ltr" {
+  const rtl = text.match(RTL_CHAR)?.length ?? 0;
+  const ltr = text.match(LTR_CHAR)?.length ?? 0;
+  return rtl > ltr ? "rtl" : "ltr";
+}
 
 function cells(row: string): string[] {
   return row.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
@@ -40,7 +49,7 @@ export function RichText({ text }: { text: string }) {
   const flush = () => {
     if (!items.length) return;
     blocks.push(
-      <ul key={`ul-${blocks.length}`} dir="auto" className="list-disc space-y-1 ps-5">
+      <ul key={`ul-${blocks.length}`} className="list-disc space-y-1 ps-5">
         {items.map((item, i) => (
           <li key={i}>{inline(item)}</li>
         ))}
@@ -70,7 +79,7 @@ export function RichText({ text }: { text: string }) {
     const content = line.replace(HEADING, "");
     if (content.trim()) {
       blocks.push(
-        <p key={`p-${blocks.length}`} dir="auto" className="break-words">
+        <p key={`p-${blocks.length}`} className="break-words">
           {heading ? <strong>{inline(content)}</strong> : inline(content)}
         </p>,
       );
@@ -78,5 +87,9 @@ export function RichText({ text }: { text: string }) {
   }
   flushTable();
   flush();
-  return <div className="flex flex-col gap-2">{blocks}</div>;
+  return (
+    <div dir={textDirection(text)} className="flex flex-col gap-2">
+      {blocks}
+    </div>
+  );
 }
