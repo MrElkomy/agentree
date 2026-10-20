@@ -37,8 +37,8 @@ Partially delivered slices stay open until every item below is implemented and t
 | Knowledge file uploads (PDF/DOCX/TXT/MD) | 2.3 | ❌ Not started. Manual entries only. |
 | Custom agent display name (e.g. "Sara from Track") set by the owner in settings | 2.4 | ❌ Not started (PO request 2026-10-20). Chat shows "Sales Agent · <business>" until then. |
 | Remaining four agent roles, routing and handoff | 3.x | ❌ Not started. |
-| Public AI/Bio page | 4.1 | 🟡 Backend API done (Task 09a, pending Product Owner approval): owner settings `GET/PUT /api/businesses/{id}/public-profile`, public `GET /api/public/{slug}`, guest Sales Agent chat. Reserved root slugs extended. ❌ Still open: web page at `/{slug}` (separate PR), agent entry points beyond Sales, branding (logo/colours). |
-| Website widget | 4.2 | 🟡 Backend API done (Task 09a): exact-origin allowlist (`widget_origins`), `GET /api/public/{slug}/widget-config` for CSP `frame-ancestors`, `channel: "widget"` on chat. ❌ Still open: embed script + iframe page and CSP header in the web app (separate PR). |
+| Public AI/Bio page | 4.1 | 🟡 Backend API (Task 09a, merged) + web UI (Task 09b, pending Product Owner approval): owner settings page "Public page & widget" (enable, display name, bio, ordered links, allowed websites, daily reply limit; Admin+ edits), server-rendered public page at `/{slug}` (links + "Chat with our Sales Agent" panel, guest token per browser, conversation restored on reload, AI disclosure). ❌ Still open: agent entry points beyond Sales, branding (logo/colours/avatar image), search indexing (pages are `noindex` on staging). |
+| Website widget | 4.2 | 🟡 Backend API (Task 09a, merged) + web (Task 09b, pending Product Owner approval): `/widget.js` loader (one script tag, floating button, RTL-aware, Escape/close), iframe page `/w/{slug}` with `Content-Security-Policy: frame-ancestors` from the allowlist (`src/proxy.ts`; `none` on any failure), every other route keeps `X-Frame-Options: DENY`. ❌ Still open: widget branding/colours, launcher customization; on staging the basic-auth gate also covers the widget, so it can only be tried on tryagentree.com pages. |
 | Public abuse controls | 4.3 | 🟡 Rate limits done (Task 09a): sessions 20/h per IP and 500/day per business; chat 20/10 min and 100/day per session, 60/h per IP, per-business daily reply budget (owner-set, default 200, max 5000). ❌ Still open: bot challenge (U-16, Turnstile candidate), per-business alerting when the budget is hit. |
 
 ## Phase 0 — Engineering foundation
@@ -129,8 +129,8 @@ Partially delivered slices stay open until every item below is implemented and t
 
 ## Phase 4 — Customer experience
 
-### 4.1 Public AI/Bio page (slug, branding, entry points, links) — 🟡 API implemented (Task 09a), web UI pending
-### 4.2 Website widget (iframe, origin allowlist, guest token) — 🟡 API implemented (Task 09a), embed/iframe UI pending
+### 4.1 Public AI/Bio page (slug, branding, entry points, links) — 🟡 API (Task 09a) and web UI (Task 09b) implemented; branding and more entry points open
+### 4.2 Website widget (iframe, origin allowlist, guest token) — 🟡 API (Task 09a) and embed script + iframe page (Task 09b) implemented; branding open
 ### 4.3 Public abuse controls (rate limits, per-business daily cap, bot challenge) — 🟡 limits implemented (Task 09a), bot challenge open (U-16)
 ### 4.4 Human inbox (take over, reply, assign, status, release to AI)
 ### 4.5 External handoff (email + webhook with context summary); no-human-available path

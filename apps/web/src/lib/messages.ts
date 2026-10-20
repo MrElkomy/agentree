@@ -36,6 +36,12 @@ const MESSAGES: Record<string, string> = {
   key_vault_unavailable: "Secure key storage isn't available on this server. Contact support.",
   key_unreadable_reenter: "This stored key can no longer be read. Enter the key again.",
   no_ai_provider_configured: "Connect an AI provider key first, then try again.",
+  invalid_widget_origin:
+    "One of the widget websites isn't valid. Use the exact address, like https://www.example.com (no path).",
+  invalid_link: "One of the links isn't valid. Links must start with https://.",
+  busy: "We're getting a lot of messages — please try again in a moment.",
+  agent_unavailable: "The assistant is unavailable right now.",
+  guest_session_invalid: "Your chat session has ended. Send your message again to start a new one.",
   ai_unavailable: "None of your AI providers could answer right now. Check your keys on the AI Providers page.",
 };
 

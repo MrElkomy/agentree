@@ -7,7 +7,6 @@ const apiUrl = (process.env.AGENTREE_API_URL ?? "http://127.0.0.1:8000").replace
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  { key: "X-Frame-Options", value: "DENY" },
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
 ];
 
@@ -20,7 +19,12 @@ const nextConfig: NextConfig = {
     return [{ source: "/api/:path*", destination: `${apiUrl}/api/:path*` }];
   },
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      // No page may be framed, except the widget iframe (/w/{slug}): src/proxy.ts sets its
+      // CSP frame-ancestors from the business's allowed websites ('none' on any failure).
+      { source: "/:path((?!w/).*)", headers: [{ key: "X-Frame-Options", value: "DENY" }] },
+    ];
   },
 };
 

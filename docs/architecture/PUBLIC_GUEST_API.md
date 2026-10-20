@@ -1,6 +1,6 @@
 # Public page, widget and guest sessions — API notes (Task 09a)
 
-Status: backend implemented (roadmap 4.1/4.2/4.3 API part), pending Product Owner approval. Web UI is a separate PR.
+Status: backend implemented (Task 09a, merged). Web UI (public page, `/widget.js`, `/w/{slug}` iframe with CSP `frame-ancestors`) in Task 09b.
 Related: PC-02, TD-12, TD-17, AGT-008 (this is the *guest* stage only — no provisional profile or OTP yet), AGT-010.
 
 ## Endpoints
