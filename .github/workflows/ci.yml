@@ -157,7 +157,7 @@ jobs:
           $STAGING build
           $STAGING up -d postgres
           $STAGING run --rm migrate
-          $STAGING up -d --wait api web
+          $STAGING up -d --wait api web worker
       - name: Web serves the app and proxies /api to the API
         run: |
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3103/login)" = "200"
@@ -169,6 +169,14 @@ jobs:
           test "$($STAGING exec -T api printenv AGENTREE_ENVIRONMENT)" = "staging"
           test "$($STAGING exec -T api id -u)" = "10001"
           test "$($STAGING exec -T web id -u)" = "10001"
+      - name: Retention worker runs a purge pass as the unprivileged role
+        run: |
+          for i in $(seq 1 15); do
+            $STAGING logs worker | grep -q 'retention purge finished' && break
+            sleep 2
+          done
+          $STAGING logs worker | grep 'retention purge finished'
+          test "$($STAGING ps --status running -q worker)" != ""
       - name: Only the web port is published, and only on loopback
         run: |
           docker ps --filter label=com.docker.compose.project=agentree-staging --format '{{.Names}} {{.Ports}}' | tee ports.txt
@@ -177,7 +185,7 @@ jobs:
           if grep -q '0.0.0.0' ports.txt; then exit 1; fi
       - name: Memory caps are applied
         run: |
-          for s in postgres api web; do
+          for s in postgres api web worker; do
             id="$($STAGING ps -q "$s")"
             echo "$s: limit=$(docker inspect -f '{{.HostConfig.Memory}}' "$id") swap=$(docker inspect -f '{{.HostConfig.MemorySwap}}' "$id")"
             test "$(docker inspect -f '{{.HostConfig.Memory}}' "$id")" -gt 0

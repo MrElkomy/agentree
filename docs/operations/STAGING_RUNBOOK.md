@@ -18,7 +18,7 @@ Product Owner (PO) after approval. Supersedes the topology in `STAGING_DEPLOYMEN
 | Secrets | `~/agentree-secrets/` (mode 700) | `staging.env` (600), `backup-recipients.txt` (age public key), `deployed-tags` |
 | Backups | `~/agentree-backups/` (700) | encrypted only, newest 7 kept |
 | Measurements | `~/agentree-measurements/` | text snapshots from `measure.sh` |
-| Docker project | `agentree-staging` | 4 containers (postgres, one-shot migrate, api, web), volume `agentree-staging-pgdata` |
+| Docker project | `agentree-staging` | 5 containers (postgres, one-shot migrate, api, web, retention worker), volume `agentree-staging-pgdata` |
 | Port | `127.0.0.1:3103` | loopback only (TRACK 3102, IELTS 3101) |
 | Caddy | one `demo.tryagentree.com { … }` block | `infra/staging/Caddyfile.snippet` |
 | Packages | `age` (+ `rclone` for off-server copies) | apt |
@@ -33,8 +33,9 @@ web container is published, and only on 127.0.0.1; Caddy is the single public en
 | postgres (64 MB shared_buffers, 40 conns) | 40–80 MB | 384 MB | 1.0 |
 | api (uvicorn, 1 worker) | 110–170 MB | 384 MB | 1.0 |
 | web (Next.js standalone, heap 192 MB) | 70–130 MB | 256 MB | 0.75 |
+| worker (30-day retention, hourly pass) | 50–80 MB | 192 MB | 0.5 |
 | migrate (runs at deploy, then exits) | — | 256 MB | 1.0 |
-| **Total steady state** | **≈ 250–400 MB** | **1.0 GB** | |
+| **Total steady state** | **≈ 300–480 MB** | **1.2 GB** | |
 
 - **Today:** ~2.7 GB available at idle and 761 MB of swap already in use. After deploy, expect
   ~2.3 GB available.
@@ -45,7 +46,8 @@ web container is published, and only on 127.0.0.1; Caddy is the single public en
   so **no rendering while the demo is being shown**. If that rule is too restrictive, upgrade
   the server (the CX33 tier has 8 GB).
 - CI's "Staging stack smoke test" job prints real idle memory per container and image sizes
-  for this exact compose file. The server measurements below are the numbers that count.
+  for this exact compose file (first run, before the worker existed: web 35 MiB, api 69 MiB,
+  postgres 28 MiB; images 0.9 GB). The server measurements are the numbers that count.
 
 ## Changes that need PO approval (applied by the PO, in this order)
 1. **DNS:** `A demo.tryagentree.com → <server IPv4>` (plus `AAAA → <server IPv6>` if the TRACK
@@ -109,7 +111,7 @@ For Drive: `rclone config` (remote name `gdrive`), then add
 ~/agentree/infra/staging/deploy.sh origin/main
 ```
 What it does: checks the commit is on `main` → measures → builds images at low priority →
-migrates as `agentree_migrator` → starts api + web → health checks → measures again. Nothing
+migrates as `agentree_migrator` → starts api + web + the retention worker → health checks → measures again. Nothing
 is public yet; it only answers on 127.0.0.1:3103.
 
 **5. Caddy (approval)**
@@ -184,8 +186,4 @@ data until reviewed and mitigated:
 | Basic-auth demo gate shared with viewers | credential spreads | rotate after each demo round |
 
 ## Not included yet
-- **Retention worker service:** the 30-day deletion job is in PR #10. After it merges, add a
-  `worker` service (`python -m agentree.worker`, `agentree_app` role, ~100 MB cap) to the
-  staging compose. Until then, no deletion runs on staging. That is acceptable with synthetic
-  data only.
 - Monitoring/alerting, and an uptime check on `/readyz` through Caddy.

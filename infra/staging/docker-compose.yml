@@ -23,6 +23,24 @@ x-api-image: &api-image
     context: ../../apps/api
     dockerfile: ../../infra/Dockerfile.api
 
+x-app-env: &app-env
+  # Staging refuses to start with insecure settings (see core/config.py).
+  AGENTREE_ENVIRONMENT: staging
+  AGENTREE_DATABASE_URL: postgresql+asyncpg://agentree_app:${AGENTREE_APP_DB_PASSWORD}@postgres:5432/agentree
+  AGENTREE_PUBLIC_BASE_URL: https://${AGENTREE_PUBLIC_HOST:?set in the secrets file}
+  AGENTREE_ALLOWED_ORIGINS: '["https://${AGENTREE_PUBLIC_HOST}"]'
+  # Host Caddy is the only proxy that appends to X-Forwarded-For (Next.js passes it through).
+  AGENTREE_TRUSTED_PROXY_COUNT: "1"
+  AGENTREE_MASTER_KEY: ${AGENTREE_MASTER_KEY:?set in the secrets file}
+  AGENTREE_MASTER_KEY_ID: ${AGENTREE_MASTER_KEY_ID:-staging-k1}
+  AGENTREE_MAIL_FROM: ${AGENTREE_MAIL_FROM:?set in the secrets file}
+  AGENTREE_SMTP_HOST: ${AGENTREE_SMTP_HOST:?set in the secrets file}
+  AGENTREE_SMTP_PORT: ${AGENTREE_SMTP_PORT:-587}
+  AGENTREE_SMTP_STARTTLS: "true"
+  AGENTREE_SMTP_USERNAME: ${AGENTREE_SMTP_USERNAME:?set in the secrets file}
+  AGENTREE_SMTP_PASSWORD: ${AGENTREE_SMTP_PASSWORD:?set in the secrets file}
+  AGENTREE_LOG_LEVEL: INFO
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -84,23 +102,7 @@ services:
         "uvicorn", "agentree.main:create_app", "--factory",
         "--host", "0.0.0.0", "--port", "8000", "--no-proxy-headers",
       ]
-    environment:
-      # Staging refuses to start with insecure settings (see core/config.py).
-      AGENTREE_ENVIRONMENT: staging
-      AGENTREE_DATABASE_URL: postgresql+asyncpg://agentree_app:${AGENTREE_APP_DB_PASSWORD}@postgres:5432/agentree
-      AGENTREE_PUBLIC_BASE_URL: https://${AGENTREE_PUBLIC_HOST:?set in the secrets file}
-      AGENTREE_ALLOWED_ORIGINS: '["https://${AGENTREE_PUBLIC_HOST}"]'
-      # Host Caddy is the only proxy that appends to X-Forwarded-For (Next.js passes it through).
-      AGENTREE_TRUSTED_PROXY_COUNT: "1"
-      AGENTREE_MASTER_KEY: ${AGENTREE_MASTER_KEY:?set in the secrets file}
-      AGENTREE_MASTER_KEY_ID: ${AGENTREE_MASTER_KEY_ID:-staging-k1}
-      AGENTREE_MAIL_FROM: ${AGENTREE_MAIL_FROM:?set in the secrets file}
-      AGENTREE_SMTP_HOST: ${AGENTREE_SMTP_HOST:?set in the secrets file}
-      AGENTREE_SMTP_PORT: ${AGENTREE_SMTP_PORT:-587}
-      AGENTREE_SMTP_STARTTLS: "true"
-      AGENTREE_SMTP_USERNAME: ${AGENTREE_SMTP_USERNAME:?set in the secrets file}
-      AGENTREE_SMTP_PASSWORD: ${AGENTREE_SMTP_PASSWORD:?set in the secrets file}
-      AGENTREE_LOG_LEVEL: INFO
+    environment: *app-env
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz')"]
       interval: 10s
@@ -112,6 +114,21 @@ services:
     mem_limit: 384m
     memswap_limit: 384m
     cpus: 1.0
+    logging: *logging
+
+  # Retention: deletes conversations idle for more than 30 days (python -m agentree.worker).
+  # Same settings and unprivileged role as the API; it refuses a role that can bypass RLS.
+  worker:
+    <<: *api-image
+    restart: unless-stopped
+    command: ["python", "-m", "agentree.worker"]
+    environment: *app-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    mem_limit: 192m
+    memswap_limit: 192m
+    cpus: 0.5
     logging: *logging
 
   web:

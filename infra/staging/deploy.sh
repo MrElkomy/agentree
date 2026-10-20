@@ -3,7 +3,7 @@
 # Usage: deploy.sh <git-ref>        e.g. deploy.sh origin/main   |   deploy.sh 2651c3f
 #
 # Steps: refuse a dirty tree or a commit not on main → measure → pre-deploy backup (if a
-# database exists) → build images tagged with the commit → migrate → start api + web →
+# database exists) → build images tagged with the commit → migrate → start api + web + worker →
 # health checks → measure. If the new version is unhealthy, the previous images are
 # started again (no data is changed by a rollback; migrations are backward-compatible).
 # shellcheck source=infra/staging/lib.sh
@@ -48,7 +48,7 @@ healthy() {
   return 1
 }
 
-compose up -d api web
+compose up -d api web worker
 if healthy; then
   echo "$tag" >> "$history"
   echo "deployed $tag"
@@ -60,7 +60,7 @@ echo "new version is unhealthy; recent logs:" >&2
 compose logs --tail 50 api web >&2 || true
 if [ -n "$previous" ]; then
   echo "rolling back to $previous" >&2
-  AGENTREE_IMAGE_TAG="$previous" compose up -d api web
+  AGENTREE_IMAGE_TAG="$previous" compose up -d api web worker
   AGENTREE_IMAGE_TAG="$previous" healthy && echo "rolled back to $previous" >&2
 fi
 exit 1
