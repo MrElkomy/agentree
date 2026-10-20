@@ -64,10 +64,11 @@ jobs:
           uv run alembic downgrade base
           uv run alembic upgrade head
           uv run alembic check
+      - name: Worker starts and runs one retention pass (as agentree_app)
+        # Before pytest: the test harness re-bootstraps the cluster-wide roles with test passwords.
+        run: uv run python -m agentree.worker --once
       - name: Tests (real PostgreSQL)
         run: uv run pytest -v
-      - name: Worker starts and runs one retention pass (as agentree_app)
-        run: uv run python -m agentree.worker --once
 
   security:
     name: Security (secrets, dependencies)
