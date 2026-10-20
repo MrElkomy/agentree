@@ -3,6 +3,7 @@
 from fastapi import APIRouter, HTTPException, Request, Response, status
 
 from agentree.core import ratelimit
+from agentree.core.client_ip import client_ip
 from agentree.identity import service
 from agentree.identity.deps import CurrentUser
 from agentree.identity.passwords import WeakPasswordError
@@ -23,8 +24,7 @@ ACCEPTED = StatusOut(status="accepted")
 
 
 def _client_ip(request: Request) -> str:
-    # Behind a reverse proxy this must come from a trusted X-Forwarded-For (deployment task).
-    return request.client.host if request.client else "unknown"
+    return client_ip(request, request.app.state.settings.trusted_proxy_count)
 
 
 async def _limit(request: Request, scope: str, identifier: str, limit: int, window: int) -> None:

@@ -125,6 +125,74 @@ jobs:
         if: always()
         run: docker compose -f infra/docker-compose.yml down -v
 
+  staging:
+    name: Staging stack smoke test (shared-host compose)
+    runs-on: ubuntu-24.04
+    env:
+      STAGING: docker compose -p agentree-staging -f infra/staging/docker-compose.yml --env-file /tmp/agentree-staging.env
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Throwaway secrets file (random values, discarded with the runner)
+        run: |
+          f=/tmp/agentree-staging.env
+          {
+            echo "AGENTREE_PUBLIC_HOST=demo.example.com"
+            echo "AGENTREE_WEB_PORT=3103"
+            echo "POSTGRES_ADMIN_PASSWORD=$(openssl rand -hex 24)"
+            echo "AGENTREE_MIGRATOR_DB_PASSWORD=$(openssl rand -hex 24)"
+            echo "AGENTREE_APP_DB_PASSWORD=$(openssl rand -hex 24)"
+            echo "AGENTREE_MASTER_KEY=$(openssl rand -base64 32)"
+            echo 'AGENTREE_MAIL_FROM="Agentree Demo <no-reply@example.com>"'
+            echo "AGENTREE_SMTP_HOST=smtp.example.com"
+            echo "AGENTREE_SMTP_USERNAME=ci-placeholder"
+            echo "AGENTREE_SMTP_PASSWORD=ci-placeholder"
+          } > "$f"
+          chmod 600 "$f"
+      - name: Scripts pass shellcheck
+        run: shellcheck -x -P SCRIPTDIR infra/staging/*.sh
+      - name: Compose file is valid
+        run: $STAGING config -q
+      - name: Build and start (same order as deploy.sh)
+        run: |
+          $STAGING build
+          $STAGING up -d postgres
+          $STAGING run --rm migrate
+          $STAGING up -d --wait api web
+      - name: Web serves the app and proxies /api to the API
+        run: |
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3103/login)" = "200"
+          # Unauthenticated session check goes web -> api over the private network.
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3103/api/auth/me)" = "401"
+      - name: API runs in staging mode as the unprivileged role, readiness OK
+        run: |
+          $STAGING exec -T api python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000/readyz').read().decode())"
+          test "$($STAGING exec -T api printenv AGENTREE_ENVIRONMENT)" = "staging"
+          test "$($STAGING exec -T api id -u)" = "10001"
+          test "$($STAGING exec -T web id -u)" = "10001"
+      - name: Only the web port is published, and only on loopback
+        run: |
+          docker ps --filter label=com.docker.compose.project=agentree-staging --format '{{.Names}} {{.Ports}}' | tee ports.txt
+          test "$(grep -c -- '->' ports.txt)" = "1"
+          grep -q '127.0.0.1:3103->3000/tcp' ports.txt
+          if grep -q '0.0.0.0' ports.txt; then exit 1; fi
+      - name: Memory caps are applied
+        run: |
+          for s in postgres api web; do
+            id="$($STAGING ps -q "$s")"
+            echo "$s: limit=$(docker inspect -f '{{.HostConfig.Memory}}' "$id") swap=$(docker inspect -f '{{.HostConfig.MemorySwap}}' "$id")"
+            test "$(docker inspect -f '{{.HostConfig.Memory}}' "$id")" -gt 0
+          done
+      - name: Resource usage at idle (reference numbers for the shared host)
+        run: |
+          docker stats --no-stream --format 'table {{.Name}}\t{{.MemUsage}}\t{{.CPUPerc}}'
+          docker image ls --format 'table {{.Repository}}:{{.Tag}}\t{{.Size}}' | grep -E 'agentree|postgres'
+      - name: Logs on failure
+        if: failure()
+        run: $STAGING logs
+      - name: Tear down
+        if: always()
+        run: $STAGING down -v
+
   web:
     name: Web (lint, types, build)
     runs-on: ubuntu-24.04
