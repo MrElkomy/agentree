@@ -167,7 +167,7 @@ export default function SalesAgentPage() {
                 <RichText text={t.content} />
               </div>
               <p className="text-xs text-ink-muted">
-                Sales Agent · {business.name}
+                {business.name} Sales Agent
                 {t.meta && !t.meta.sources.length ? (
                   <>
                     {" · "}
