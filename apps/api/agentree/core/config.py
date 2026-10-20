@@ -63,6 +63,10 @@ class Settings(BaseSettings):
     # Dev/E2E only: replace every AI provider with a canned demo reply (no network calls).
     llm_demo_mode: bool = False
 
+    # Raw conversation retention (AGT-010). Never longer than the approved 30 days.
+    retention_days: int = Field(default=30, ge=1, le=30)
+    retention_interval_seconds: int = Field(default=3600, ge=60)
+
     # BYOK vault master key: base64 of 32 random bytes. Required to store/read provider keys.
     master_key: SecretStr | None = None
     master_key_id: str = "k1"
