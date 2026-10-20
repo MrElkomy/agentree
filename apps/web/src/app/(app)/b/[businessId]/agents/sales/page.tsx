@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { useBusiness } from "@/components/business-shell";
+import { RichText } from "@/components/rich-text";
 import { Alert, Button, buttonClass } from "@/components/ui";
 import { api, isApiError, type ConsoleReply } from "@/lib/api";
 import { messageFor } from "@/lib/messages";
@@ -118,16 +119,16 @@ export default function SalesAgentPage() {
         {turns.map((t, i) =>
           t.role === "user" ? (
             <div key={i} className="ml-auto max-w-[85%] rounded-lg bg-canopy px-4 py-3 text-white" data-testid="chat-user">
-              <p className="whitespace-pre-wrap break-words">{t.content}</p>
+              <p dir="auto" className="whitespace-pre-wrap break-words">{t.content}</p>
             </div>
           ) : (
             <div key={i} className="mr-auto flex max-w-[85%] flex-col gap-2" data-testid="chat-assistant">
               <div className="rounded-lg border border-line bg-paper px-4 py-3">
-                <p className="whitespace-pre-wrap break-words">{t.content}</p>
+                <RichText text={t.content} />
               </div>
               <p className="text-xs text-ink-muted">
                 {t.meta.sources.length ? (
-                  <>Based on: {t.meta.sources.map((s) => s.title).join(", ")}</>
+                  <>Knowledge checked: {t.meta.sources.map((s) => s.title).join(", ")}</>
                 ) : (
                   <span className="font-semibold text-warn">No published knowledge matched this question.</span>
                 )}
@@ -163,6 +164,7 @@ export default function SalesAgentPage() {
         </label>
         <textarea
           id="chat-input"
+          dir="auto"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={onKeyDown}

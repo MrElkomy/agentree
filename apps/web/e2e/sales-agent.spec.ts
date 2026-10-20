@@ -53,5 +53,5 @@ test("owner connects a key, publishes knowledge and chats with the Sales Agent",
   await expect(page.getByTestId("chat-user")).toHaveText("How much is the Ergo chair?");
   const answer = page.getByTestId("chat-assistant");
   await expect(answer).toContainText(DEMO_REPLY_START);
-  await expect(answer).toContainText("Based on: Pricing");
+  await expect(answer).toContainText("Knowledge checked: Pricing");
 });
