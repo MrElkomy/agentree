@@ -10,6 +10,7 @@ from uuid import UUID
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     DateTime,
     ForeignKey,
     ForeignKeyConstraint,
@@ -27,13 +28,24 @@ from agentree.core.models import Base
 
 class Conversation(Base):
     __tablename__ = "conversations"
-    __table_args__ = (UniqueConstraint("business_id", "id"),)
+    __table_args__ = (
+        UniqueConstraint("business_id", "id"),
+        # Composite FK: a conversation can only belong to a guest session of its own business.
+        # The guest_sessions table is owned by `agentree.public`; only the FK lives here.
+        ForeignKeyConstraint(
+            ["business_id", "guest_session_id"],
+            ["guest_sessions.business_id", "guest_sessions.id"],
+            ondelete="CASCADE",
+        ),
+        CheckConstraint("channel IN ('console', 'public', 'widget')", name="channel"),
+        CheckConstraint("(channel = 'console') = (guest_session_id IS NULL)", name="guest_channel"),
+    )
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
     business_id: Mapped[UUID] = mapped_column(
         ForeignKey("businesses.id", ondelete="CASCADE"), index=True
     )
-    channel: Mapped[str] = mapped_column(String(16))  # console (public channels later)
+    channel: Mapped[str] = mapped_column(String(16))  # console | public | widget
     active_agent: Mapped[str] = mapped_column(String(32))
     created_by_user_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL")
@@ -42,6 +54,8 @@ class Conversation(Base):
     last_message_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+    # Anonymous visitor that owns a public/widget conversation (NULL for the console).
+    guest_session_id: Mapped[UUID | None] = mapped_column(index=True)
     # Exempts the conversation from retention deletion. Owner-only, audited API: not built yet.
     legal_hold: Mapped[bool] = mapped_column(Boolean, server_default=false())
 

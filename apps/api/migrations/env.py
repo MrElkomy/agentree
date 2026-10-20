@@ -12,6 +12,7 @@ import agentree.agents.models
 import agentree.identity.models
 import agentree.knowledge.models
 import agentree.providers.models
+import agentree.public.models
 import agentree.tenancy.models  # noqa: F401
 from agentree.core.config import Settings
 from agentree.core.models import Base
