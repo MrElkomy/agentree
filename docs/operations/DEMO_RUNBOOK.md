@@ -31,8 +31,11 @@ is the only way to run the demo with a real key.
 1. **Sign up** at `/signup` → open the verification email in Mailpit → verify → sign in.
 2. **Create a business** (e.g. "Ergo Chairs").
 3. **AI Providers** → *Primary provider* → *Connect a key*:
-   - Provider: OpenAI / Anthropic / Google Gemini; Model: e.g. `gpt-4o-mini`,
-     `claude-3-5-haiku-latest`, `gemini-2.0-flash` (any model your account can use).
+   - Provider: OpenAI / Anthropic / Google Gemini / Groq; Model: e.g. `gpt-4o-mini`,
+     `claude-haiku-4-5`, `gemini-2.5-flash`, `openai/gpt-oss-120b` (any model your account can
+     use). **Groq has a free tier** (console.groq.com → API Keys; key starts with `gsk_`).
+     Gemini keys must start with `AIza`: AI Studio `AQ.` keys are currently rejected by Google's
+     REST API.
    - Paste the key, keep **"Test the key with a tiny request before saving"** checked → *Save key*.
    - Expected: "Key tested and saved securely", status *Working*, key shown as `•••• last4`.
    - Optional: add a **Backup provider** from a different provider account.

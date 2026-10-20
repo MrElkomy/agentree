@@ -10,8 +10,9 @@ import { atLeast } from "@/lib/roles";
 
 const PROVIDERS: { value: ProviderName; label: string; model: string; keyHint: string }[] = [
   { value: "openai", label: "OpenAI", model: "gpt-4o-mini", keyHint: "Starts with sk-" },
-  { value: "anthropic", label: "Anthropic", model: "claude-3-5-haiku-latest", keyHint: "Starts with sk-ant-" },
-  { value: "gemini", label: "Google Gemini", model: "gemini-2.0-flash", keyHint: "From Google AI Studio" },
+  { value: "anthropic", label: "Anthropic", model: "claude-haiku-4-5", keyHint: "Starts with sk-ant-" },
+  { value: "gemini", label: "Google Gemini", model: "gemini-2.5-flash", keyHint: "From Google AI Studio (starts with AIza)" },
+  { value: "groq", label: "Groq (free tier)", model: "openai/gpt-oss-120b", keyHint: "Starts with gsk_" },
 ];
 const LABEL = Object.fromEntries(PROVIDERS.map((p) => [p.value, p.label])) as Record<ProviderName, string>;
 

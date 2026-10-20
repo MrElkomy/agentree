@@ -23,3 +23,13 @@ Decision for MVP: **not adopted now**; revisit when we need many more providers.
 
 ## Not in this task
 Streaming responses (with the Sales Agent, slice 2.4), automatic failover/circuit breaker (slice 2.5), usage accounting.
+
+## Addendum (2026-10-20): Groq added (Product Owner decision)
+- **Why:** a free option for demos. Google AI Studio now issues `AQ.` keys for this account,
+  and those keys return `401 ACCESS_TOKEN_TYPE_UNSUPPORTED` on the REST API (an open issue on
+  Google's side). Groq has a free tier with no card required.
+- **How:** `GroqProvider` reuses the OpenAI adapter against Groq's fixed OpenAI-compatible
+  endpoint `https://api.groq.com/openai/v1/chat/completions`. It is still a fixed vendor URL,
+  so there is no SSRF surface. Migration `0007` extends the provider check constraint.
+- **Also fixed:** Gemini answers an invalid key with HTTP 400 `API_KEY_INVALID`. This is now
+  classified as `auth` ("key rejected") instead of `bad_request` ("model rejected").

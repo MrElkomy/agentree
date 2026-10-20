@@ -7,7 +7,12 @@ import httpx
 import pytest
 
 from agentree.llm.base import ChatMessage, ChatRequest, ErrorKind, ProviderError
-from agentree.llm.http_providers import AnthropicProvider, GeminiProvider, OpenAIProvider
+from agentree.llm.http_providers import (
+    AnthropicProvider,
+    GeminiProvider,
+    GroqProvider,
+    OpenAIProvider,
+)
 
 KEY = "sk-test-key-abcdef123456"  # gitleaks:allow (fake test key)
 REQ = ChatRequest(
@@ -75,6 +80,31 @@ async def test_gemini_key_in_header_not_url() -> None:
     assert str(req.url).endswith("/models/model-x:generateContent")
     body = json.loads(req.content)
     assert [c["role"] for c in body["contents"]] == ["user", "model", "user"]
+
+
+async def test_groq_uses_its_fixed_openai_compatible_endpoint() -> None:
+    seen, transport = _capture(
+        {"choices": [{"message": {"content": "Ten."}, "finish_reason": "stop"}],
+         "usage": {"prompt_tokens": 7, "completion_tokens": 1}}
+    )  # fmt: skip
+    result = await GroqProvider(transport).chat(KEY, ChatRequest(
+        model="openai/gpt-oss-120b", messages=[ChatMessage("user", "Price?")]
+    ))  # fmt: skip
+    assert result.text == "Ten." and result.provider == "groq"
+    req = seen[0]
+    assert str(req.url) == "https://api.groq.com/openai/v1/chat/completions"
+    assert req.headers["authorization"] == f"Bearer {KEY}" and KEY not in str(req.url)
+    assert json.loads(req.content)["model"] == "openai/gpt-oss-120b"
+
+
+async def test_gemini_invalid_key_400_is_auth_not_bad_request() -> None:
+    # Gemini rejects a bad key with HTTP 400 / API_KEY_INVALID; it must not read as a model error.
+    body: dict[str, object] = {"error": {"code": 400, "message": "API key not valid. Please pass a valid API key.",
+                      "details": [{"reason": "API_KEY_INVALID"}]}}  # fmt: skip
+    _, transport = _capture(body, 400)
+    with pytest.raises(ProviderError) as exc:
+        await GeminiProvider(transport).chat(KEY, REQ)
+    assert exc.value.kind is ErrorKind.AUTH
 
 
 @pytest.mark.parametrize(

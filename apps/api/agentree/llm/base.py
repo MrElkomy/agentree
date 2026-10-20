@@ -17,6 +17,7 @@ class ProviderName(StrEnum):
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
     GEMINI = "gemini"
+    GROQ = "groq"
 
 
 class ErrorKind(StrEnum):
