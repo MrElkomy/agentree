@@ -127,12 +127,12 @@ export default function SalesAgentPage() {
                 <RichText text={t.content} />
               </div>
               <p className="text-xs text-ink-muted">
-                {t.meta.sources.length ? (
-                  <>Knowledge checked: {t.meta.sources.map((s) => s.title).join(", ")}</>
-                ) : (
-                  <span className="font-semibold text-warn">No published knowledge matched this question.</span>
+                {t.meta.sources.length ? null : (
+                  <>
+                    <span className="font-semibold text-warn">No published knowledge matched this question.</span>
+                    {" · "}
+                  </>
                 )}
-                {" · "}
                 {t.meta.provider} {t.meta.model}
                 {t.meta.fallback_used ? " · answered by backup provider" : ""}
               </p>

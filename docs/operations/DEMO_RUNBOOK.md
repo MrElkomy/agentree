@@ -42,7 +42,7 @@ is the only way to run the demo with a real key.
 4. **Knowledge** → add 2–4 entries (prices, delivery, warranty/returns, contact) → *Publish* each.
 5. **Sales Agent** → ask:
    - a covered question ("How much is the Ergo chair?") → answer uses your facts, footer shows
-     "Knowledge checked: …" and your provider/model;
+     your provider/model;
    - an uncovered question ("Do you ship to Mars?") → the agent should say it doesn't have that
      information and offer to connect you with the team; footer shows "No published knowledge
      matched this question";
