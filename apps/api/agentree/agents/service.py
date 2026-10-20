@@ -1,4 +1,4 @@
-"""Sales Agent runtime (dashboard test console channel).
+"""Sales Agent runtime (dashboard test console, public page and website widget).
 
 Turn: load history -> retrieve published knowledge -> build prompt -> call the customer's
 primary provider, falling back to the backup slot on availability errors -> persist both
@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from agentree.agents.models import Conversation, Message
 from agentree.agents.prompts import sales_messages
 from agentree.core.ids import uuid7
-from agentree.core.vault import Vault
+from agentree.core.vault import Vault, VaultDecryptError, VaultUnavailableError
 from agentree.knowledge import service as knowledge
 from agentree.llm.base import (
     ChatMessage,
@@ -38,6 +38,7 @@ ProviderFactories = dict[ProviderName, Callable[[], LLMProvider]]
 
 HISTORY_TURNS = 20
 SALES = "sales"
+PUBLIC_CHANNELS = frozenset({"public", "widget"})
 
 
 class NoProviderConfiguredError(Exception):
@@ -54,6 +55,10 @@ class NotFoundError(Exception):
     pass
 
 
+class AgentUnavailableError(Exception):
+    """Public channels: the agent cannot answer right now. Deliberately carries no detail."""
+
+
 @dataclass(frozen=True)
 class TurnResult:
     conversation_id: UUID
@@ -63,6 +68,12 @@ class TurnResult:
     model: str
     slot: str
     fallback_used: bool
+
+
+@dataclass(frozen=True)
+class GuestTurnResult:
+    conversation_id: UUID
+    reply: str
 
 
 @dataclass(frozen=True)
@@ -146,17 +157,14 @@ async def _call_with_fallback(
     raise ProvidersUnavailableError(failures)
 
 
-async def sales_console_turn(
+async def _complete_turn(
     factory: Factory, vault: Vault | None, provider_factories: ProviderFactories,
-    ctx: TenantContext, *, user_id: UUID, message: str, conversation_id: UUID | None,
-) -> TurnResult:  # fmt: skip
-    async with tenant_session(factory, ctx) as session:
-        conv = await _conversation(session, ctx, conversation_id, user_id)
-        history = await _history(session, ctx, conv.id)
-        conv_id = conv.id
+    ctx: TenantContext, *, conv_id: UUID, history: list[ChatMessage], message: str, public: bool,
+) -> tuple[ChatResult, list[tuple[UUID, str]], str, bool]:  # fmt: skip
+    """Retrieve published knowledge, call the provider(s), persist both messages."""
     business = await tenancy.get_business(factory, ctx)
     entries = await knowledge.retrieve(factory, ctx, message)
-    prompt = sales_messages(business.name, entries, history, message)
+    prompt = sales_messages(business.name, entries, history, message, public=public)
     result, slot, fallback = await _call_with_fallback(
         factory, vault, ctx, provider_factories, prompt
     )
@@ -176,8 +184,98 @@ async def sales_console_turn(
         conv_row = await session.get(Conversation, conv_id)
         if conv_row is not None:
             conv_row.last_message_at = now
-    return TurnResult(conv_id, result.text, [(e.id, e.title) for e in entries], result.provider,
-                      result.model, slot, fallback)  # fmt: skip
+    return result, [(e.id, e.title) for e in entries], slot, fallback
+
+
+async def sales_console_turn(
+    factory: Factory, vault: Vault | None, provider_factories: ProviderFactories,
+    ctx: TenantContext, *, user_id: UUID, message: str, conversation_id: UUID | None,
+) -> TurnResult:  # fmt: skip
+    async with tenant_session(factory, ctx) as session:
+        conv = await _conversation(session, ctx, conversation_id, user_id)
+        history = await _history(session, ctx, conv.id)
+        conv_id = conv.id
+    result, sources, slot, fallback = await _complete_turn(
+        factory, vault, provider_factories, ctx, conv_id=conv_id, history=history,
+        message=message, public=False,
+    )  # fmt: skip
+    return TurnResult(conv_id, result.text, sources, result.provider, result.model, slot,
+                      fallback)  # fmt: skip
+
+
+# --- public page / website widget (anonymous guest sessions) -----------------------------
+
+
+async def _guest_conversation(
+    session: AsyncSession, ctx: TenantContext, conversation_id: UUID, guest_session_id: UUID
+) -> Conversation:
+    """The conversation, only if it belongs to this guest session (else NotFoundError)."""
+    conv = await _existing(session, ctx, conversation_id)
+    if conv.guest_session_id is None or conv.guest_session_id != guest_session_id:
+        raise NotFoundError
+    return conv
+
+
+async def public_sales_turn(
+    factory: Factory, vault: Vault | None, provider_factories: ProviderFactories,
+    ctx: TenantContext, *, guest_session_id: UUID, message: str, conversation_id: UUID | None,
+    channel: str,
+) -> GuestTurnResult:  # fmt: skip
+    """One Sales Agent turn for an anonymous visitor.
+
+    The caller must have authenticated `guest_session_id` within `ctx`'s business. A
+    conversation id that does not belong to that guest session is treated as not found.
+    Only the reply is returned: provider, model, slot and sources stay internal.
+    """
+    if channel not in PUBLIC_CHANNELS:
+        raise ValueError("invalid public channel")
+    async with tenant_session(factory, ctx) as session:
+        if conversation_id is not None:
+            conv = await _guest_conversation(session, ctx, conversation_id, guest_session_id)
+        else:
+            conv = Conversation(id=uuid7(), business_id=ctx.business_id, channel=channel,
+                                active_agent=SALES, guest_session_id=guest_session_id)  # fmt: skip
+            session.add(conv)
+            await session.flush()
+        history = await _history(session, ctx, conv.id)
+        conv_id = conv.id
+    try:
+        result, _sources, _slot, _fallback = await _complete_turn(
+            factory, vault, provider_factories, ctx, conv_id=conv_id, history=history,
+            message=message, public=True,
+        )  # fmt: skip
+    except (NoProviderConfiguredError, ProvidersUnavailableError, providers.NotFoundError,
+            VaultUnavailableError, VaultDecryptError) as exc:  # fmt: skip
+        # Visitors never learn why (no provider, outage, quota, vault): owners see the
+        # provider status in the dashboard. Only the error type is logged.
+        logger.warning("public agent unavailable", extra={"error_type": type(exc).__name__,
+                       "business_id": str(ctx.business_id)})  # fmt: skip
+        raise AgentUnavailableError from None
+    return GuestTurnResult(conv_id, result.text)
+
+
+async def list_guest_messages(
+    factory: Factory, ctx: TenantContext, *, guest_session_id: UUID, conversation_id: UUID
+) -> list[MessageInfo]:
+    """Messages of a conversation owned by this guest session (else NotFoundError)."""
+    async with tenant_session(factory, ctx) as session:
+        await _guest_conversation(session, ctx, conversation_id, guest_session_id)
+        return await _messages(session, ctx, conversation_id)
+
+
+async def _messages(
+    session: AsyncSession, ctx: TenantContext, conversation_id: UUID
+) -> list[MessageInfo]:
+    rows = (
+        await session.execute(
+            select(Message)
+            .where(
+                Message.business_id == ctx.business_id, Message.conversation_id == conversation_id
+            )
+            .order_by(Message.created_at, Message.id)
+        )
+    ).scalars().all()  # fmt: skip
+    return [MessageInfo(m.id, m.role, m.content, m.created_at) for m in rows]
 
 
 async def list_messages(
@@ -185,14 +283,4 @@ async def list_messages(
 ) -> list[MessageInfo]:
     async with tenant_session(factory, ctx) as session:
         await _existing(session, ctx, conversation_id)
-        rows = (
-            await session.execute(
-                select(Message)
-                .where(
-                    Message.business_id == ctx.business_id,
-                    Message.conversation_id == conversation_id,
-                )
-                .order_by(Message.created_at, Message.id)
-            )
-        ).scalars().all()  # fmt: skip
-    return [MessageInfo(m.id, m.role, m.content, m.created_at) for m in rows]
+        return await _messages(session, ctx, conversation_id)

@@ -1,5 +1,9 @@
 """Retention job: hard-delete raw conversations older than the retention window.
 
+Since migration 0008 the same purge also deletes anonymous guest sessions (public page /
+widget) idle longer than the window once none of their conversations remain; conversations
+on legal hold keep their session. Counts below are rows deleted (conversations + sessions).
+
 Runs in the worker as the unprivileged `agentree_app` role. Cross-tenant deletion goes
 only through the `agentree_purge_expired_conversations` SECURITY DEFINER function, which
 returns a count and never content. Each batch is its own short transaction guarded by a
@@ -24,7 +28,7 @@ DEFAULT_BATCH_SIZE = 500
 
 @dataclass(frozen=True)
 class PurgeResult:
-    deleted: int
+    deleted: int  # conversations + guest sessions
     batches: int
     skipped_locked: bool  # another worker held the lock
 
@@ -76,7 +80,7 @@ async def purge_expired_conversations(
     logger.info(
         "retention purge finished",
         extra={
-            "conversations_deleted": deleted,
+            "rows_deleted": deleted,
             "batches": batches,
             "skipped_locked": skipped,
             "retention_days": retention_days,

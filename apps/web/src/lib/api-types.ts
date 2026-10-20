@@ -493,6 +493,109 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/businesses/{business_id}/public-profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Public Profile */
+        get: operations["get_public_profile_api_businesses__business_id__public_profile_get"];
+        /** Put Public Profile */
+        put: operations["put_public_profile_api_businesses__business_id__public_profile_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/public/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Public Page */
+        get: operations["public_page_api_public__slug__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/public/{slug}/widget-config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Widget Config */
+        get: operations["widget_config_api_public__slug__widget_config_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/public/{slug}/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Guest Session */
+        post: operations["create_guest_session_api_public__slug__sessions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/public/{slug}/chat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Guest Chat */
+        post: operations["guest_chat_api_public__slug__chat_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/public/{slug}/conversations/{conversation_id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Guest Messages */
+        get: operations["guest_messages_api_public__slug__conversations__conversation_id__messages_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -636,6 +739,51 @@ export interface components {
             /** Body */
             body?: string | null;
         };
+        /** GuestChatIn */
+        GuestChatIn: {
+            /** Message */
+            message: string;
+            /** Conversation Id */
+            conversation_id?: string | null;
+            /**
+             * Channel
+             * @default public
+             * @enum {string}
+             */
+            channel: "public" | "widget";
+        };
+        /** GuestChatOut */
+        GuestChatOut: {
+            /**
+             * Conversation Id
+             * Format: uuid
+             */
+            conversation_id: string;
+            /** Reply */
+            reply: string;
+        };
+        /** GuestMessageOut */
+        GuestMessageOut: {
+            /** Role */
+            role: string;
+            /** Content */
+            content: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** GuestSessionOut */
+        GuestSessionOut: {
+            /** Token */
+            token: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -668,6 +816,20 @@ export interface components {
             expires_at: string;
             /** Email Sent */
             email_sent?: boolean | null;
+        };
+        /** LinkIn */
+        LinkIn: {
+            /** Label */
+            label: string;
+            /** Url */
+            url: string;
+        };
+        /** LinkOut */
+        LinkOut: {
+            /** Label */
+            label: string;
+            /** Url */
+            url: string;
         };
         /** LoginIn */
         LoginIn: {
@@ -724,6 +886,62 @@ export interface components {
          * @enum {string}
          */
         ProviderName: "openai" | "anthropic" | "gemini" | "groq";
+        /** PublicPageOut */
+        PublicPageOut: {
+            /** Slug */
+            slug: string;
+            /** Display Name */
+            display_name: string;
+            /** Bio */
+            bio: string;
+            /** Links */
+            links: components["schemas"]["LinkOut"][];
+            /** Chat Enabled */
+            chat_enabled: boolean;
+        };
+        /**
+         * PublicProfileIn
+         * @description Full replacement of the business's public page settings.
+         */
+        PublicProfileIn: {
+            /** Enabled */
+            enabled: boolean;
+            /** Display Name */
+            display_name?: string | null;
+            /**
+             * Bio
+             * @default
+             */
+            bio: string;
+            /** Links */
+            links?: components["schemas"]["LinkIn"][];
+            /** Widget Origins */
+            widget_origins?: string[];
+            /**
+             * Daily Reply Budget
+             * @default 200
+             */
+            daily_reply_budget: number;
+        };
+        /** PublicProfileOut */
+        PublicProfileOut: {
+            /** Slug */
+            slug: string;
+            /** Enabled */
+            enabled: boolean;
+            /** Display Name */
+            display_name: string | null;
+            /** Bio */
+            bio: string;
+            /** Links */
+            links: components["schemas"]["LinkOut"][];
+            /** Widget Origins */
+            widget_origins: string[];
+            /** Daily Reply Budget */
+            daily_reply_budget: number;
+            /** Updated At */
+            updated_at: string | null;
+        };
         /** RegisterIn */
         RegisterIn: {
             /**
@@ -792,6 +1010,11 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /** WidgetConfigOut */
+        WidgetConfigOut: {
+            /** Widget Origins */
+            widget_origins: string[];
         };
     };
     responses: never;
@@ -1858,6 +2081,232 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MessageOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_public_profile_api_businesses__business_id__public_profile_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicProfileOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_public_profile_api_businesses__business_id__public_profile_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublicProfileIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicProfileOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    public_page_api_public__slug__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicPageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    widget_config_api_public__slug__widget_config_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WidgetConfigOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_guest_session_api_public__slug__sessions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuestSessionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guest_chat_api_public__slug__chat_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GuestChatIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuestChatOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guest_messages_api_public__slug__conversations__conversation_id__messages_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuestMessageOut"][];
                 };
             };
             /** @description Validation Error */

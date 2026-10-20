@@ -20,10 +20,16 @@ from agentree.tenancy.roles import Role, can_grant, can_manage
 Factory = async_sessionmaker[AsyncSession]
 
 SLUG_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])$")
+# Public pages live at the web root (`/{slug}`), so a slug must never shadow a route of the
+# web app or a well-known path. Checked only when a business is created; existing slugs are
+# unaffected.
 RESERVED_SLUGS = frozenset(
-    {"api", "app", "admin", "login", "logout", "signup", "pricing", "docs", "help",
-     "support", "status", "public", "hooks", "static", "assets", "widget", "www",
-     "verify-email", "reset-password", "invitations", "dashboard", "settings"}
+    {"api", "app", "admin", "login", "logout", "signup", "register", "pricing", "docs", "help",
+     "support", "status", "public", "hooks", "static", "assets", "widget", "embed", "www",
+     "verify-email", "reset-password", "forgot-password", "invite", "invitations",
+     "dashboard", "settings", "b", "w", "p", "_next", "favicon.ico", "robots.txt",
+     "sitemap.xml", "health", "healthz", "readyz", "about", "terms", "privacy", "auth",
+     "account", "fonts"}
 )  # fmt: skip
 
 

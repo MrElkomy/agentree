@@ -45,6 +45,7 @@ BUSINESS_ROUTES = _business_routes()
 
 def test_matrix_covers_known_routes() -> None:
     assert len(BUSINESS_ROUTES) >= 7, BUSINESS_ROUTES
+    assert ("PUT", "/api/businesses/{business_id}/public-profile") in BUSINESS_ROUTES
 
 
 async def _snapshot(client: AsyncClient, business_id: str) -> tuple[object, ...]:
@@ -55,6 +56,7 @@ async def _snapshot(client: AsyncClient, business_id: str) -> tuple[object, ...]
         (await client.get(f"{base}/invitations")).json(),
         (await client.get(f"{base}/ai-providers")).json(),
         (await client.get(f"{base}/knowledge")).json(),
+        (await client.get(f"{base}/public-profile")).json(),
     )
 
 
@@ -76,6 +78,11 @@ async def test_owner_of_a_cannot_touch_b(harness: AppHarness, method: str, path:
         f"/api/businesses/{b['id']}/agents/sales/console", json={"message": "hello"}
     )
     assert convo.status_code == 200, convo.text
+    r = await bob.client.put(
+        f"/api/businesses/{b['id']}/public-profile",
+        json={"enabled": True, "bio": "B page", "widget_origins": ["https://b.example.com"]},
+    )
+    assert r.status_code == 200, r.text
     pending = await bob.client.post(
         f"/api/businesses/{b['id']}/invitations", json={"email": "p@example.com"}
     )
@@ -93,7 +100,7 @@ async def test_owner_of_a_cannot_touch_b(harness: AppHarness, method: str, path:
 
     after = await _snapshot(bob.client, b["id"])
     assert after[0] == before[0] and after[1] == before[1]
-    assert after[3] == before[3] and after[4] == before[4]
+    assert after[3] == before[3] and after[4] == before[4] and after[5] == before[5]
 
 
 @pytest.mark.parametrize(("method", "path"), BUSINESS_ROUTES)

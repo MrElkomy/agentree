@@ -65,7 +65,7 @@ source_modules = ["agentree.core"]
 forbidden_modules = [
     "agentree.health", "agentree.identity", "agentree.tenancy", "agentree.main", "agentree.worker",
     "agentree.providers", "agentree.llm", "agentree.knowledge", "agentree.agents",
-    "agentree.retention",
+    "agentree.retention", "agentree.public",
 ]
 
 [[tool.importlinter.contracts]]
@@ -91,7 +91,7 @@ type = "forbidden"
 source_modules = ["agentree.llm"]
 forbidden_modules = [
     "agentree.identity", "agentree.tenancy", "agentree.providers", "agentree.knowledge",
-    "agentree.agents", "agentree.main", "fastapi",
+    "agentree.agents", "agentree.public", "agentree.main", "fastapi",
 ]
 
 [[tool.importlinter.contracts]]
@@ -100,6 +100,33 @@ type = "forbidden"
 source_modules = ["agentree.retention"]
 forbidden_modules = [
     "agentree.identity", "agentree.tenancy", "agentree.providers", "agentree.llm",
-    "agentree.knowledge", "agentree.agents", "agentree.health", "agentree.main",
-    "agentree.worker", "fastapi",
+    "agentree.knowledge", "agentree.agents", "agentree.public", "agentree.health",
+    "agentree.main", "agentree.worker", "fastapi",
 ]
+
+[[tool.importlinter.contracts]]
+name = "public uses other modules only through their service layer"
+type = "forbidden"
+source_modules = ["agentree.public"]
+forbidden_modules = [
+    "agentree.agents.models", "agentree.agents.api", "agentree.knowledge",
+    "agentree.providers", "agentree.llm", "agentree.tenancy.models", "agentree.identity.models",
+    "agentree.identity.service", "agentree.retention", "agentree.main", "agentree.worker",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "public domain code does not depend on the HTTP layer"
+type = "forbidden"
+source_modules = ["agentree.public.models", "agentree.public.service"]
+forbidden_modules = ["fastapi", "agentree.main", "agentree.health"]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "no other feature module depends on public"
+type = "forbidden"
+source_modules = [
+    "agentree.identity", "agentree.tenancy", "agentree.providers", "agentree.knowledge",
+    "agentree.agents", "agentree.retention", "agentree.health",
+]
+forbidden_modules = ["agentree.public"]

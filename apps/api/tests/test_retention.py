@@ -114,7 +114,7 @@ async def test_retention_purges_only_expired_unheld_conversations_across_tenants
 
     # Logs carry counts only, never message content.
     records = [r for r in caplog.records if r.name.startswith("agentree")]
-    assert any(getattr(r, "conversations_deleted", None) == 3 for r in records)
+    assert any(getattr(r, "rows_deleted", None) == 3 for r in records)
     formatter = JsonFormatter()
     dumped = json.dumps([formatter.format(r) for r in caplog.records])
     assert PRIVATE_CONTENT not in dumped
