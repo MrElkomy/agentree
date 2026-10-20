@@ -14,6 +14,40 @@ Product Owner (PO) after approval. Supersedes the topology in `STAGING_DEPLOYMEN
   subdomain: only `AGENTREE_PUBLIC_HOST` and the Caddy site address change.
 - No existing service is modified. The only shared touch point is one new Caddy site block.
 
+## As deployed (2026-10-20): what is actually live
+The steps below were run by the PO, one at a time. Where this section and the step list
+differ, this section is current.
+
+- **Live:** `https://tryagentree.com` (`www` redirects to it), behind a Caddy basic-auth
+  gate (user `demo`), with Let's Encrypt certificates. The Caddyfile backup is
+  `/etc/caddy/Caddyfile.bak-20261020`.
+- **AI:** a Groq free-tier key (`openai/gpt-oss-120b`) as the primary. Google AI Studio
+  `AQ.` keys are rejected by Google's REST API, which is why Groq was added (ADR-002
+  addendum).
+- **Email:** Brevo SMTP. The domain `tryagentree.com` is authenticated (brevo-code, 2 DKIM
+  CNAMEs). The existing `_dmarc` record was edited to add `rua`, not duplicated.
+- **Measured on the server:** the Agentree stack uses about 190 MB at idle, and about
+  2.5 GB RAM stays available. TRACK and IELTS were unaffected, including across a reboot
+  (kernel 7.0.0-38).
+- **Backups:**
+  - Encrypted with `age`.
+  - The cron line runs every hour and acts only at **03:00 America/New_York**, so DST is
+    handled.
+  - Each backup is copied to Google Drive (`agentree-gdrive:Agentree Server Backups`). The
+    rclone remote uses the PO's own account with **`drive.file` scope**, so it can only see
+    the files it created.
+  - Local copies: newest 7. Drive copies: deleted after 30 days.
+  - The restore drill passed on 2026-10-20.
+  - The TRACK service account cannot upload: "Service Accounts do not have storage quota".
+- **Backup identity:** kept on the server at `~/agentree-secrets/backup-identity.txt`
+  (mode 600) by PO decision, plus offline copies with the PO. See the security review below.
+- **Cron line** (user `me`):
+  ```
+  0 * * * * [ "$(TZ=America/New_York date +\%H)" = "03" ] && AGENTREE_RCLONE_REMOTE="agentree-gdrive:Agentree Server Backups" $HOME/agentree/infra/staging/backup.sh nightly >> $HOME/agentree-backups/backup.log 2>&1
+  ```
+- **Update the demo:** `~/agentree/infra/staging/deploy.sh origin/main` (not between 14:45
+  and 15:20 Cairo). Free build cache from time to time with `docker builder prune -f`.
+
 ## What gets added (nothing else changes)
 | Item | Where | Notes |
 |---|---|---|
@@ -25,7 +59,7 @@ Product Owner (PO) after approval. Supersedes the topology in `STAGING_DEPLOYMEN
 | Port | `127.0.0.1:3103` | loopback only (TRACK 3102, IELTS 3101) |
 | Caddy | `tryagentree.com` block + `www` redirect | `infra/staging/Caddyfile.snippet` |
 | Packages | `age` (+ `rclone` for off-server copies) | apt |
-| Cron (user `me`) | nightly backup 03:30 Cairo | outside the 14:45–15:20 publishing window |
+| Cron (user `me`) | nightly backup at 03:00 New York time | see "As deployed" |
 
 Postgres and the API publish **no** host ports. Docker-published ports bypass UFW, so only the
 web container is published, and only on 127.0.0.1; Caddy is the single public entry point.
@@ -188,6 +222,8 @@ data until reviewed and mitigated:
 | Master key on the same disk as the encrypted provider keys | disk or backup theft plus `staging.env` theft = key exposure | KMS or a separate secret host for production |
 | Builds and renders compete for RAM | OOM or slow demo | memory caps (done), upgrade, or a separate host |
 | Basic-auth demo gate shared with viewers | credential spreads | rotate after each demo round |
+| Backup decryption key kept on the server (PO decision, 2026-10-20) | server compromise also exposes off-server backups | keep it only offline before real customers |
+| Drive OAuth token (`drive.file`) in `~/.config/rclone/rclone.conf` | it can read/delete the backup files only | revoke under Google Account → Security → Third-party access if leaked |
 
 ## Not included yet
 - Monitoring/alerting, and an uptime check on `/readyz` through Caddy.

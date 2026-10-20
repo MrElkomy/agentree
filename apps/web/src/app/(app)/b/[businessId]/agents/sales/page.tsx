@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { useBusiness } from "@/components/business-shell";
-import { RichText } from "@/components/rich-text";
+import { RichText, textDirection } from "@/components/rich-text";
 import { Alert, Button, buttonClass } from "@/components/ui";
 import { api, isApiError, type ChatMessage, type ConsoleReply } from "@/lib/api";
 import { messageFor } from "@/lib/messages";
@@ -159,7 +159,7 @@ export default function SalesAgentPage() {
         {turns.map((t, i) =>
           t.role === "user" ? (
             <div key={i} className="ml-auto max-w-[85%] rounded-lg bg-canopy px-4 py-3 text-white" data-testid="chat-user">
-              <p dir="auto" className="whitespace-pre-wrap break-words">{t.content}</p>
+              <p dir={textDirection(t.content)} className="whitespace-pre-wrap break-words">{t.content}</p>
             </div>
           ) : (
             <div key={i} className="mr-auto flex max-w-[85%] flex-col gap-2" data-testid="chat-assistant">
