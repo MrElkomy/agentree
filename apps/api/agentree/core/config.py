@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     allowed_origins: list[str] = ["http://localhost:3000"]
     # Base URL of the web app, used in email links.
     public_base_url: str = "http://localhost:3000"
+    # Reverse proxies in front of the API that append to X-Forwarded-For (staging: Caddy = 1).
+    # 0 = use the TCP peer address. Only raise this when every request passes through them.
+    trusted_proxy_count: int = Field(default=0, ge=0, le=3)
 
     # Sessions
     session_cookie_secure: bool = True

@@ -1,5 +1,8 @@
 # Staging deployment proposal
 
+> **Superseded (2026-10-20):** the PO chose the existing Hetzner CX23 and its host Caddy.
+> The current plan is `STAGING_RUNBOOK.md`.
+
 Status: **Proposal — nothing purchased or deployed.** Prices are indicative (October 2026) and
 must be re-checked on the provider's site before ordering.
 
