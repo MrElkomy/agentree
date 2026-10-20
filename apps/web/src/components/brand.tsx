@@ -1,44 +1,46 @@
 import Link from "next/link";
 
-/** Agentree mark: one root, three branches — a business and the agents that work for it. */
-export function Mark({ className = "size-7" }: { className?: string }) {
+// Final logo artwork (docs/brand/BRAND_IDENTITY.md): files in public/brand. "agen" is Midnight
+// Ink (white when reversed) and "tree" is Cobalt Blue. Plain <img>: the SVGs are static assets.
+
+/** The "a" monogram. Decorative by default; the wordmark next to it carries the name. */
+export function Mark({ className = "size-8", inverted = false }: { className?: string; inverted?: boolean }) {
   return (
-    <svg viewBox="0 0 32 32" aria-hidden="true" className={className}>
-      <rect width="32" height="32" rx="8" fill="currentColor" />
-      <path
-        d="M16 25V15M16 15C16 11 10 11 9 7.5M16 15c0-4 6-4 7-7.5M16 15V7"
-        stroke="#fff"
-        strokeWidth="2.2"
-        strokeLinecap="round"
-        fill="none"
-      />
-      <circle cx="9" cy="7.5" r="2.4" fill="#e9b949" />
-      <circle cx="23" cy="7.5" r="2.4" fill="#e9b949" />
-      <circle cx="16" cy="6.5" r="2.4" fill="#e9b949" />
-      <rect x="12.5" y="23" width="7" height="5" rx="1.5" fill="#fff" />
-    </svg>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={inverted ? "/brand/agentree-mark-reversed.svg" : "/brand/agentree-mark.svg"}
+      alt=""
+      className={`object-contain ${className}`}
+    />
   );
 }
 
-export function Wordmark({ href = "/dashboard", inverted = false }: { href?: string; inverted?: boolean }) {
+export function Wordmark({
+  href = "/dashboard",
+  inverted = false,
+  className = "h-7",
+}: {
+  href?: string;
+  inverted?: boolean;
+  className?: string;
+}) {
   return (
-    <Link
-      href={href}
-      className={`inline-flex items-center gap-2.5 rounded-md font-display text-lg font-bold tracking-tight ${
-        inverted ? "text-white" : "text-ink"
-      }`}
-    >
-      <Mark className={`size-8 ${inverted ? "text-white/15" : "text-canopy"}`} />
-      Agentree
+    <Link href={href} className="inline-flex items-center rounded-md">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={inverted ? "/brand/agentree-wordmark-reversed.svg" : "/brand/agentree-wordmark.svg"}
+        alt="Agentree"
+        className={`w-auto ${className}`}
+      />
     </Link>
   );
 }
 
 const BRANCHES = [
-  { d: "M200 238 C200 190 90 196 78 128", x: 78, y: 128, label: "Customer support", anchor: "middle" },
+  { d: "M200 238 C200 190 90 196 78 128", x: 78, y: 128, label: "Customer Service", anchor: "middle" },
   { d: "M200 238 C200 170 160 140 158 70", x: 158, y: 70, label: "Sales", anchor: "middle" },
-  { d: "M200 238 C200 170 250 150 254 84", x: 254, y: 84, label: "Bookings", anchor: "middle" },
-  { d: "M200 238 C200 196 318 200 330 140", x: 330, y: 140, label: "Follow-ups", anchor: "middle" },
+  { d: "M200 238 C200 170 250 150 254 84", x: 254, y: 84, label: "Technical Support", anchor: "middle" },
+  { d: "M200 238 C200 196 318 200 330 140", x: 330, y: 140, label: "Data Analyst", anchor: "middle" },
 ] as const;
 
 /**
@@ -76,7 +78,7 @@ export function BrandTree() {
             cx={b.x}
             cy={b.y}
             r="9"
-            fill="#e9b949"
+            fill="#16b8a6"
           />
           <text
             className="node"
@@ -93,7 +95,7 @@ export function BrandTree() {
         </g>
       ))}
       <rect x="150" y="296" width="100" height="34" rx="8" fill="#fff" />
-      <text x="200" y="318" textAnchor="middle" fill="#123829" fontSize="13" fontWeight="700">
+      <text x="200" y="318" textAnchor="middle" fill="#101b2b" fontSize="13" fontWeight="700">
         Your business
       </text>
     </svg>

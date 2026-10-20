@@ -1,29 +1,29 @@
 @import "tailwindcss";
 
 /*
-  Agentree tokens. Evergreen canopy for trust and growth, a single warm "sap" gold reserved
-  for the agent nodes in the brand illustration and the focus ring. Everything else is quiet.
+  Agentree tokens (docs/brand/BRAND_IDENTITY.md). Midnight Ink and Cobalt Blue from the logo
+  carry the brand; Intelligent Teal is a restrained accent for connections between agents.
+  Content surfaces stay light and quiet.
 */
 @theme {
-  --color-paper: #f5f7f6;
+  --color-paper: #f7f9fc;
   --color-surface: #ffffff;
-  --color-ink: #17261f;
-  --color-ink-muted: #4f6058;
-  --color-line: #d3ddd8;
-  --color-line-strong: #a9b8b0;
-  --color-canopy: #1e5a44;
-  --color-canopy-hover: #174a38;
-  --color-canopy-deep: #123829;
-  --color-leaf: #e4efe8;
-  --color-sap: #e9b949;
-  --color-danger: #a4271b;
-  --color-danger-soft: #fbecea;
+  --color-ink: #101b2b;
+  --color-ink-muted: #59697b;
+  --color-line: #e3eaf2;
+  --color-line-strong: #7c8b9d;
+  --color-brand: #0052fc;
+  --color-brand-hover: #0044d4;
+  --color-brand-deep: #101b2b;
+  --color-brand-soft: #e8efff;
+  --color-accent: #16b8a6;
+  --color-danger: #b42318;
+  --color-danger-soft: #fdecea;
   --color-warn: #7a4a00;
   --color-warn-soft: #fdf3dc;
 
-  --font-sans: var(--font-public-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-bricolage), var(--font-public-sans), ui-sans-serif, system-ui,
-    sans-serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-sans);
 
   /* Modular scale, ratio 1.25 from a 16px base. */
   --text-xs: 0.8rem;
@@ -55,18 +55,18 @@
   h3 {
     font-family: var(--font-display);
     line-height: 1.15;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.02em;
     text-wrap: balance;
   }
 
   :focus-visible {
-    outline: 3px solid var(--color-sap);
+    outline: 3px solid var(--color-brand);
     outline-offset: 2px;
     border-radius: 4px;
   }
 
   ::selection {
-    background: var(--color-leaf);
+    background: var(--color-brand-soft);
   }
 }
 

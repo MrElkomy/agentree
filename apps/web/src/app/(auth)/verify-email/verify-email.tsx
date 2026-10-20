@@ -112,7 +112,7 @@ function ResendForm() {
       <Button type="submit" busy={busy}>
         Send verification link
       </Button>
-      <Link href="/login" className="text-center text-sm font-semibold text-canopy underline-offset-4 hover:underline">
+      <Link href="/login" className="text-center text-sm font-semibold text-brand underline-offset-4 hover:underline">
         Back to sign in
       </Link>
     </form>

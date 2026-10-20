@@ -45,7 +45,7 @@ export default function DashboardPage() {
                   <li key={b.id}>
                     <Link
                       href={`/b/${b.id}`}
-                      className="flex items-center justify-between gap-4 px-5 py-4 hover:bg-leaf/60 focus-visible:bg-leaf/60"
+                      className="flex items-center justify-between gap-4 px-5 py-4 hover:bg-brand-soft/60 focus-visible:bg-brand-soft/60"
                     >
                       <span className="flex min-w-0 flex-col">
                         <span className="truncate font-semibold">{b.name}</span>

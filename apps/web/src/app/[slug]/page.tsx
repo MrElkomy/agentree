@@ -42,7 +42,7 @@ export default async function PublicBusinessPage({ params }: Props) {
         <header className="flex flex-col items-center gap-4 text-center">
           <div
             aria-hidden="true"
-            className="flex size-24 items-center justify-center rounded-full bg-canopy font-display text-3xl font-bold text-white shadow-[inset_0_-3px_0_rgb(0_0_0/0.18)]"
+            className="flex size-24 items-center justify-center rounded-full bg-brand font-display text-3xl font-bold text-white shadow-[inset_0_-3px_0_rgb(0_0_0/0.18)]"
           >
             <span dir="auto">{initials(page.display_name)}</span>
           </div>
@@ -68,7 +68,7 @@ export default async function PublicBusinessPage({ params }: Props) {
                     target="_blank"
                     rel="noopener noreferrer nofollow"
                     dir="auto"
-                    className="flex min-h-12 w-full items-center justify-center rounded-lg border border-line-strong bg-surface px-4 py-3 text-center font-semibold text-ink transition-colors hover:border-canopy hover:text-canopy"
+                    className="flex min-h-12 w-full items-center justify-center rounded-lg border border-line-strong bg-surface px-4 py-3 text-center font-semibold text-ink transition-colors hover:border-brand hover:text-brand"
                   >
                     {link.label}
                   </a>
@@ -79,8 +79,10 @@ export default async function PublicBusinessPage({ params }: Props) {
         ) : null}
       </main>
       <footer className="mt-auto pt-12 text-center text-xs text-ink-muted">
-        <p>
-          Powered by <span className="font-semibold text-ink">Agentree</span>
+        <p className="inline-flex items-center gap-1.5">
+          Powered by
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/agentree-wordmark.svg" alt="Agentree" className="h-3.5 w-auto" />
         </p>
       </footer>
     </div>

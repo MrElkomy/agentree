@@ -78,4 +78,4 @@ export function Popover({
 }
 
 export const menuItemClass =
-  "flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm text-ink hover:bg-leaf focus-visible:bg-leaf";
+  "flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm text-ink hover:bg-brand-soft focus-visible:bg-brand-soft";

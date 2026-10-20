@@ -156,7 +156,7 @@ export default function PublicPageSettings() {
             <span
               data-testid="public-status"
               className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                profile.enabled ? "bg-leaf text-canopy-deep" : "bg-paper text-ink-muted ring-1 ring-line-strong"
+                profile.enabled ? "bg-brand-soft text-brand-deep" : "bg-paper text-ink-muted ring-1 ring-line-strong"
               }`}
             >
               {profile.enabled ? "Live" : "Off"}
@@ -164,7 +164,7 @@ export default function PublicPageSettings() {
           </div>
           <CopyRow label="Page address" value={publicUrl} testId="public-url">
             {profile.enabled && publicUrl ? (
-              <a href={publicUrl} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-canopy underline-offset-2 hover:underline">
+              <a href={publicUrl} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-brand underline-offset-2 hover:underline">
                 Open
               </a>
             ) : null}
@@ -332,7 +332,7 @@ function TextArea({
         maxLength={max}
         rows={rows}
         aria-describedby={`${id}-hint`}
-        className="rounded-md border border-line-strong bg-surface px-3 py-2 text-base focus-visible:border-canopy"
+        className="rounded-md border border-line-strong bg-surface px-3 py-2 text-base focus-visible:border-brand"
       />
       <div id={`${id}-hint`} className="flex justify-between gap-3 text-sm text-ink-muted">
         <span>{hint}</span>
@@ -456,7 +456,7 @@ function OriginsField({ value, onChange }: { value: string; onChange: (v: string
         placeholder={"https://www.example.com\nhttps://shop.example.com"}
         aria-describedby={`${id}-hint${problems.length || tooMany ? ` ${id}-problems` : ""}`}
         aria-invalid={problems.length || tooMany ? true : undefined}
-        className={`rounded-md border bg-surface px-3 py-2 font-mono text-sm focus-visible:border-canopy ${
+        className={`rounded-md border bg-surface px-3 py-2 font-mono text-sm focus-visible:border-brand ${
           problems.length || tooMany ? "border-danger" : "border-line-strong"
         }`}
       />

@@ -26,7 +26,7 @@ export function WidgetChat({ slug, displayName }: { slug: string; displayName: s
 
   return (
     <div className="flex h-dvh flex-col bg-surface">
-      <header className="flex items-center justify-between gap-3 bg-canopy px-4 py-3 text-white">
+      <header className="flex items-center justify-between gap-3 bg-brand px-4 py-3 text-white">
         <div className="flex min-w-0 flex-col">
           <h1 dir="auto" className="truncate text-base font-semibold" data-testid="widget-name">
             {displayName}

@@ -40,7 +40,7 @@ export function AccountMenu({
         label="Account menu"
         align={align}
         side={side}
-        buttonClassName="flex size-10 items-center justify-center rounded-full bg-canopy font-display text-base font-bold text-white hover:bg-canopy-hover"
+        buttonClassName="flex size-10 items-center justify-center rounded-full bg-brand font-display text-base font-bold text-white hover:bg-brand-hover"
         button={<span aria-hidden="true">{initial}</span>}
       >
         {(close) => (
