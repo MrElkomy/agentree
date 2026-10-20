@@ -10,9 +10,27 @@ verification, sign in, password reset, businesses, business switcher, members an
 - All fetches use `credentials: "same-origin"`; the browser adds the `Origin` header the backend's
   CSRF check needs. The web origin must be listed in the backend's `AGENTREE_ALLOWED_ORIGINS`
   (dev: `http://localhost:3000`).
-- The backend is the only authority. There is no Next.js middleware; pages ask the API
-  (`/api/auth/me`, `/api/businesses/{id}`) and redirect to `/login` on 401. Role checks in the UI
-  only hide controls.
+- The backend is the only authority. Pages ask the API (`/api/auth/me`,
+  `/api/businesses/{id}`) and redirect to `/login` on 401. Role checks in the UI only hide
+  controls. The only Next.js proxy (`src/proxy.ts`, matcher `/w/:path*`) sets the widget
+  iframe's framing header; it is not an authorization layer.
+- Public pages (`/{slug}`, `/w/{slug}`) are server-rendered from the public API, read straight
+  from `AGENTREE_API_URL` on the server (`src/lib/public-api.ts`), so that variable is also
+  needed at runtime.
+
+## Public page & widget
+- Owners turn it on under **Public page & widget** in the business sidebar (Admin+ can edit;
+  Members see it read-only). The page is off (visitors get "not found") until enabled.
+- Public page: `{origin}/{slug}` — name, bio, links and a "Chat with our Sales Agent" panel.
+- Website chat: paste `<script src="{origin}/widget.js" data-agentree="{slug}" async></script>`
+  on a website listed under "Websites allowed to show the chat". The script adds a button that
+  opens an iframe of `/w/{slug}`.
+- Framing: every route sends `X-Frame-Options: DENY` except `/w/*`, which gets
+  `Content-Security-Policy: frame-ancestors 'self' <allowed websites>` from
+  `GET /api/public/{slug}/widget-config` (`'none'` on any failure).
+- Visitors get a guest token per business in `localStorage` (`agentree:guest:{slug}`, in-memory
+  fallback); it is sent as a bearer header, never a cookie or URL. Visitors never see provider or
+  model details; replies say "You're chatting with an AI assistant."
 - API types in `src/lib/api-types.ts` are generated: `npm run gen:api` renders the OpenAPI schema
   from `apps/api` offline (needs `uv`), or set `AGENTREE_OPENAPI_SOURCE` to a URL/file.
 
@@ -46,6 +64,6 @@ from `apps/api` with `AGENTREE_SESSION_COOKIE_SECURE=false`,
 `AGENTREE_ALLOWED_ORIGINS='["http://localhost:3000"]'`, `AGENTREE_PUBLIC_BASE_URL=http://localhost:3000`,
 `AGENTREE_SMTP_HOST=127.0.0.1`, `AGENTREE_SMTP_PORT=1025`.
 
-Note: the backend rate-limits registration to 10 per IP per hour. Each full E2E run registers two
+Note: the backend rate-limits registration to 10 per IP per hour. Each full E2E run registers four
 accounts, so repeated local runs against the same database may hit `rate_limited`; use a fresh
 database (or clear `rate_limit_buckets` in your local test database).

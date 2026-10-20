@@ -53,6 +53,24 @@ is the only way to run the demo with a real key.
 7. **Roles (optional)**: invite a teammate as Member → they can chat and draft knowledge but
    cannot see or change keys beyond the masked status, or publish.
 
+## Public page & widget
+1. In the business sidebar open **Public page & widget** (Owner or Admin).
+2. Tick **Public page is on**, add a bio and a few links (each `https://…`), set the daily reply
+   limit (protects your AI credit; default 200), then **Save**. Until it is on and saved, the
+   page answers "not found".
+3. **Page address** shows `{origin}/{slug}` → *Open* it in a private window (no login) and chat
+   with the Sales Agent. Reload: the conversation is still there. Another browser does not see it.
+4. **Website chat**: list the exact website addresses that may show the chat (one per line, e.g.
+   `https://www.example.com`), save, then paste the snippet before `</body>` on that website:
+   ```html
+   <script src="{origin}/widget.js" data-agentree="{slug}" async></script>
+   ```
+   On any website not in the list the browser refuses to show the chat.
+5. **Staging note**: tryagentree.com is behind a basic-auth gate, and the gate also covers
+   `/widget.js` and the chat iframe. Visitors on another website would get a login prompt or a
+   broken chat, so on staging try the widget on tryagentree.com pages only (the iframe allows
+   our own origin); real customer websites need the gate lifted for these paths first.
+
 ## 3. After the demo
 - Remove the key in *AI Providers* (*Remove*) **and revoke it in the provider console**.
 - Local: `docker compose -f infra/docker-compose.yml down -v` deletes all demo data.
@@ -61,5 +79,5 @@ is the only way to run the demo with a real key.
 - Replies are not streamed (the full answer appears at once).
 - No circuit breaker / automatic recovery: each message tries the primary first again.
 - 30-day conversation retention is **not** enforced yet — do not use real customer conversations.
-- Knowledge is typed entries only (no file upload). Only the Sales Agent exists; no public page
-  or website widget yet.
+- Knowledge is typed entries only (no file upload). Only the Sales Agent exists; no branding of the public page
+  or website widget customization (colours, logo) yet.

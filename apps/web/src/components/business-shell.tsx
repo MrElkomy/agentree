@@ -135,6 +135,7 @@ function Sidebar({ businessId, current }: { businessId: string; current: Busines
             <NavItem href={`/b/${businessId}`} label="Overview" />
             <NavItem href={`/b/${businessId}/agents/sales`} label="Sales Agent" />
             <NavItem href={`/b/${businessId}/knowledge`} label="Knowledge" />
+            <NavItem href={`/b/${businessId}/public-page`} label="Public page & widget" />
             <NavItem href={`/b/${businessId}/ai-providers`} label="AI Providers" />
             <NavItem href={`/b/${businessId}/members`} label="Members" />
           </ul>

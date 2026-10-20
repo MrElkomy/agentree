@@ -17,6 +17,12 @@ export type Slot = Schemas["Slot"];
 export type KnowledgeEntry = Schemas["EntryOut"];
 export type ConsoleReply = Schemas["ConsoleReplyOut"];
 export type ChatMessage = Schemas["MessageOut"];
+export type PublicProfile = Schemas["PublicProfileOut"];
+export type PublicProfileIn = Schemas["PublicProfileIn"];
+export type PublicPage = Schemas["PublicPageOut"];
+export type GuestSession = Schemas["GuestSessionOut"];
+export type GuestChatReply = Schemas["GuestChatOut"];
+export type GuestMessage = Schemas["GuestMessageOut"];
 
 export class ApiError extends Error {
   constructor(
@@ -45,14 +51,29 @@ function codeFrom(body: unknown): string {
   return "unknown_error";
 }
 
-export async function api<T>(path: string, method: Method = "GET", body?: unknown): Promise<T> {
+type Options = {
+  /** Guest session token for the public chat API (sent as a bearer header, never a cookie). */
+  bearer?: string;
+  /** Public pages send no cookies: the guest API never uses the dashboard session. */
+  credentials?: RequestCredentials;
+};
+
+export async function api<T>(
+  path: string,
+  method: Method = "GET",
+  body?: unknown,
+  options: Options = {},
+): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+  if (options.bearer) headers.Authorization = `Bearer ${options.bearer}`;
   let res: Response;
   try {
     res = await fetch(path, {
       method,
-      credentials: "same-origin",
+      credentials: options.credentials ?? "same-origin",
       cache: "no-store",
-      headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+      headers,
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch {
