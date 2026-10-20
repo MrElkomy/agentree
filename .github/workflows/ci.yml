@@ -163,6 +163,9 @@ jobs:
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3103/login)" = "200"
           # Unauthenticated session check goes web -> api over the private network.
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3103/api/auth/me)" = "401"
+          # Static files from public/ (logo, widget loader) ship in the image.
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3103/brand/agentree-wordmark.svg)" = "200"
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3103/widget.js)" = "200"
       - name: API runs in staging mode as the unprivileged role, readiness OK
         run: |
           $STAGING exec -T api python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000/readyz').read().decode())"

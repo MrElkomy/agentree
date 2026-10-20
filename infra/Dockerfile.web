@@ -29,6 +29,8 @@ ENV AGENTREE_API_URL=$AGENTREE_API_URL \
 RUN addgroup -S -g 10001 agentree && adduser -S -u 10001 -G agentree -H agentree
 COPY --from=build --chown=agentree:agentree /app/.next/standalone ./
 COPY --from=build --chown=agentree:agentree /app/.next/static ./.next/static
+# Standalone output leaves out public/ (logo, widget.js): copy it next to server.js.
+COPY --from=build --chown=agentree:agentree /app/public ./public
 USER agentree
 EXPOSE 3000
 CMD ["node", "server.js"]
