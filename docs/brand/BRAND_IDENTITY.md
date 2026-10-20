@@ -45,15 +45,23 @@ The widget loader (`apps/web/public/widget.js`) cannot read the stylesheet and m
 
 | File | Use |
 |---|---|
-| `agentree-wordmark.svg` | Wordmark on light backgrounds ("agen" ink, "tree" blue) |
+| `agentree-logo-slogan.svg` | **App logo** (PO choice, 2026-10-20): wordmark with the slogan, on light backgrounds; use at 40 px tall or more |
+| `agentree-logo-slogan-reversed.svg` | Same, on Midnight Ink (auth panel) |
+| `agentree-wordmark.svg` | Wordmark on light backgrounds ("agen" ink, "tree" blue), for small placements |
 | `agentree-wordmark-reversed.svg` | Wordmark on Midnight Ink ("agen" white) |
 | `agentree-mark.svg` | "a" monogram on light backgrounds |
 | `agentree-mark-reversed.svg` | Monogram on dark backgrounds |
 | `apps/web/src/app/icon.svg`, `apple-icon.png` | Favicon / app icon: reversed monogram on a Midnight Ink tile |
 
+`apps/web/src/app/favicon.ico` (16–256 px, for browsers that skip SVG icons) is the navy
+favicon from the PO's *Agentree Brand Assets V1* package (2026-10-20). That package (raster PNG
+exports only, no vector master) confirms the working colors: logo blue samples at `#0052FC`
+(icons `#0059FA`) and the navy tile at `#101B2B`. It is kept by the PO, not in the repo (12 MB).
+
 The SVGs were vectorized from the supplied raster artwork with colors snapped to the tokens above.
 When designer-made vector masters arrive, replace these files in place (same names). The slogan is
-not locked up with the wordmark in the UI: it is too thin to read at small sizes; set it as text.
+part of the app logo lockup (PO decision); below ~40 px tall use the bare wordmark instead, since
+the thin slogan stops being legible (e.g. the "Powered by" footer).
 
 Rules from the brief: color split is always "agen" + "tree" (never only "ree"); no gradients on
 the logo; no added leaf shapes, swooshes or network nodes.
