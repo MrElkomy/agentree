@@ -723,7 +723,7 @@ export interface components {
          * ProviderName
          * @enum {string}
          */
-        ProviderName: "openai" | "anthropic" | "gemini";
+        ProviderName: "openai" | "anthropic" | "gemini" | "groq";
         /** RegisterIn */
         RegisterIn: {
             /**

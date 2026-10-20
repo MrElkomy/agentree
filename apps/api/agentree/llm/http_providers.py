@@ -18,7 +18,8 @@ TIMEOUT = httpx.Timeout(60.0, connect=10.0)
 
 def classify(status: int, body: str) -> ErrorKind:
     text = body.lower()
-    if status in (401, 403):
+    # Gemini answers an invalid key with HTTP 400 (reason API_KEY_INVALID), not 401.
+    if status in (401, 403) or "api_key_invalid" in text or "api key not valid" in text:
         return ErrorKind.AUTH
     if status == 402 or any(s in text for s in ("insufficient_quota", "credit balance", "billing")):
         return ErrorKind.QUOTA
@@ -166,10 +167,18 @@ class GeminiProvider(_HttpProvider):
         )  # fmt: skip
 
 
+class GroqProvider(OpenAIProvider):
+    """Groq's OpenAI-compatible endpoint (fixed URL); offers a free tier."""
+
+    name = ProviderName.GROQ
+    url = "https://api.groq.com/openai/v1/chat/completions"
+
+
 ProviderFactory = Callable[[], _HttpProvider]
 
 PROVIDERS: dict[ProviderName, ProviderFactory] = {
     ProviderName.OPENAI: OpenAIProvider,
     ProviderName.ANTHROPIC: AnthropicProvider,
     ProviderName.GEMINI: GeminiProvider,
+    ProviderName.GROQ: GroqProvider,
 }

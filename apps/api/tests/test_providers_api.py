@@ -72,6 +72,17 @@ async def test_provider_outage_during_verify_is_502_and_not_saved(harness: AppHa
     assert (await owner.client.get(base)).json() == []
 
 
+async def test_groq_credential_is_saved_and_verified(harness: AppHarness) -> None:
+    owner, base = await _setup(harness)
+    r = await owner.client.put(
+        f"{base}/primary", json=_body(provider="groq", model="openai/gpt-oss-120b")
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["provider"] == "groq" and r.json()["model"] == "openai/gpt-oss-120b"
+    api_key, _ = harness.llm[ProviderName.GROQ].calls[-1]
+    assert api_key == SECRET
+
+
 async def test_save_without_verify_skips_provider_call(harness: AppHarness) -> None:
     owner, base = await _setup(harness)
     r = await owner.client.put(f"{base}/backup", json=_body(verify=False))
