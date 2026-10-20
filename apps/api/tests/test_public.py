@@ -74,7 +74,7 @@ async def _session(c: AsyncClient, biz: Biz) -> str:
 
 
 def _auth(token: str) -> dict[str, str]:
-    return {"Authorization": f"Bearer {token}"}
+    return {"X-Agentree-Guest": token}
 
 
 async def _chat(
@@ -462,11 +462,22 @@ async def test_message_of_exactly_1000_chars_is_accepted(harness: AppHarness) ->
     assert (await _chat(c, biz, token, "x" * 1000)).status_code == 200
 
 
+async def test_guest_token_works_alongside_basic_auth_of_a_gate(harness: AppHarness) -> None:
+    # Regression: behind the staging basic-auth gate the browser sends `Authorization: Basic`;
+    # the guest token therefore travels in its own header and both must coexist.
+    biz = await _business(harness)
+    c = harness.new_client()
+    token = await _session(c, biz)
+    headers = {"X-Agentree-Guest": token, "Authorization": "Basic Zm9vOmJhcg=="}
+    r = await c.post(f"{biz.pub}/chat", json={"message": "hi"}, headers=headers)
+    assert r.status_code == 200, r.text
+
+
 @pytest.mark.parametrize(
     "headers",
-    [{}, {"Authorization": "Bearer "}, {"Authorization": "Basic Zm9vOmJhcg=="},
-     {"Authorization": "Bearer not-a-real-token"}, {"Authorization": "Bearer " + "a" * 500}],
-    ids=["missing", "empty", "basic", "unknown", "oversized"],
+    [{}, {"X-Agentree-Guest": ""}, {"Authorization": "Basic Zm9vOmJhcg=="},
+     {"X-Agentree-Guest": "not-a-real-token"}, {"X-Agentree-Guest": "a" * 500}],
+    ids=["missing", "empty", "basic-only", "unknown", "oversized"],
 )  # fmt: skip
 async def test_chat_requires_a_valid_guest_token(
     harness: AppHarness, headers: dict[str, str]
