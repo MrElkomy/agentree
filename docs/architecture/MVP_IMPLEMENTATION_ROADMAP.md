@@ -68,6 +68,7 @@ until then the item remains an open MVP requirement and blocks the final pilot g
 | Custom agent display name (2.4, PO request 2026-10-20) | Proposed: add to Task 14 (per-business agent config) | Needs PO approval of placement |
 | Alert when a business hits its daily reply budget (4.3) | Proposed: add to Task 13 (monitoring) | Needs PO approval of placement |
 | Daily aggregated operational metrics job (approved with 5.4) | Proposed: add to Task 18 | Needs PO approval of placement |
+| **New (PO request 2026-10-21):** free Web Push notifications to Owners/Admins (new lead, handoff request, provider outage) via the standard Push API + VAPID, opt-in per device, email stays the fallback; iOS needs 16.4+ and Add to Home Screen | Proposed: add to Task 12 (handoff alerts), extended by Task 13 for provider alerts | Needs PO approval of placement |
 | Onboarding, privacy notice, production readiness, pilot checks (7.1, 7.2, 7.5) | Final acceptance gates of Task 22 (below) | In plan |
 
 ### Task 10 — Audit log + branded emails
