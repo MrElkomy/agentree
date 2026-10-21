@@ -3,6 +3,9 @@
 Since migration 0008 the same purge also deletes anonymous guest sessions (public page /
 widget) idle longer than the window once none of their conversations remain; conversations
 on legal hold keep their session. Counts below are rows deleted (conversations + sessions).
+Since migration 0017 a second function deletes customer data past the window (Task 16, U-12):
+expired memory items, customer profiles idle past the window (their memory cascades) and old
+email codes (`agentree_purge_customer_data`).
 
 Runs in the worker as the unprivileged `agentree_app` role. Cross-tenant deletion goes
 only through the `agentree_purge_expired_conversations` SECURITY DEFINER function, which
@@ -28,7 +31,7 @@ DEFAULT_BATCH_SIZE = 500
 
 @dataclass(frozen=True)
 class PurgeResult:
-    deleted: int  # conversations + guest sessions
+    deleted: int  # conversations + guest sessions + customer data rows
     batches: int
     skipped_locked: bool  # another worker held the lock
 
@@ -51,7 +54,13 @@ async def _purge_batch(
                 {"cutoff": cutoff, "n": batch_size},
             )
         ).scalar_one()
-        return int(deleted)
+        customers = (
+            await session.execute(
+                text("SELECT agentree_purge_customer_data(:cutoff, :n)"),
+                {"cutoff": cutoff, "n": batch_size},
+            )
+        ).scalar_one()
+        return int(deleted) + int(customers)
 
 
 async def purge_expired_conversations(

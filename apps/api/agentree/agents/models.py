@@ -69,6 +69,8 @@ class Conversation(Base):
     last_message_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+    # Customer memory (Task 16): when the worker last derived memory items from this conversation.
+    memory_extracted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # Anonymous visitor that owns a public/widget conversation (NULL for the console).
     guest_session_id: Mapped[UUID | None] = mapped_column(index=True)
     # Exempts the conversation from retention deletion. Owner-only, audited API: not built yet.

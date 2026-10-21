@@ -96,6 +96,11 @@ class DemoProvider:
 
     async def chat(self, api_key: str, request: ChatRequest) -> ChatResult:
         text = DEMO_REPLY
+        system = request.messages[0].content if request.messages else ""
+        if "You maintain short notes about a customer" in system:  # customer memory job
+            item = {"category": "interest", "value": "Demo interest in the business's products"}
+            return ChatResult(text=json.dumps({"items": [item]}), provider=self.name,
+                              model=request.model)  # fmt: skip
         # Mimic the Sales Agent's lead marker when the visitor writes an email (see prompts.py).
         last = request.messages[-1].content if request.messages else ""
         email = re.search(r"[^@\s]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+", last)

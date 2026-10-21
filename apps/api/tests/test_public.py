@@ -252,7 +252,7 @@ async def test_public_page_shows_only_safe_fields(harness: AppHarness) -> None:
         "slug": biz.slug, "display_name": "Acme Chairs", "bio": "Comfortable chairs.",
         "links": [{"label": "Shop", "url": "https://acme.example.com", "description": "Our store"}],
         "chat_enabled": True, "agents": [{"role": "sales", "name": "Sales Agent"}],
-        "lead_capture": True,
+        "lead_capture": True, "retention_days": 30,
     }  # fmt: skip
     r = await c.get(f"{biz.pub}/widget-config")
     assert r.status_code == 200

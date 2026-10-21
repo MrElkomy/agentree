@@ -10,14 +10,17 @@ import uuid
 import pytest
 from httpx import AsyncClient
 
+from agentree.agents import service as agents
 from agentree.core.config import Settings
+from agentree.customers import service as customers
 from agentree.main import create_app
+from agentree.tenancy.context import TenantContext, TenantSource
 from tests.conftest import AppHarness
 from tests.helpers import create_business, invite_and_join, signup
 
 PLACEHOLDER_BODIES = {
     "POST": {"email": "probe@example.com", "role": "member"},
-    "PATCH": {"role": "member"},
+    "PATCH": {"role": "member", "value": "Probe value"},
     "PUT": {
         "provider": "openai",
         "model": "gpt-4o-mini",
@@ -61,6 +64,7 @@ async def _snapshot(client: AsyncClient, business_id: str) -> tuple[object, ...]
         (await client.get(f"{base}/leads")).json(),
         (await client.get(f"{base}/inbox")).json(),
         (await client.get(f"{base}/agents")).json(),
+        (await client.get(f"{base}/customers")).json(),
     )
 
 
@@ -104,6 +108,24 @@ async def test_owner_of_a_cannot_touch_b(harness: AppHarness, method: str, path:
     task_id = (
         await bob.client.get(f"/api/businesses/{b['id']}/leads/{lead_id}/follow-ups")
     ).json()[0]["id"]
+    # A real customer in B with a memory item (as the worker would store it).
+    factory = harness.app.state.session_factory
+    ctx = TenantContext(uuid.UUID(b["id"]), TenantSource.JOB)
+    transcript = await agents.public_transcript(
+        factory, ctx, uuid.UUID(chat.json()["conversation_id"])
+    )
+    assert transcript is not None
+    await customers.save_extracted(
+        factory, ctx, guest_session_id=transcript.guest_session_id,
+        conversation_id=uuid.UUID(chat.json()["conversation_id"]),
+        last_message_at=transcript.last_message_at,
+        facts=[customers.MemoryFact("interest", "Office chairs for a small team")],
+        retention_days=30,
+    )  # fmt: skip
+    customer_id = (await bob.client.get(f"/api/businesses/{b['id']}/customers")).json()[0]["id"]
+    item_id = (await bob.client.get(f"/api/businesses/{b['id']}/customers/{customer_id}")).json()[
+        "memory"
+    ][0]["id"]
     before = await _snapshot(bob.client, b["id"])
     url = path.format(
         business_id=b["id"],
@@ -118,6 +140,8 @@ async def test_owner_of_a_cannot_touch_b(harness: AppHarness, method: str, path:
         lead_id=lead_id,  # a real lead in B
         task_id=task_id,  # a real follow-up task in B
         role="sales",  # B's Sales Agent
+        customer_id=customer_id,  # a real customer profile in B
+        item_id=item_id,  # a real memory item in B
     )
     r = await alice.client.request(method, url, json=PLACEHOLDER_BODIES.get(method))
     assert r.status_code == 404, (method, url, r.status_code, r.text)
@@ -126,7 +150,7 @@ async def test_owner_of_a_cannot_touch_b(harness: AppHarness, method: str, path:
     assert after[0] == before[0] and after[1] == before[1]
     assert after[3] == before[3] and after[4] == before[4] and after[5] == before[5]
     assert after[6] == before[6] and after[7] == before[7] and after[8] == before[8]
-    assert after[9] == before[9]
+    assert after[9] == before[9] and after[10] == before[10]
 
 
 @pytest.mark.parametrize(("method", "path"), BUSINESS_ROUTES)
@@ -142,6 +166,8 @@ async def test_unknown_business_is_404_not_403(harness: AppHarness, method: str,
         lead_id=uuid.uuid4(),
         task_id=uuid.uuid4(),
         role="sales",
+        customer_id=uuid.uuid4(),
+        item_id=uuid.uuid4(),
     )
     r = await alice.client.request(method, url, json=PLACEHOLDER_BODIES.get(method))
     assert r.status_code == 404
@@ -160,6 +186,8 @@ async def test_anonymous_is_rejected(harness: AppHarness, method: str, path: str
         lead_id=uuid.uuid4(),
         task_id=uuid.uuid4(),
         role="sales",
+        customer_id=uuid.uuid4(),
+        item_id=uuid.uuid4(),
     )
     r = await c.request(method, url, json=PLACEHOLDER_BODIES.get(method))
     assert r.status_code == 401

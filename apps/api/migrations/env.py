@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 import agentree.actions.models
 import agentree.agents.models
 import agentree.audit.models
+import agentree.customers.models
 import agentree.identity.models
 import agentree.knowledge.models
 import agentree.leads.models

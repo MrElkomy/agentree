@@ -90,6 +90,14 @@ function describe(e: AuditEvent): string {
       if (d.resolved_by === "agent") return `${agentTitle(d.agent)} marked a conversation resolved`;
       if (d.resolved_by === "visitor") return "A visitor marked their conversation resolved";
       return `${who} resolved a conversation`;
+    case "customer.verified":
+      return "A visitor confirmed their email in the chat";
+    case "customer.memory_updated":
+      return `${who} corrected a customer note`;
+    case "customer.memory_deleted":
+      return `${who} deleted a customer note`;
+    case "customer.deleted":
+      return `${who} deleted a customer and their notes`;
     case "agent.handoff":
       return `${agentTitle(d.from_agent)} handed a conversation to ${agentTitle(d.to_agent)}`;
     case "agent.config_updated":

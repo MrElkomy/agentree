@@ -105,6 +105,31 @@ class PublicPageOut(BaseModel):
     chat_enabled: bool
     agents: list[PublicAgentOut]  # enabled agents visitors can start a chat with, in order
     lead_capture: bool  # the "Leave your details" form is available
+    # Days chats and what the agents remember about a visitor are kept (shown to visitors).
+    retention_days: int = 30
+
+
+class IdentityOut(BaseModel):
+    """Whether this browser's guest session is a verified customer (Task 16)."""
+
+    verified: bool
+    email_hint: str | None = None  # masked, e.g. "m***@example.com"
+
+
+class IdentityStartIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: str = Field(min_length=3, max_length=254)
+
+
+class IdentityStartOut(BaseModel):
+    sent: bool  # always true when accepted: never reveals whether the email is known
+
+
+class IdentityConfirmIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    code: str = Field(pattern=r"^\s*\d{6}\s*$")
 
 
 class WidgetConfigOut(BaseModel):

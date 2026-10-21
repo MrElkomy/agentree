@@ -66,6 +66,7 @@ export default async function PublicBusinessPage({ params }: Props) {
               displayName={page.display_name}
               agents={page.agents}
               leadCapture={page.lead_capture}
+              retentionDays={page.retention_days ?? 30}
             />
           </section>
         ) : null}
