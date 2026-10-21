@@ -9,8 +9,13 @@ import { TOOL_LABEL } from "@/lib/agents";
 import { api, type AgentConfig, type AgentConfigIn } from "@/lib/api";
 import { atLeast } from "@/lib/roles";
 
-// Roles whose full abilities (tools, escalations) arrive in the next roadmap task.
-const BASIC = new Set(["customer_service", "technical_support"]);
+// What each customer-facing agent does beyond answering from your knowledge.
+const ROLE_NOTE: Record<string, string> = {
+  customer_service:
+    "Answers questions about your policies and services from your knowledge, never promises refunds or order updates, and brings in your team for anything it can't settle. Customers can mark its conversations resolved.",
+  technical_support:
+    "Asks what's wrong, then suggests troubleshooting steps from your knowledge. It never claims to have changed anything and brings in your team when a fix needs account access.",
+};
 
 export default function AgentsPage() {
   const { business } = useBusiness();
@@ -148,8 +153,6 @@ function AgentCard({
           </span>
           {!agent.available ? (
             <span className="rounded-full bg-paper px-2.5 py-0.5 text-ink-muted ring-1 ring-line">Coming soon</span>
-          ) : BASIC.has(agent.role) ? (
-            <span className="rounded-full bg-warn-soft px-2.5 py-0.5 text-warn ring-1 ring-warn/30">Basic version</span>
           ) : null}
           {agent.available ? (
             <span
@@ -166,12 +169,7 @@ function AgentCard({
         <p className="text-sm text-ink-muted">This agent is being built and arrives in a later update.</p>
       ) : (
         <>
-          {BASIC.has(agent.role) ? (
-            <p className="text-sm text-ink-muted">
-              Answers from your knowledge and hands customers back to Sales. Its own tools and
-              escalations arrive in the next update.
-            </p>
-          ) : null}
+          {ROLE_NOTE[agent.role] ? <p className="text-sm text-ink-muted">{ROLE_NOTE[agent.role]}</p> : null}
           <label className="flex items-center gap-2 text-sm font-semibold">
             <input
               type="checkbox"

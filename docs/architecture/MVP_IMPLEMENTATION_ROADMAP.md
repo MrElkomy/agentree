@@ -124,7 +124,7 @@ until then the item remains an open MVP requirement and blocks the final pilot g
   Push (PO approved adding it to Task 13 on 2026-10-21): opt-in per device for Owners/Admins,
   alerts for new lead, handoff request and a provider key going down; email stays the fallback.
 
-### Task 14 — Agent framework, routing, shared context — 🟡 implemented (pending PO approval), see `AGENTS.md`
+### Task 14 — Agent framework, routing, shared context — ✅ merged (#36), see `AGENTS.md`
 - **Scope:** versioned per-business agent definitions (role, enabled, tools/permissions, public vs
   internal); router selecting the agent per turn; handoff events between agents; shared authorized
   context (conversation summary + lead/customer facts the receiving agent may see).
@@ -134,9 +134,11 @@ until then the item remains an open MVP requirement and blocks the final pilot g
 - **Out of scope:** owner-built custom agents. Custom display name: proposed for this task, pending
   PO approval (see the tracking table).
 
-### Task 15 — Customer Service + Technical Support agents
+### Task 15 — Customer Service + Technical Support agents — 🟡 implemented (pending PO approval), see `AGENTS.md`
 - **Scope:** two public agents on the Task 14 framework, with role prompts, knowledge scoping and
-  escalation rules; entry points on the public page and widget.
+  escalation rules; entry points on the public page and widget. Resolution by the Customer
+  Service agent and the visitor as well as the team (PO decision 2026-10-21); Sales stays
+  team-only.
 - **Acceptance:** each answers only from published knowledge in scope; escalates to the inbox per
   Task 12; routing E2E across all three public agents.
 - **Out of scope:** ticketing integrations.

@@ -1,4 +1,4 @@
-# Agent framework, routing and shared context (Task 14)
+# Agent framework, routing and shared context (Tasks 14–15)
 
 Agentree's AI team is five fixed roles. A business decides which of them work for it, what they
 are called and which tools they hold; agents hand a conversation to a better-suited teammate,
@@ -9,15 +9,16 @@ and the customer does not repeat themselves. Everything that decides access is s
 | Role | Audience | Built | Default |
 |---|---|---|---|
 | `sales` | public | Task 06 (full) | on |
-| `customer_service` | public | baseline prompt (Task 15 completes it) | off |
-| `technical_support` | public | baseline prompt (Task 15 completes it) | off |
+| `customer_service` | public | Task 15 (full) | off |
+| `technical_support` | public | Task 15 (full) | off |
 | `data_analyst` | internal | Task 18 — cannot be enabled yet | off |
 | `executive` | internal | Task 20 — cannot be enabled yet | off |
 
 Each definition is versioned (`version`, bump when a role's prompt or behaviour changes) and
 carries its title, audience, what it handles, and its Action Gateway allowlist
-(`actions.service.PERMISSIONS`; today only Sales holds `create_lead`, `update_lead`,
-`create_follow_up_task`).
+(`actions.service.PERMISSIONS`): Sales holds `create_lead`, `update_lead`,
+`create_follow_up_task`; Customer Service holds `resolve_conversation`; Technical Support holds
+none (it guides, people act).
 
 ## Per-business configuration (`agent_configs`, migration 0015, RLS)
 
@@ -77,7 +78,57 @@ Notes live in `agent_handoffs`, which is tenant-scoped (RLS) and deleted with it
 by the 30-day retention job (composite FK `ON DELETE CASCADE`). There is no cross-conversation
 customer memory here; that is Task 16.
 
+## Customer Service and Technical Support (Task 15)
+
+Both are public agents on this framework (no separate architecture): role prompts in
+`agents/prompts.py`, the same routing, handoff markers, team context and escalation to the
+inbox (`<<HANDOFF>>`, `INBOX.md`).
+
+- **Customer Service** answers general questions, policies and service information from
+  published knowledge only. It cannot see orders, accounts or payments and never states an order
+  status, refund decision or exception, or promises anything; such requests, complaints and
+  sensitive matters go to the team. Technical problems route to Technical Support.
+- **Technical Support** diagnoses first (one or two questions at a time), then suggests small
+  numbered steps supported by the knowledge. It has no access to accounts, devices or systems,
+  so every step is a suggestion: it never says it checked, reset or changed anything, never asks
+  for passwords, codes or remote access, and escalates when a fix needs privileged access or the
+  steps did not help. Non-technical questions route back to Sales or Customer Service.
+- The prompts only describe; the backend enforces: no tools for Technical Support, no lead
+  capture for either (a `<<LEAD …>>` from them is dropped), routes only to allowed public
+  teammates, no internal agents.
+
+### Knowledge scoping
+
+`knowledge_entries.agent_roles` (migration 0016, expand-only): empty means every agent, else
+only the listed roles may use the entry. `knowledge.retrieve(..., role=)` filters in SQL, per
+agent and per hop (after a handoff the next agent retrieves again with its own role). Changing
+the scope returns a published entry to draft, like any edit. Unknown roles are refused
+(422 `invalid_agent_roles`). The knowledge page has "All agents / Only these agents".
+
+### Who may resolve a conversation (approved PO decision)
+
+| Conversation led by | Team member | Visitor | The agent |
+|---|---|---|---|
+| Customer Service | yes | yes (open or waiting for a person; not while a member handles it) | yes, with its `resolve_conversation` tool on, after the customer confirms |
+| Sales, Technical Support | yes | no (403 `resolve_not_allowed`) | no (marker ignored) |
+
+"Led by" is the conversation's `active_agent`, set by the backend. Roles with
+`shared_resolution` are fixed in the registry; the visitor's button appears only when the backend
+returns `can_resolve: true` (chat replies and the conversation view). The agent's `<<RESOLVED>>`
+marker is accepted only through `_may_resolve` (role + Action Gateway `authorize` against the
+business's tools) and never together with a route or handoff. Audit: `conversation.resolved`
+with `resolved_by` (member, visitor, agent).
+
 ## Tests
+
+`tests/test_support_agents.py` (Task 15): role prompts; complete definitions and tool limits;
+knowledge grounding by business, publication and scope; no-match instruction; scope validation
+and re-publishing; Sales → Customer Service → Technical Support → Customer Service with notes
+and history; visitor-closed and disabled agents; forged internal routes; escalation and the AI
+staying quiet; human takeover; resolution by the agent (and not without its tool, not by Sales
+or Technical Support, not with a handoff), by the visitor (not for Sales, not for another guest
+or business), by a member (Sales included); no lead capture by support agents; streamed replies
+hide the marker. E2E: `e2e/support-agents.spec.ts`.
 
 `tests/test_agents.py`: configuration rules and audit; Sales → Technical Support → Sales with
 history and notes; disabled and visitor-closed agents never routed to guests; forged route

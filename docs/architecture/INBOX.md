@@ -15,7 +15,7 @@ never appear in the inbox):
 | `open` | Normal chat | The AI |
 | `needs_human` | Handoff requested, nobody has taken over | Nobody: visitor messages are stored, the AI is paused |
 | `human_active` | A member took over (`assignee_user_id`) | The team (members reply) |
-| `resolved` | Closed by a member | The AI again if the visitor writes (back to `open`) |
+| `resolved` | Closed by a member, or (Customer Service conversations, Task 15) by the visitor or the agent | The AI again if the visitor writes (back to `open`) |
 
 Transitions (all in `agentree/agents/inbox.py`, row-locked, audited):
 
@@ -29,7 +29,15 @@ Transitions (all in `agentree/agents/inbox.py`, row-locked, audited):
 - any → `human_active`: a member presses **Take over** (assignee = that member; also takes over
   from a teammate).
 - `needs_human`/`human_active` → `open`: **Hand back to AI** (clears the assignee).
-- any → `resolved`: **Resolve**.
+- any → `resolved`: **Resolve** by a member (every conversation, Sales included).
+- Task 15, only while the conversation's active agent is Customer Service (a role with shared
+  resolution in `agents/registry.py`; Sales conversations stay team-only):
+  - `open`/`needs_human` → `resolved`: the visitor presses **My issue is resolved**
+    (`POST /api/public/{slug}/conversations/{id}/resolve`; 403 `resolve_not_allowed` for other
+    agents' conversations, 409 `conversation_state` while a member is handling it).
+  - `open` → `resolved`: the agent ends its reply with `<<RESOLVED>>` after the customer confirmed
+    the issue is solved. Accepted only from an agent with shared resolution whose business left
+    its `resolve_conversation` tool on (Action Gateway), never together with a route or handoff.
 - Assign: any member of the business, or nobody; other user ids are refused (`invalid_assignee`).
 
 The AI never decides who may take over or reply; the backend enforces state and membership.
@@ -80,7 +88,8 @@ and it is not part of this task.
 
 `conversation.handoff_requested` (reason), `conversation.handoff_canceled`,
 `conversation.taken_over`, `conversation.assigned` (assigned: true/false),
-`conversation.released`, `conversation.resolved`. Details hold the channel and these flags only,
+`conversation.released`, `conversation.resolved` (`resolved_by`: member, visitor or agent; the
+agent's role for the last two). Details hold the channel and these flags only,
 never message content.
 
 ## Limits and follow-ups

@@ -4,11 +4,14 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useBusiness } from "@/components/business-shell";
 import { useSession } from "@/components/session";
 import { Alert, Button, Spinner, TextField } from "@/components/ui";
+import { PUBLIC_ROLES } from "@/lib/agents";
 import { api, type KnowledgeEntry } from "@/lib/api";
 import { messageFor } from "@/lib/messages";
 import { atLeast } from "@/lib/roles";
 
 const MAX_BODY = 20000;
+
+const roleTitle = (role: string) => PUBLIC_ROLES.find((r) => r.role === role)?.title ?? role;
 
 export default function KnowledgePage() {
   const { business } = useBusiness();
@@ -95,6 +98,8 @@ function EntryForm({
 }) {
   const [title, setTitle] = useState(initial?.title ?? "");
   const [body, setBody] = useState(initial?.body ?? "");
+  // Empty: every agent may use the entry.
+  const [roles, setRoles] = useState<string[]>(initial?.agent_roles ?? []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -104,11 +109,12 @@ function EntryForm({
     setError(null);
     try {
       if (initial) {
-        await api(`${base}/${initial.id}`, "PATCH", { title, body });
+        await api(`${base}/${initial.id}`, "PATCH", { title, body, agent_roles: roles });
       } else {
-        await api(base, "POST", { title, body });
+        await api(base, "POST", { title, body, agent_roles: roles });
         setTitle("");
         setBody("");
+        setRoles([]);
       }
       await onSaved();
     } catch (err) {
@@ -139,6 +145,50 @@ function EntryForm({
           {body.length.toLocaleString()} / {MAX_BODY.toLocaleString()} characters
         </p>
       </div>
+      <fieldset className="flex flex-col gap-2">
+        <legend className="mb-1 text-sm font-semibold">Which agents use this entry</legend>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="radio"
+            name={initial ? `scope-${initial.id}` : "scope-new"}
+            checked={roles.length === 0}
+            onChange={() => setRoles([])}
+            className="size-4 accent-brand"
+          />
+          All agents
+        </label>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="radio"
+            name={initial ? `scope-${initial.id}` : "scope-new"}
+            checked={roles.length > 0}
+            onChange={() => setRoles((r) => (r.length ? r : ["sales"]))}
+            className="size-4 accent-brand"
+          />
+          Only these agents
+        </label>
+        {roles.length > 0 ? (
+          <div className="flex flex-wrap gap-x-5 gap-y-2 ps-6">
+            {PUBLIC_ROLES.map(({ role, title }) => (
+              <label key={role} className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={roles.includes(role)}
+                  disabled={roles.length === 1 && roles.includes(role)}
+                  onChange={(e) =>
+                    setRoles((r) => (e.target.checked ? [...r, role] : r.filter((x) => x !== role)))
+                  }
+                  className="size-4 accent-brand"
+                />
+                {title}
+              </label>
+            ))}
+          </div>
+        ) : null}
+        <p className="text-sm text-ink-muted">
+          For example, troubleshooting steps only for Technical Support. Other agents never see it.
+        </p>
+      </fieldset>
       <div className="flex flex-wrap gap-2">
         <Button type="submit" busy={busy}>
           {initial ? "Save changes" : "Save as draft"}
@@ -206,6 +256,9 @@ function EntryItem({
               }`}
             >
               {isPublished ? "Published" : "Draft"}
+            </span>
+            <span className="text-xs text-ink-muted" data-testid="knowledge-scope">
+              {entry.agent_roles.length ? `Only ${entry.agent_roles.map(roleTitle).join(", ")}` : "All agents"}
             </span>
           </div>
           <p className="line-clamp-4 text-sm whitespace-pre-wrap text-ink-muted">{entry.body}</p>

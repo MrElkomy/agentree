@@ -29,12 +29,16 @@ that changes what it describes. Last updated: 2026-10-21.
 - **Merged:** Task 12 — Human inbox + handoff + email alert (#32, `docs/architecture/INBOX.md`).
 - **Task 13** merged (#33 13a reliability, #34 13b Web Push) and deployed with batch 1;
   #35 chat scroll fix merged and deployed.
-- **In review:** Task 14 — agent framework, routing, shared context
-  (`docs/architecture/AGENTS.md`). Batch 2 = Tasks 14–16.
+- **Merged:** Task 14 — agent framework, routing, shared context (#36,
+  `docs/architecture/AGENTS.md`).
+- **In review:** Task 15 — complete Customer Service + Technical Support agents, knowledge
+  scoping per agent, resolution by the AI, the visitor or the team (`AGENTS.md`). Batch 2 =
+  Tasks 14–16.
 - Shared Hetzner host with TRACK, IELTS and the Telegram bridge — never disrupt them.
 - Deploy: the PO runs `~/agentree/infra/staging/deploy.sh origin/main` (pre-deploy encrypted
   backup, migrations, automatic rollback). Details: `docs/operations/STAGING_RUNBOOK.md`.
-- **Deployed:** main through #35 (Tasks 10–13, migrations through 0014). **Merged, not deployed:** nothing (batch 1 deployed: main `78fe2a4` + #35).
+- **Deployed:** main through #35 (Tasks 10–13, migrations through 0014). **Merged:** #36 (Task 14,
+  migration 0015); the PO started its deploy on 2026-10-21 — result not yet confirmed here.
 - **Deployment batches (PO decision):** don't deploy every PR. Batch 1 = Tasks 11 + 11b + 12 + 13
   → batch 2 = 14–16 → batch 3 = 17–21 → batch 4 = 22. Tell the PO when a batch is ready.
 - AI on staging: Groq (free tier) as the demo provider key. Nightly encrypted backups to Google
