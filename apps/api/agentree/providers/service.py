@@ -12,6 +12,7 @@ from uuid import UUID
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from agentree.audit.service import AuditAction, record
 from agentree.core.config import Settings
 from agentree.core.ids import uuid7
 from agentree.core.vault import SealedSecret, Vault, VaultUnavailableError, parse_master_key
@@ -114,7 +115,7 @@ async def save_credential(
     now = datetime.now(UTC)
     async with tenant_session(factory, ctx) as session:
         # Replacing a slot creates a new row id, so old ciphertext can never be re-bound.
-        await session.execute(
+        replaced = await session.execute(
             delete(ProviderCredential).where(
                 ProviderCredential.business_id == ctx.business_id, ProviderCredential.slot == slot
             )
@@ -128,6 +129,12 @@ async def save_credential(
             last_verified_at=now if verified else None, updated_at=now,
         )  # fmt: skip
         session.add(cred)
+        # Never the key or its hint: only which slot, provider and model changed.
+        await record(session, ctx, action=AuditAction.PROVIDER_KEY_SAVED, actor_user_id=actor_id,
+                     target_type="provider_key", target_id=slot,
+                     details={"slot": slot, "provider": provider, "model": model,
+                              "replaced": replaced.rowcount > 0,  # type: ignore[attr-defined]
+                              "verified": verified})  # fmt: skip
     return _info(cred)
 
 
@@ -151,7 +158,9 @@ async def list_credentials(factory: Factory, ctx: TenantContext) -> list[Credent
     return [_info(c) for c in rows]
 
 
-async def delete_credential(factory: Factory, ctx: TenantContext, slot: Slot) -> None:
+async def delete_credential(
+    factory: Factory, ctx: TenantContext, slot: Slot, *, actor_id: UUID
+) -> None:
     async with tenant_session(factory, ctx) as session:
         result = await session.execute(
             delete(ProviderCredential).where(
@@ -160,6 +169,10 @@ async def delete_credential(factory: Factory, ctx: TenantContext, slot: Slot) ->
         )
         if result.rowcount == 0:  # type: ignore[attr-defined]
             raise NotFoundError
+        await record(
+            session, ctx, action=AuditAction.PROVIDER_KEY_REMOVED, actor_user_id=actor_id,
+            target_type="provider_key", target_id=slot, details={"slot": slot},
+        )  # fmt: skip
 
 
 async def resolve_credential(

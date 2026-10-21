@@ -272,7 +272,7 @@ Partially delivered slices stay open until every item below is implemented and t
 - **Objective:** user sees only their businesses; URL-scoped business routes.
 - **Acceptance (phase gate):** one user is Owner of A and Member of B with correct, separate rights; all cross-tenant read/write/IDOR attempts return 404. Playwright journey: signup → create business → invite → switch.
 
-### 1.6 Audit events
+### 1.6 Audit events — 🟡 Task 10a implemented (pending PO approval), see `AUDIT_LOG.md`
 - **Objective:** append-only `audit_events` for auth, membership, settings.
 - **Acceptance:** Owners/Admins can view their business audit log; no cross-tenant visibility.
 

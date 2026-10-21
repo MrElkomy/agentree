@@ -23,6 +23,8 @@ export type PublicPage = Schemas["PublicPageOut"];
 export type GuestSession = Schemas["GuestSessionOut"];
 export type GuestChatReply = Schemas["GuestChatOut"];
 export type GuestMessage = Schemas["GuestMessageOut"];
+export type AuditEvent = Schemas["AuditEventOut"];
+export type AuditPage = Schemas["AuditPageOut"];
 
 export class ApiError extends Error {
   constructor(

@@ -52,6 +52,14 @@ test("owner creates a business and invites a member who joins", async ({ browser
   await owner.getByRole("button", { name: "Send invitation" }).click();
   await expect(owner.getByText(`Invitation sent to ${memberEmail}.`)).toBeVisible();
   await expect(owner.getByTestId("invitation-row")).toContainText(memberEmail);
+
+  // --- Owner: the activity log records both changes, newest first ----------------------
+  await owner.getByRole("link", { name: "Activity log" }).first().click();
+  await expect(owner.getByRole("heading", { name: "Activity log", level: 1 })).toBeVisible();
+  const events = owner.getByTestId("audit-event");
+  await expect(events).toHaveCount(2);
+  await expect(events.nth(0)).toContainText(`${ownerEmail} invited ${memberEmail} as Member`);
+  await expect(events.nth(1)).toContainText(`${ownerEmail} created the business`);
   await logOut(owner);
   await ownerContext.close();
 
@@ -83,6 +91,7 @@ test("owner creates a business and invites a member who joins", async ({ browser
   await expect(member.getByRole("heading", { name: "Invite someone" })).toHaveCount(0);
   await expect(member.getByRole("button", { name: "Send invitation" })).toHaveCount(0);
   await expect(member.getByRole("heading", { name: "Pending invitations" })).toHaveCount(0);
+  await expect(member.getByRole("link", { name: "Activity log" })).toHaveCount(0);
 
   // The member's own dashboard lists the business with the member role.
   await member.goto("/dashboard");

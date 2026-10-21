@@ -16,6 +16,7 @@ import { Popover, menuItemClass } from "@/components/popover";
 import { useSession } from "@/components/session";
 import { Alert, RoleBadge, Spinner, buttonClass } from "@/components/ui";
 import { api, isApiError, type Business } from "@/lib/api";
+import { atLeast } from "@/lib/roles";
 
 type BusinessCtx = { business: Business; reload: () => Promise<void> };
 const BusinessContext = createContext<BusinessCtx | null>(null);
@@ -138,6 +139,9 @@ function Sidebar({ businessId, current }: { businessId: string; current: Busines
             <NavItem href={`/b/${businessId}/public-page`} label="Public page & widget" />
             <NavItem href={`/b/${businessId}/ai-providers`} label="AI Providers" />
             <NavItem href={`/b/${businessId}/members`} label="Members" />
+            {current && atLeast(current.role, "admin") ? (
+              <NavItem href={`/b/${businessId}/activity`} label="Activity log" />
+            ) : null}
           </ul>
           <div className="flex flex-col gap-2">
             <p id="upcoming-heading" className="px-3 text-sm font-semibold text-ink-muted">

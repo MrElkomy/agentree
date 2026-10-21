@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from agentree.agents.api import router as agents_router
+from agentree.audit.api import router as audit_router
 from agentree.core.config import Settings, get_settings
 from agentree.core.csrf import csrf_middleware
 from agentree.core.db import create_app_engine, create_session_factory
@@ -77,4 +78,5 @@ def create_app(
     app.include_router(agents_router)
     app.include_router(public_owner_router)
     app.include_router(public_router)
+    app.include_router(audit_router)
     return app

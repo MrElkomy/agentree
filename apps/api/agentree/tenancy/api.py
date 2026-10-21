@@ -142,7 +142,9 @@ async def list_invitations(member: Member, request: Request) -> list[InvitationO
 async def revoke_invitation(invitation_id: UUID, member: Member, request: Request) -> None:
     member.require(Role.ADMIN)
     try:
-        await service.revoke_invitation(_factory(request), member.tenant, invitation_id)
+        await service.revoke_invitation(
+            _factory(request), member.tenant, invitation_id, actor_id=member.user.id
+        )
     except service.NotFoundError:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "not_found") from None
 
