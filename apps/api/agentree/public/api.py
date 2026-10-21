@@ -221,7 +221,7 @@ def _notify_if_handoff(
 ) -> None:
     if turn.handoff_requested:  # the agent brought in a person: tell the team (after replying)
         st = request.app.state
-        tasks.add_task(inbox.notify_handoff, st.session_factory, st.settings, st.mailer,
+        tasks.add_task(inbox.notify_handoff, st.session_factory, st.settings, st.mailer, st.push,
                        page.tenant, turn.conversation_id, reason="agent")  # fmt: skip
 
 
@@ -310,8 +310,8 @@ async def guest_lead(
     st = request.app.state
     try:
         await leads.submit_guest_lead(
-            st.session_factory, st.settings, st.mailer, page.tenant, guest_session_id=guest,
-            conversation_id=body.conversation_id, fields=fields,
+            st.session_factory, st.settings, st.mailer, st.push, page.tenant,
+            guest_session_id=guest, conversation_id=body.conversation_id, fields=fields,
             idempotency_key=body.idempotency_key,
         )  # fmt: skip
     except agents.NotFoundError:
@@ -378,7 +378,7 @@ async def guest_request_handoff(
     except (agents.NotFoundError, inbox.NotFoundError):
         raise _not_found() from None
     if requested:
-        tasks.add_task(inbox.notify_handoff, st.session_factory, st.settings, st.mailer,
+        tasks.add_task(inbox.notify_handoff, st.session_factory, st.settings, st.mailer, st.push,
                        page.tenant, conversation_id, reason="visitor")  # fmt: skip
     return await guest_conversation(slug, conversation_id, creds, request)
 

@@ -13,7 +13,7 @@ import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -31,6 +31,7 @@ from agentree.core.db import create_engine, create_session_factory
 from agentree.core.db_roles import APP_ROLE, MIGRATOR_ROLE, bootstrap_roles
 from agentree.core.email import OutgoingEmail
 from agentree.core.vault import generate_master_key
+from agentree.core.webpush import Outcome, PushMessage, Subscription
 from agentree.llm.base import ProviderName
 from agentree.llm.fake import FakeProvider
 from agentree.main import create_app
@@ -141,6 +142,21 @@ def mailer() -> FakeMailer:
     return FakeMailer()
 
 
+class FakePushSender:
+    """Records Web Push deliveries instead of calling browser push services."""
+
+    def __init__(self) -> None:
+        self.public_key: str | None = "BFakeVapidPublicKeyForTests"
+        self.sent: list[tuple[str, PushMessage]] = []
+        self.outcomes: dict[str, Outcome] = {}  # endpoint -> scripted result (default SENT)
+
+    async def send(self, subscription: Subscription, message: PushMessage) -> Outcome:
+        outcome = self.outcomes.get(subscription.endpoint, Outcome.SENT)
+        if outcome is Outcome.SENT:
+            self.sent.append((subscription.endpoint, message))
+        return outcome
+
+
 @pytest.fixture(autouse=True)
 async def _clear_rate_limits(db_urls: DbUrls) -> AsyncIterator[None]:
     yield
@@ -203,6 +219,7 @@ class AppHarness:
     mailer: FakeMailer
     clients: list[AsyncClient]
     llm: dict[ProviderName, FakeProvider]
+    push: FakePushSender = field(default_factory=FakePushSender)
 
     def new_client(self) -> AsyncClient:
         """A separate browser (own cookie jar) against the same running app."""
@@ -219,11 +236,13 @@ def _returning(fake: FakeProvider) -> Callable[[], FakeProvider]:
 async def harness(settings: Settings, mailer: FakeMailer) -> AsyncIterator[AppHarness]:
     # One scripted fake per provider; the app never reaches a real AI provider in tests.
     fakes = {name: FakeProvider(name=name) for name in ProviderName}
+    push = FakePushSender()
     app = create_app(
-        settings, mailer=mailer, llm_providers={n: _returning(f) for n, f in fakes.items()}
-    )
+        settings, mailer=mailer, llm_providers={n: _returning(f) for n, f in fakes.items()},
+        push=push,
+    )  # fmt: skip
     async with app.router.lifespan_context(app):
-        h = AppHarness(app, mailer, [], fakes)
+        h = AppHarness(app, mailer, [], fakes, push)
         try:
             yield h
         finally:

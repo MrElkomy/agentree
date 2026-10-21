@@ -15,6 +15,8 @@ dependencies = [
     "email-validator>=2.2",
     "cryptography>=43.0",
     "httpx>=0.28",
+    "http-ece>=1.2.1",
+    "py-vapid>=1.9.6",
 ]
 
 [dependency-groups]
@@ -66,7 +68,7 @@ forbidden_modules = [
     "agentree.health", "agentree.identity", "agentree.tenancy", "agentree.main", "agentree.worker",
     "agentree.providers", "agentree.llm", "agentree.knowledge", "agentree.agents",
     "agentree.retention", "agentree.public", "agentree.audit", "agentree.actions",
-    "agentree.leads",
+    "agentree.leads", "agentree.notifications",
 ]
 
 [[tool.importlinter.contracts]]
@@ -191,3 +193,21 @@ source_modules = [
     "agentree.actions",
 ]
 forbidden_modules = ["agentree.public"]
+
+[[tool.importlinter.contracts]]
+name = "notifications depend only on core and the tenancy service"
+type = "forbidden"
+source_modules = ["agentree.notifications"]
+forbidden_modules = [
+    "agentree.tenancy.models", "agentree.tenancy.api", "agentree.identity", "agentree.providers",
+    "agentree.llm", "agentree.knowledge", "agentree.agents", "agentree.leads", "agentree.public",
+    "agentree.actions", "agentree.audit", "agentree.retention", "agentree.main", "agentree.worker",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "notifications domain code does not depend on the HTTP layer"
+type = "forbidden"
+source_modules = ["agentree.notifications.models", "agentree.notifications.service"]
+forbidden_modules = ["fastapi", "agentree.main", "agentree.health"]
+allow_indirect_imports = true

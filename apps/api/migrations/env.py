@@ -14,6 +14,7 @@ import agentree.audit.models
 import agentree.identity.models
 import agentree.knowledge.models
 import agentree.leads.models
+import agentree.notifications.models
 import agentree.providers.models
 import agentree.public.models
 import agentree.tenancy.models  # noqa: F401

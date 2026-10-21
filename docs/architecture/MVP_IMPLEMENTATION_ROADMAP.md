@@ -109,7 +109,7 @@ until then the item remains an open MVP requirement and blocks the final pilot g
 - **Out of scope:** SLA timers, canned replies, mobile push. Webhook handoff (approved, 4.5): see
   "Approved requirements outside Tasks 10–22" (proposed deferral, pending PO approval).
 
-### Task 13 — AI reliability — 🟡 13a implemented (pending PO approval), see `RELIABILITY.md`; 13b (Web Push alerts) next
+### Task 13 — AI reliability — 🟡 13a and 13b implemented (pending PO approval), see `RELIABILITY.md`
 - **Scope:** streamed replies (SSE) for console, public page and widget; per-business circuit
   breaker (closed / open with cooldown / half-open probe) over primary → backup; automatic return to
   primary; provider-health status visible to Owners; structured health logs + counters for
