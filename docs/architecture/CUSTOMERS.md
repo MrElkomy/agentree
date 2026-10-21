@@ -97,7 +97,8 @@ failed runs store nothing; agents read only verified memory and only their role'
 another device after verification; "Not you?"; no cross-business memory; owner edit/delete,
 member read-only, audit without values; retention purge of expired items and idle customers;
 the 30-day DB check; the worker process resolves every foreign key. Isolation matrix covers
-`/customers/{customer_id}` and `/memory/{item_id}`. E2E: `e2e/customers.spec.ts`.
+`/customers/{customer_id}` and `/memory/{item_id}`. E2E: the last part of `e2e/support-agents.spec.ts` (email code, "Remember
+me", Customers page; one test so the suite stays under the sign-up rate limit).
 
 ## Limits
 

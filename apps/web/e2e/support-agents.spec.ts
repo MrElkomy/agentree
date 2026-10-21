@@ -1,11 +1,12 @@
 import { expect, test } from "@playwright/test";
 import { logIn, replyDone, runId, signUp, verifyFromEmail } from "./helpers";
+import { emailText } from "./mailpit";
 
 // Runs against the dev stack with AGENTREE_LLM_DEMO_MODE=true. The demo provider (see
 // agentree/llm/fake.py) routes problems ("broken", "error") to Technical Support, service
 // questions ("refund", "return") to Customer Service, and marks a conversation resolved when the
 // visitor says "that worked" to an agent allowed to resolve.
-test("Customer Service and Technical Support: routing, scoped knowledge and who may resolve", async ({
+test("support agents: routing, scoped knowledge, who may resolve; a visitor confirms their email", async ({
   page,
   browser,
 }) => {
@@ -126,4 +127,42 @@ test("Customer Service and Technical Support: routing, scoped knowledge and who 
   await expect(log.filter({ hasText: "Customer Service marked a conversation resolved" })).toHaveCount(1);
   await expect(log.filter({ hasText: "Customer Service handed a conversation to Technical Support" })).toHaveCount(1);
   await expect(log.filter({ hasText: "Technical Support handed a conversation to Customer Service" })).toHaveCount(1);
+
+  // --- Task 16: a visitor confirms their email with a code; the owner sees the customer -------
+  // (Part of this test, which already has an owner and a live page: the E2E suite stays under
+  // the sign-up limit of 10 per IP per hour.) Memory extraction runs in the worker and is
+  // covered by backend tests (tests/test_customers.py).
+  const visitorEmail = `visitor-${run}@example.com`;
+  const idContext = await browser.newContext();
+  const w = await idContext.newPage();
+  await w.goto(`/${slug}`);
+  await w.getByRole("button", { name: "Chat with our Sales Agent" }).click();
+  await expect(w.getByTestId("retention-notice")).toContainText("are deleted after 30 days");
+  const wInput = w.getByLabel("Message", { exact: true });
+  await wInput.fill("Hi, I need chairs for my office");
+  await wInput.press("Enter");
+  await replyDone(w);
+  await w.getByRole("button", { name: "Remember me next time" }).click();
+  const remember = w.getByRole("form", { name: "Remember me" });
+  await remember.getByLabel("Your email").fill(visitorEmail);
+  await remember.getByRole("button", { name: "Send code" }).click();
+  const code = /\b(\d{6})\b/.exec(await emailText(visitorEmail, "Enter this code"))?.[1];
+  expect(code).toBeTruthy();
+  // A wrong code is refused without saying why.
+  await remember.getByLabel("Code from the email").fill(code === "000000" ? "111111" : "000000");
+  await remember.getByRole("button", { name: "Confirm" }).click();
+  await expect(remember.getByRole("alert")).toHaveText("That code didn't work. Check it, or ask for a new one.");
+  await remember.getByLabel("Code from the email").fill(code!);
+  await remember.getByRole("button", { name: "Confirm" }).click();
+  const masked = `${visitorEmail[0]}***@example.com`;
+  await expect(w.getByTestId("identity-verified")).toContainText(`Remembered as ${masked}`);
+  await w.reload(); // the open conversation and the identity are restored
+  await expect(w.getByTestId("identity-verified")).toContainText(masked);
+  await idContext.close();
+
+  await page.goto(`${businessPath}/customers`);
+  await expect(page.getByRole("heading", { level: 1, name: "Customers" })).toBeVisible();
+  await expect(page.getByTestId("customer").filter({ hasText: visitorEmail })).toContainText("Email confirmed");
+  await page.goto(`${businessPath}/activity`);
+  await expect(log.filter({ hasText: "A visitor confirmed their email in the chat" })).toHaveCount(1);
 });
