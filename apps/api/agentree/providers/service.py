@@ -2,10 +2,17 @@
 
 Plaintext keys exist only in memory: on the way in (encrypt) and when a model call needs
 them (decrypt). They are never returned to clients, logged, or stored unencrypted.
+
+Each stored key has a circuit breaker (state on its row, shared by every API process):
+closed -> open after FAILURE_THRESHOLD consecutive availability failures (at once for auth or
+quota errors) -> after the cooldown one request probes it (half-open) -> closed on success,
+open again (longer cooldown) on failure. Calls skip open keys, so the business falls back to
+its backup key and returns to the primary once a probe succeeds.
 """
 
+import logging
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from uuid import UUID
 
@@ -20,6 +27,7 @@ from agentree.llm.base import (
     MODEL_RE,
     ChatMessage,
     ChatRequest,
+    ErrorKind,
     LLMProvider,
     ProviderError,
     ProviderName,
@@ -28,12 +36,38 @@ from agentree.providers.models import ProviderCredential
 from agentree.tenancy.context import TenantContext
 from agentree.tenancy.db import tenant_session
 
+logger = logging.getLogger(__name__)
 Factory = async_sessionmaker[AsyncSession]
+
+FAILURE_THRESHOLD = 3  # consecutive availability failures that open the breaker
+BASE_COOLDOWN = timedelta(seconds=30)  # doubles after each failed probe
+MAX_COOLDOWN = timedelta(minutes=10)
+KEY_COOLDOWN = timedelta(minutes=5)  # auth / quota: the key itself needs attention
+PROBE_LEASE = timedelta(seconds=90)  # one probe at a time; a crashed probe frees it later
 
 
 class Slot(StrEnum):
     PRIMARY = "primary"
     BACKUP = "backup"
+
+
+class Admission(StrEnum):
+    CLOSED = "closed"  # call normally
+    PROBE = "probe"  # half-open: this call tests whether the provider is back
+    OPEN = "open"  # skip this key until its cooldown ends
+
+
+class Health(StrEnum):
+    HEALTHY = "healthy"
+    DEGRADED = "degraded"  # recent errors, still in use
+    DOWN = "down"  # breaker open: calls go to the other key
+    RECOVERING = "recovering"  # cooldown over: the next call tests it
+
+
+class Transition(StrEnum):
+    OPENED = "opened"
+    REOPENED = "reopened"  # a probe failed
+    CLOSED = "closed"  # a probe (or a manual test) succeeded
 
 
 class InvalidCredentialError(ValueError):
@@ -53,6 +87,9 @@ class CredentialInfo:
     last_verified_at: datetime | None
     last_error_kind: str | None
     updated_at: datetime
+    health: Health
+    last_failure_at: datetime | None
+    breaker_open_until: datetime | None
 
 
 @dataclass(frozen=True)
@@ -138,11 +175,23 @@ async def save_credential(
     return _info(cred)
 
 
+def _now() -> datetime:
+    return datetime.now(UTC)
+
+
+def _health(c: ProviderCredential, now: datetime) -> Health:
+    if c.breaker_open_until is not None:
+        return Health.DOWN if now < c.breaker_open_until else Health.RECOVERING
+    return Health.DEGRADED if c.last_error_kind else Health.HEALTHY
+
+
 def _info(c: ProviderCredential) -> CredentialInfo:
     return CredentialInfo(
         slot=Slot(c.slot), provider=ProviderName(c.provider), model=c.model,
         key_hint=c.key_hint, last_verified_at=c.last_verified_at,
         last_error_kind=c.last_error_kind, updated_at=c.updated_at,
+        health=_health(c, _now()), last_failure_at=c.last_failure_at,
+        breaker_open_until=c.breaker_open_until,
     )  # fmt: skip
 
 
@@ -201,21 +250,94 @@ async def resolve_credential(
         return ResolvedCredential(Slot(c.slot), ProviderName(c.provider), c.model, api_key)
 
 
+async def _locked(
+    session: AsyncSession, ctx: TenantContext, slot: Slot
+) -> ProviderCredential | None:
+    return (
+        await session.execute(
+            select(ProviderCredential)
+            .where(
+                ProviderCredential.business_id == ctx.business_id, ProviderCredential.slot == slot
+            )
+            .with_for_update()
+        )
+    ).scalar_one_or_none()
+
+
+def _close(c: ProviderCredential, now: datetime) -> Transition | None:
+    was_open = c.breaker_open_until is not None
+    c.last_verified_at, c.last_error_kind = now, None
+    c.failure_count, c.breaker_open_until, c.probe_until = 0, None, None
+    return Transition.CLOSED if was_open else None
+
+
+def _cooldown(kind: ErrorKind, failures: int) -> timedelta:
+    if kind in (ErrorKind.AUTH, ErrorKind.QUOTA):
+        return KEY_COOLDOWN
+    return min(BASE_COOLDOWN * 2 ** max(0, failures - FAILURE_THRESHOLD), MAX_COOLDOWN)
+
+
+async def admit(factory: Factory, ctx: TenantContext, slot: Slot) -> Admission:
+    """May a model call use this key now? Claims the single half-open probe when due."""
+    now = _now()
+    async with tenant_session(factory, ctx) as session:
+        c = await _locked(session, ctx, slot)
+        if c is None:
+            raise NotFoundError
+        if c.breaker_open_until is None:
+            return Admission.CLOSED
+        if now < c.breaker_open_until or (c.probe_until is not None and now < c.probe_until):
+            return Admission.OPEN
+        c.probe_until = now + PROBE_LEASE
+        return Admission.PROBE
+
+
+async def record_outcome(
+    factory: Factory, ctx: TenantContext, slot: Slot, error: ProviderError | None, *, probe: bool
+) -> Transition | None:
+    """Record a model call's result on the key's breaker; returns the transition, if any."""
+    now = _now()
+    async with tenant_session(factory, ctx) as session:
+        c = await _locked(session, ctx, slot)
+        if c is None:
+            return None
+        if error is None:
+            transition = _close(c, now)
+        elif not error.kind.availability_problem:
+            # The provider answered; our request was wrong. Not a reason to trip the breaker.
+            c.last_error_kind, c.probe_until = error.kind, None
+            transition = None
+        else:
+            c.last_error_kind, c.last_failure_at = error.kind, now
+            c.failure_count += 1
+            trip = probe or c.failure_count >= FAILURE_THRESHOLD or error.kind in (
+                ErrorKind.AUTH, ErrorKind.QUOTA)  # fmt: skip
+            transition = None
+            if trip:
+                was_open = c.breaker_open_until is not None
+                c.breaker_open_until = now + _cooldown(error.kind, c.failure_count)
+                c.probe_until = None
+                transition = Transition.REOPENED if was_open else Transition.OPENED
+        provider = c.provider
+    if transition is not None:
+        # Operational signal for monitoring: ids, provider and error kind only.
+        logger.warning(
+            "provider breaker %s", transition,
+            extra={"business_id": str(ctx.business_id), "slot": slot, "provider": provider,
+                   "error_kind": error.kind if error else None, "transition": transition},
+        )  # fmt: skip
+    return transition
+
+
 async def record_check(
     factory: Factory, ctx: TenantContext, slot: Slot, error: ProviderError | None
 ) -> None:
+    """Result of an owner's manual key test: success closes the breaker at once."""
     async with tenant_session(factory, ctx) as session:
-        c = (
-            await session.execute(
-                select(ProviderCredential).where(
-                    ProviderCredential.business_id == ctx.business_id,
-                    ProviderCredential.slot == slot,
-                )
-            )
-        ).scalar_one_or_none()
+        c = await _locked(session, ctx, slot)
         if c is None:
             return
         if error is None:
-            c.last_verified_at, c.last_error_kind = datetime.now(UTC), None
+            _close(c, _now())
         else:
             c.last_error_kind = error.kind

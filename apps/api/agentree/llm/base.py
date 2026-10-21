@@ -5,7 +5,7 @@ adapter instances, logged, or included in exception messages.
 """
 
 import re
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Literal, Protocol
@@ -73,7 +73,20 @@ class ChatResult:
     raw_finish_reason: str | None = field(default=None, compare=False)
 
 
+@dataclass(frozen=True)
+class TextDelta:
+    text: str
+
+
+# A stream yields text deltas, then exactly one ChatResult carrying the full text and usage.
+StreamItem = TextDelta | ChatResult
+
+
 class LLMProvider(Protocol):
     name: ProviderName
 
     async def chat(self, api_key: str, request: ChatRequest) -> ChatResult: ...
+
+    def stream(self, api_key: str, request: ChatRequest) -> AsyncIterator[StreamItem]:
+        """Streamed reply. Raises ProviderError like `chat`, before or during the stream."""
+        ...

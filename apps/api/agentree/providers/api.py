@@ -25,7 +25,8 @@ def _out(c: service.CredentialInfo) -> CredentialOut:
     return CredentialOut(
         slot=c.slot, provider=c.provider, model=c.model, key_hint=c.key_hint,
         last_verified_at=c.last_verified_at, last_error_kind=c.last_error_kind,
-        updated_at=c.updated_at,
+        updated_at=c.updated_at, health=c.health, last_failure_at=c.last_failure_at,
+        breaker_open_until=c.breaker_open_until,
     )  # fmt: skip
 
 

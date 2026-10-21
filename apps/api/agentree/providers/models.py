@@ -3,7 +3,16 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import DateTime, ForeignKey, LargeBinary, String, UniqueConstraint, func
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Integer,
+    LargeBinary,
+    String,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from agentree.core.models import Base
@@ -11,7 +20,10 @@ from agentree.core.models import Base
 
 class ProviderCredential(Base):
     __tablename__ = "provider_credentials"
-    __table_args__ = (UniqueConstraint("business_id", "slot"),)
+    __table_args__ = (
+        UniqueConstraint("business_id", "slot"),
+        CheckConstraint("failure_count >= 0", name="failure_count"),
+    )
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
     business_id: Mapped[UUID] = mapped_column(
@@ -29,5 +41,11 @@ class ProviderCredential(Base):
     )
     last_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_error_kind: Mapped[str | None] = mapped_column(String(32))
+    # Circuit breaker (see providers/service.py): consecutive availability failures, and while
+    # open, when the next probe may run. A replaced key is a new row, so it starts closed.
+    failure_count: Mapped[int] = mapped_column(Integer, server_default="0", default=0)
+    last_failure_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    breaker_open_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    probe_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

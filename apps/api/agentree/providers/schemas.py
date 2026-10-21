@@ -3,7 +3,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 from agentree.llm.base import ProviderName
-from agentree.providers.service import Slot
+from agentree.providers.service import Health, Slot
 
 
 class CredentialIn(BaseModel):
@@ -21,6 +21,9 @@ class CredentialOut(BaseModel):
     last_verified_at: datetime | None
     last_error_kind: str | None
     updated_at: datetime
+    health: Health  # healthy | degraded | down (calls use the other key) | recovering
+    last_failure_at: datetime | None
+    breaker_open_until: datetime | None  # while down: when the next test call may run
 
 
 class CheckOut(BaseModel):
