@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from agentree.agents.api import router as agents_router
 from agentree.agents.config_api import router as agent_configs_router
 from agentree.agents.inbox_api import router as inbox_router
+from agentree.analytics.api import router as analytics_router
 from agentree.audit.api import router as audit_router
 from agentree.core.config import Settings, get_settings
 from agentree.core.csrf import csrf_middleware
@@ -102,4 +103,5 @@ def create_app(
     app.include_router(notifications_router)
     app.include_router(customers_router)
     app.include_router(knowledge_files_router)
+    app.include_router(analytics_router)
     return app

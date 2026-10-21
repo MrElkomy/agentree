@@ -29,12 +29,14 @@ from agentree.agents.prompts import (
     RememberedFact,
     Teammate,
     agent_messages,
+    cited_numbers_ok,
     split_lead_marker,
     take_handoff_marker,
     take_resolve_marker,
     take_route_marker,
 )
 from agentree.agents.registry import DEFINITIONS, AgentRole
+from agentree.analytics import service as analytics
 from agentree.audit.service import AuditAction, record
 from agentree.core.ids import uuid7
 from agentree.core.vault import Vault, VaultDecryptError, VaultUnavailableError
@@ -62,6 +64,10 @@ HISTORY_TURNS = 20
 SALES = AgentRole.SALES
 MAX_ROUTES_PER_TURN = 1  # one handoff per visitor message: no ping-pong between agents
 MAX_NOTES = 3  # latest handoff notes shown to the answering agent
+UNVERIFIED_NUMBERS = (
+    "I can only share numbers computed from your data, and my answer had one I couldn't "
+    "verify. Here are the computed numbers:\n\n"
+)
 PUBLIC_CHANNELS = frozenset({"public", "widget"})
 PAUSED_STATUSES = frozenset({"needs_human", "human_active"})  # the AI does not answer
 
@@ -399,6 +405,9 @@ async def _stream_turn(
         can_resolve = public and _may_resolve(current)
         entries = await knowledge.retrieve(factory, ctx, message, role=current.role)
         sources.update((e.id, e.title) for e in entries)
+        # The Data Analyst states only numbers the backend computed (Task 18).
+        computed = (await analytics.analyst_numbers(factory, ctx)
+                    if current.role == AgentRole.DATA_ANALYST else "")  # fmt: skip
         prompt = agent_messages(
             current.role, title=current.definition.title, display_name=current.display_name,
             business_name=business.name, knowledge=entries, history=history,
@@ -408,6 +417,7 @@ async def _stream_turn(
             notes=notes, facts=facts,
             # Only the memory categories this role may read (registry), checked per agent.
             remembered=[r for r in remembered if r.category in current.definition.memory],
+            computed=computed,
         )  # fmt: skip
         # Announced with its first text: errors before any text stay plain HTTP errors, and
         # an agent that only hands over shows no empty reply.
@@ -435,6 +445,9 @@ async def _stream_turn(
             suggestion = lead
         text, person = take_handoff_marker(text)
         text, done_marker = take_resolve_marker(text)
+        if computed and not cited_numbers_ok(text, computed, message):
+            # A number the backend did not compute: show the computed ones instead.
+            text = UNVERIFIED_NUMBERS + computed
         wants_person = wants_person or (public and person and target is None)
         resolved = can_resolve and done_marker and target is None and not person
         calls.append((current, answered, text))

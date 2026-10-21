@@ -18,6 +18,7 @@ from collections.abc import Callable
 
 import agentree.identity.models
 import agentree.public.models  # noqa: F401
+from agentree.analytics.service import compute_due, run_metrics_loop
 from agentree.core.config import get_settings
 from agentree.core.db import create_app_engine, create_session_factory
 from agentree.core.db_roles import assert_safe_app_role
@@ -62,6 +63,7 @@ async def run(*, once: bool) -> None:
             await send_due_reminders(factory, settings, mailer)
             await alert_provider_outages(factory, settings, mailer, push)
             await extract_due(factory, vault, settings, llm)
+            await compute_due(factory)
             return
         stop = asyncio.Event()
         loop = asyncio.get_running_loop()
@@ -75,6 +77,7 @@ async def run(*, once: bool) -> None:
                 "follow_up_interval_seconds": settings.follow_up_interval_seconds,
                 "outage_alert_interval_seconds": settings.outage_alert_interval_seconds,
                 "memory_interval_seconds": settings.memory_interval_seconds,
+                "metrics_interval_seconds": settings.metrics_interval_seconds,
                 "web_push": push.public_key is not None,
             },
         )
@@ -107,6 +110,9 @@ async def run(*, once: bool) -> None:
                 llm,
                 interval_seconds=settings.memory_interval_seconds,
                 stop=stop,
+            ),
+            run_metrics_loop(
+                factory, interval_seconds=settings.metrics_interval_seconds, stop=stop
             ),
         )
         logger.info("worker stopped")

@@ -106,8 +106,9 @@ async def test_defaults_list_the_five_roles(harness: AppHarness) -> None:
     }  # fmt: skip
     assert agents["technical_support"]["enabled"] is False
     for internal in ("data_analyst", "executive"):
-        assert agents[internal]["audience"] == "internal"
-        assert agents[internal]["available"] is False and agents[internal]["public"] is False
+        assert agents[internal]["audience"] == "internal" and agents[internal]["public"] is False
+    assert agents["data_analyst"]["available"] is True  # Task 18
+    assert agents["executive"]["available"] is False
 
 
 async def test_admin_configures_an_agent_and_it_is_versioned_and_audited(
@@ -124,7 +125,8 @@ async def test_admin_configures_an_agent_and_it_is_versioned_and_audited(
 
 
 @pytest.mark.parametrize(("role", "body", "status", "code"), [
-    ("data_analyst", {"enabled": True, "public": False}, 409, "agent_not_available"),
+    ("executive", {"enabled": True, "public": False}, 409, "agent_not_available"),
+    ("data_analyst", {"enabled": True, "public": True}, 422, "invalid_public"),
     ("executive", {"enabled": False, "public": True}, 422, "invalid_public"),
     ("sales", {"enabled": True, "public": True, "tools": ["delete_everything"]}, 422,
      "invalid_tools"),
