@@ -24,6 +24,152 @@ Each slice below lists only what is specific to it.
 
 ---
 
+## MVP Completion Sprint — task plan (Product Owner approved 2026-10-21)
+
+Supersedes the slice order of Phases 3–7 below for the remaining MVP work; the phase sections stay
+as the requirement reference. Tasks 01–09 are done (09 = public page + widget). One PR per task (a
+task may ship as a/b PRs when backend and web are independently testable); the standard Definition
+of Done applies to each. Target: start General Testing around 2026-10-23 — aggressive, not a
+reason to skip security or tests. **Implementation starts only after PO approval of Task 10.**
+
+| Task | Scope | Depends on |
+|---|---|---|
+| 10 | Audit log (1.6) + branded HTML emails | — |
+| 11 | Lead management + minimal Action Gateway (3.3) | 10 |
+| 12 | Human inbox + handoff + email alert (4.4, 4.5) | 10, 11 |
+| 13 | AI reliability: streaming, circuit breaker, recovery, provider monitoring (2.4, 2.5, 6.4 part) | — (parallel with 11–12) |
+| 14 | Agent framework, routing, shared authorized context (3.1, 3.2) | 11, 13 |
+| 15 | Customer Service + Technical Support agents | 14 |
+| 16 | Customer identity + structured customer memory (3.4, 3.5) | 11, 14 |
+| 17 | Knowledge file uploads + shared upload pipeline (2.3) | 10 |
+| 18 | Data Analyst: metrics library + CSV/XLSX sandbox (5.4, 5.5) | 11, 12, 17 |
+| 19 | Approvals queue (5.1) | 10, 11 |
+| 20 | Executive Agent: reports, alerts, recommendations, controlled actions (6.1, 6.2) | 18, 19 |
+| 21 | Analytics dashboard + legal-hold API + deletion audit record (4.6 rest) | 10, 18 |
+| 22 | General Testing + shared-host security review + bot challenge (7.3, 7.4, 4.3 rest) | all |
+
+Parallel lanes once Task 10 lands: {11 → 12}, {13}, {17}. Then 14 → {15, 16}; 18 → 19 → 20; 21.
+
+### Task 10 — Audit log + branded emails
+- **Scope:** append-only `audit_events` (tenant-scoped, RLS; actor, action, target, time, minimal
+  metadata, never message content or secrets); Owner/Admin read API + simple list page. HTML +
+  plain-text email layout with the Agentree logo for verification, password reset, invitations, and
+  the template later used by lead/handoff alerts.
+- **Acceptance:** membership/role changes and provider-key changes write audit rows; rows cannot be
+  updated or deleted by the app role; cross-tenant read denied (isolation matrix); emails render in
+  HTML and plain text, links unchanged, no user content injected unescaped.
+- **Out of scope:** audit export, SIEM forwarding, marketing emails.
+
+### Task 11 — Lead management + Action Gateway
+- **Scope:** `leads` linked to conversation and channel; fields: name, email and/or phone (at least
+  one required), need, contact consent, status (new → contacted → qualified → won/lost), owner notes.
+  Sales Agent asks conversationally; optional in-chat form. All agent writes go through the gateway
+  (`create_lead`, `update_lead`) with per-agent permissions and idempotency keys. Leads list + detail
+  page; email alert to Owner/Admins on a new lead (PO decision).
+- **Acceptance:** a guest chat creates exactly one lead under retries; an agent without the
+  permission is refused by the backend; guests never read leads; cross-tenant isolation; audit row
+  per lead change; E2E: visitor leaves details → lead visible in the dashboard.
+- **Out of scope:** CRM sync, lead scoring models, follow-up task automation (later via gateway).
+
+### Task 12 — Human inbox + handoff
+- **Scope:** inbox of conversations (dashboard + public + widget) with status open / needs human /
+  human active / resolved; handoff when the visitor asks for a person or the agent cannot answer;
+  member takes over, replies (guest sees it in the same chat), assigns, releases back to the AI. Email
+  alert on handoff request (PO decision); "no one available" message to the visitor.
+- **Acceptance:** while a human is active the AI does not reply; context preserved across take-over
+  and release; only members of that business see its inbox; guest sees human replies without
+  reload (polling acceptable); audit rows for take-over/assign/release; E2E covers the full path.
+- **Out of scope:** webhook handoff, SLA timers, canned replies, mobile push.
+
+### Task 13 — AI reliability
+- **Scope:** streamed replies (SSE) for console, public page and widget; per-business circuit
+  breaker (closed / open with cooldown / half-open probe) over primary → backup; automatic return to
+  primary; provider-health status visible to Owners; structured health logs + counters for
+  monitoring (error rate, open breakers).
+- **Acceptance:** fake-provider tests for open → half-open → closed transitions and recovery to
+  primary; streaming works through the Next.js proxy and the staging Caddy gate; partial stream
+  failure ends cleanly with a retry option; no keys or message content in logs.
+- **Out of scope:** external alerting service (paid), token-level cost dashboards.
+
+### Task 14 — Agent framework, routing, shared context
+- **Scope:** versioned per-business agent definitions (role, enabled, tools/permissions, public vs
+  internal); router selecting the agent per turn; handoff events between agents; shared authorized
+  context (conversation summary + lead/customer facts the receiving agent may see).
+- **Acceptance:** Sales → Technical Support → Sales without the customer repeating information;
+  handoff events recorded; public agents cannot transfer to internal agents (Data Analyst,
+  Executive); tool rights follow the receiving agent; isolation tests.
+- **Out of scope:** owner-built custom agents; custom display name (tracked separately).
+
+### Task 15 — Customer Service + Technical Support agents
+- **Scope:** two public agents on the Task 14 framework, with role prompts, knowledge scoping and
+  escalation rules; entry points on the public page and widget.
+- **Acceptance:** each answers only from published knowledge in scope; escalates to the inbox per
+  Task 12; routing E2E across all three public agents.
+- **Out of scope:** ticketing integrations.
+
+### Task 16 — Customer identity + customer memory
+- **Scope:** guest → provisional profile; email OTP verification (rate-limited) links a guest to a
+  verified customer profile; structured memory items (fact, source conversation, created/updated,
+  `review_at` default 180 days per U-13) separate from raw messages; owner review/edit/delete UI;
+  agents read memory only for the verified customer and only fields their role permits.
+- **Acceptance:** entering an email alone unlocks nothing; unverified sessions cannot read verified
+  memory or history; memory survives the 30-day raw-message purge only as structured facts, never as
+  verbatim message text (U-12 stays unresolved: no conversation summaries beyond 30 days); deleting
+  a customer deletes their memory; cross-tenant isolation.
+- **Out of scope:** SMS/phone verification, customer self-service portal.
+
+### Task 17 — Knowledge file uploads
+- **Scope:** upload PDF/DOCX/TXT/MD (and CSV/XLSX storage for Task 18) with size/type limits,
+  content sniffing, text extraction into draft knowledge entries, processing status; files stored
+  tenant-scoped, never executed or served back as HTML.
+- **Acceptance:** malicious/oversized/mismatched files rejected; extracted text is untrusted
+  (prompt-injection tests); drafts require manual publish (U-10 unchanged); isolation tests.
+- **Out of scope:** OCR of scanned PDFs, URL crawling (needs the SSRF guard).
+
+### Task 18 — Data Analyst
+- **Scope:** internal agent; deterministic metrics library over Agentree data (leads, conversations,
+  handoffs, response outcomes); CSV/XLSX import → snapshot → sandboxed SELECT-only queries; every
+  number in an answer comes from a computed result and is cited.
+- **Acceptance:** answers match independently computed results on test datasets; a malicious
+  dataset or query cannot read files, network or other tenants; members only.
+- **Out of scope:** connected live data sources (5.6), forecasting.
+
+### Task 19 — Approvals
+- **Scope:** pending-approval queue for sensitive gateway actions: approve/reject, parameter-hash
+  binding, expiry, email notification, audit.
+- **Acceptance:** an approved action executes exactly once under retries; changed parameters void
+  the approval; expired approvals cannot execute; only authorized roles approve.
+- **Out of scope:** multi-step approval chains.
+
+### Task 20 — Executive Agent
+- **Scope:** internal agent as the owner's operational manager: summaries, reports (on demand +
+  scheduled daily/weekly), alerts, recommendations from Task 18 data; controlled actions through the
+  gateway + Task 19 approvals: pause/resume an agent, change agent schedules/availability, edit the
+  public profile, reassign or update leads. Every action is permission-checked, approved where
+  sensitive, and audited.
+- **Acceptance:** reports match underlying data; an action without approval does not execute; the
+  agent cannot act outside its permissions or on external systems; audit trail complete.
+- **Out of scope (post-launch growth, PO 2026-10-21):** full "manage everything" coverage, Telegram
+  delivery (6.3), external-system actions.
+
+### Task 21 — Analytics + legal hold
+- **Scope:** owner dashboard of measured metrics only (conversations, leads, handoffs, agent
+  outcomes, provider health); Owner-only audited legal-hold API; persisted deletion audit record for
+  the retention job.
+- **Acceptance:** every metric traceable to stored data; empty states when no data; legal hold
+  exempts exactly the held conversations; deletion runs leave an audit record.
+- **Out of scope:** exports, custom report builder.
+
+### Task 22 — General Testing + hardening
+- **Scope:** scripted end-to-end scenarios (new business setup → keys → knowledge; visitor across
+  agents; lead → human; provider outage → backup → recovery; analyst numbers checked; executive
+  report checked; two-tenant isolation; retention); desktop + mobile; shared-host security review
+  with mitigations; bot challenge (U-16); failover matrix with real low-budget test keys.
+- **Acceptance:** results documented with evidence; open defects triaged; PO go/no-go before any
+  real customer data or production keys.
+
+---
+
 ## Open requirements (NOT done — tracked explicitly)
 
 Partially delivered slices stay open until every item below is implemented and tested.
