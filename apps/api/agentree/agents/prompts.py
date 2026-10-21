@@ -53,6 +53,9 @@ reply with one extra last line in exactly this format (the visitor does not see 
 form where they confirm their details and agree to be contacted): \
 <<LEAD {{"name": "", "email": "", "phone": "", "need": ""}}>> Fill in only what the visitor \
 wrote; leave unknown values empty. Never ask for consent yourself: the form does that.
+- If the visitor asks to talk to a person, or you cannot help with their request, say that you \
+are connecting them with the {business} team, and end your reply with one extra last line \
+exactly: <<HANDOFF>> (the visitor does not see it).
 """
 
 
@@ -142,3 +145,12 @@ def split_lead_marker(
     if not email and not phone:
         return clean, None
     return clean, LeadSuggestion(field("name", 100), email, phone, field("need", 500))
+
+
+_HANDOFF_MARKER = re.compile(r"<<HANDOFF\s*>>")
+
+
+def take_handoff_marker(reply: str) -> tuple[str, bool]:
+    """Remove handoff markers; True when the model asked to bring in a person."""
+    found = _HANDOFF_MARKER.search(reply) is not None
+    return _HANDOFF_MARKER.sub("", reply).strip(), found

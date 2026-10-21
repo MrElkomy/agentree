@@ -59,6 +59,7 @@ async def _snapshot(client: AsyncClient, business_id: str) -> tuple[object, ...]
         (await client.get(f"{base}/public-profile")).json(),
         (await client.get(f"{base}/audit-events")).json(),
         (await client.get(f"{base}/leads")).json(),
+        (await client.get(f"{base}/inbox")).json(),
     )
 
 
@@ -109,7 +110,10 @@ async def test_owner_of_a_cannot_touch_b(harness: AppHarness, method: str, path:
         invitation_id=pending.json()["id"],  # a real invitation in B
         slot="primary",  # B has a stored primary key
         entry_id=entry.json()["id"],  # a real knowledge entry in B
-        conversation_id=convo.json()["conversation_id"],  # a real conversation in B
+        # A real conversation in B: the visitor's for the inbox, the console one elsewhere.
+        conversation_id=chat.json()["conversation_id"]
+        if "/inbox/" in path
+        else convo.json()["conversation_id"],
         lead_id=lead_id,  # a real lead in B
         task_id=task_id,  # a real follow-up task in B
     )
@@ -119,7 +123,7 @@ async def test_owner_of_a_cannot_touch_b(harness: AppHarness, method: str, path:
     after = await _snapshot(bob.client, b["id"])
     assert after[0] == before[0] and after[1] == before[1]
     assert after[3] == before[3] and after[4] == before[4] and after[5] == before[5]
-    assert after[6] == before[6] and after[7] == before[7]
+    assert after[6] == before[6] and after[7] == before[7] and after[8] == before[8]
 
 
 @pytest.mark.parametrize(("method", "path"), BUSINESS_ROUTES)

@@ -14,6 +14,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     ForeignKeyConstraint,
+    Index,
     Integer,
     String,
     Text,
@@ -39,6 +40,14 @@ class Conversation(Base):
         ),
         CheckConstraint("channel IN ('console', 'public', 'widget')", name="channel"),
         CheckConstraint("(channel = 'console') = (guest_session_id IS NULL)", name="guest_channel"),
+        CheckConstraint(
+            "status IN ('open', 'needs_human', 'human_active', 'resolved')", name="status"
+        ),
+        CheckConstraint(
+            "handoff_reason IS NULL OR handoff_reason IN ('visitor', 'agent')",
+            name="handoff_reason",
+        ),
+        Index("ix_conversations_business_id_status", "business_id", "status"),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
@@ -58,6 +67,12 @@ class Conversation(Base):
     guest_session_id: Mapped[UUID | None] = mapped_column(index=True)
     # Exempts the conversation from retention deletion. Owner-only, audited API: not built yet.
     legal_hold: Mapped[bool] = mapped_column(Boolean, server_default=false())
+    # Human inbox (Task 12). open: the AI answers; needs_human: the visitor or the agent asked
+    # for a person (AI paused); human_active: a member is replying (AI paused); resolved.
+    status: Mapped[str] = mapped_column(String(16), server_default="open")
+    assignee_user_id: Mapped[UUID | None] = mapped_column()  # no FK: kept if the member leaves
+    handoff_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    handoff_reason: Mapped[str | None] = mapped_column(String(16))  # visitor | agent
 
 
 class Message(Base):
@@ -74,8 +89,9 @@ class Message(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True)
     business_id: Mapped[UUID] = mapped_column(index=True)
     conversation_id: Mapped[UUID] = mapped_column(index=True)
-    role: Mapped[str] = mapped_column(String(16))  # user | assistant
+    role: Mapped[str] = mapped_column(String(16))  # user | assistant | human (a team member)
     agent: Mapped[str | None] = mapped_column(String(32))
+    author_user_id: Mapped[UUID | None] = mapped_column()  # set only for role = human
     content: Mapped[str] = mapped_column(Text)
     provider: Mapped[str | None] = mapped_column(String(32))
     model: Mapped[str | None] = mapped_column(String(100))

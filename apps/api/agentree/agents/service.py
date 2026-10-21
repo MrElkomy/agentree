@@ -14,8 +14,14 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from agentree.agents.inbox import mark_handoff_requested
 from agentree.agents.models import Conversation, Message
-from agentree.agents.prompts import LeadSuggestion, sales_messages, split_lead_marker
+from agentree.agents.prompts import (
+    LeadSuggestion,
+    sales_messages,
+    split_lead_marker,
+    take_handoff_marker,
+)
 from agentree.core.ids import uuid7
 from agentree.core.vault import Vault, VaultDecryptError, VaultUnavailableError
 from agentree.knowledge import service as knowledge
@@ -39,6 +45,7 @@ ProviderFactories = dict[ProviderName, Callable[[], LLMProvider]]
 HISTORY_TURNS = 20
 SALES = "sales"
 PUBLIC_CHANNELS = frozenset({"public", "widget"})
+PAUSED_STATUSES = frozenset({"needs_human", "human_active"})  # the AI does not answer
 
 
 class NoProviderConfiguredError(Exception):
@@ -73,8 +80,10 @@ class TurnResult:
 @dataclass(frozen=True)
 class GuestTurnResult:
     conversation_id: UUID
-    reply: str
+    reply: str  # empty when a person is handling the conversation (the AI did not answer)
     lead_suggestion: LeadSuggestion | None = None
+    status: str = "open"  # conversation status after this turn
+    handoff_requested: bool = False  # this turn moved the conversation to needs_human
 
 
 @dataclass(frozen=True)
@@ -125,9 +134,14 @@ async def _history(
             .limit(HISTORY_TURNS)
         )
     ).all()
-    return [
-        ChatMessage("user" if r.role == "user" else "assistant", r.content) for r in reversed(rows)
-    ]
+    # A team member's replies are context for the AI once the conversation returns to it.
+    return [_as_chat(r.role, r.content) for r in reversed(rows)]
+
+
+def _as_chat(role: str, content: str) -> ChatMessage:
+    if role == "user":
+        return ChatMessage("user", content)
+    return ChatMessage("assistant", f"[Team member] {content}" if role == "human" else content)
 
 
 async def _call_with_fallback(
@@ -161,7 +175,7 @@ async def _call_with_fallback(
 async def _complete_turn(
     factory: Factory, vault: Vault | None, provider_factories: ProviderFactories,
     ctx: TenantContext, *, conv_id: UUID, history: list[ChatMessage], message: str, public: bool,
-) -> tuple[ChatResult, list[tuple[UUID, str]], str, bool, LeadSuggestion | None]:  # fmt: skip
+) -> tuple[ChatResult, list[tuple[UUID, str]], str, bool, LeadSuggestion | None, bool]:  # fmt: skip
     """Retrieve published knowledge, call the provider(s), persist both messages.
 
     Lead markers are stripped before the reply is stored or returned; in public conversations a
@@ -175,6 +189,7 @@ async def _complete_turn(
     )
     visitor = [m.content for m in history if m.role == "user"] + [message]
     reply, suggestion = split_lead_marker(result.text, visitor)
+    reply, handoff = take_handoff_marker(reply)
     result = replace(result, text=reply)
 
     now = datetime.now(UTC)
@@ -198,6 +213,7 @@ async def _complete_turn(
         slot,
         fallback,
         suggestion if public else None,
+        handoff and public,
     )
 
 
@@ -209,7 +225,7 @@ async def sales_console_turn(
         conv = await _conversation(session, ctx, conversation_id, user_id)
         history = await _history(session, ctx, conv.id)
         conv_id = conv.id
-    result, sources, slot, fallback, _suggestion = await _complete_turn(
+    result, sources, slot, fallback, _suggestion, _handoff = await _complete_turn(
         factory, vault, provider_factories, ctx, conv_id=conv_id, history=history,
         message=message, public=False,
     )  # fmt: skip
@@ -251,10 +267,19 @@ async def public_sales_turn(
                                 active_agent=SALES, guest_session_id=guest_session_id)  # fmt: skip
             session.add(conv)
             await session.flush()
+        if conv.status in PAUSED_STATUSES:
+            # A person is (or will be) answering: keep the message for them; the AI stays quiet.
+            now = datetime.now(UTC)
+            session.add(Message(id=uuid7(), business_id=ctx.business_id, conversation_id=conv.id,
+                                role="user", content=message, created_at=now))  # fmt: skip
+            conv.last_message_at = now
+            return GuestTurnResult(conv.id, "", status=conv.status)
+        if conv.status == "resolved":
+            conv.status = "open"  # the visitor came back: the AI answers again
         history = await _history(session, ctx, conv.id)
         conv_id = conv.id
     try:
-        result, _sources, _slot, _fallback, suggestion = await _complete_turn(
+        result, _sources, _slot, _fallback, suggestion, handoff = await _complete_turn(
             factory, vault, provider_factories, ctx, conv_id=conv_id, history=history,
             message=message, public=True,
         )  # fmt: skip
@@ -265,6 +290,10 @@ async def public_sales_turn(
         logger.warning("public agent unavailable", extra={"error_type": type(exc).__name__,
                        "business_id": str(ctx.business_id)})  # fmt: skip
         raise AgentUnavailableError from None
+    if handoff:
+        requested = await mark_handoff_requested(factory, ctx, conv_id, reason="agent")
+        return GuestTurnResult(conv_id, result.text, suggestion, status="needs_human",
+                               handoff_requested=requested)  # fmt: skip
     return GuestTurnResult(conv_id, result.text, suggestion)
 
 

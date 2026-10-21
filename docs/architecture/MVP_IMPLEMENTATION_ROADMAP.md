@@ -98,7 +98,7 @@ until then the item remains an open MVP requirement and blocks the final pilot g
 - **Out of scope:** CRM sync, lead scoring models. Follow-up actions: see "Approved requirements
   outside Tasks 10–22" (proposed for this task, pending PO approval).
 
-### Task 12 — Human inbox + handoff
+### Task 12 — Human inbox + handoff — 🟡 implemented (pending PO approval), see `INBOX.md`
 - **Scope:** inbox of conversations (dashboard + public + widget) with status open / needs human /
   human active / resolved; handoff when the visitor asks for a person or the agent cannot answer;
   member takes over, replies (guest sees it in the same chat), assigns, releases back to the AI. Email

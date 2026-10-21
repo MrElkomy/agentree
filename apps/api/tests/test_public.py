@@ -403,7 +403,8 @@ async def test_guest_chat_happy_path_returns_only_conversation_and_reply(
     body = r.json()
     # No provider, model, slot or sources; a lead suggestion only when the visitor shared contact
     # details (tests/test_leads.py).
-    assert set(body) == {"conversation_id", "reply", "lead_suggestion"}
+    assert set(body) == {"conversation_id", "reply", "lead_suggestion", "status"}
+    assert body["status"] == "open"
     assert body["lead_suggestion"] is None
     assert body["reply"] == "The Ergo chair is $299."
     cid = body["conversation_id"]

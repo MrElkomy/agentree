@@ -46,4 +46,10 @@ class DemoProvider:
         if email and "<<LEAD" in request.messages[0].content:
             lead = {"name": "", "email": email.group(0), "phone": "", "need": "Demo request"}
             text = f"{DEMO_REPLY}\n<<LEAD {json.dumps(lead)}>>"
+        # Mimic the handoff marker when the visitor asks for a person.
+        elif (
+            re.search(r"\b(human|person)\b", last, re.I)
+            and "<<HANDOFF" in request.messages[0].content
+        ):
+            text = "Let me connect you with the team.\n<<HANDOFF>>"
         return ChatResult(text=text, provider=self.name, model=request.model)

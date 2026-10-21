@@ -13,14 +13,14 @@
  * memory for this tab. It is never put in a URL. The backend decides everything: a token
  * only ever reaches its own conversations.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ApiError,
   api,
   isApiError,
   type GuestChatReply,
+  type GuestConversation,
   type GuestLeadIn,
-  type GuestMessage,
   type GuestSession,
   type LeadSuggestion,
 } from "./api";
@@ -28,7 +28,14 @@ import {
 export const MAX_GUEST_MESSAGE = 1000;
 
 export type GuestChannel = "public" | "widget";
-export type GuestTurn = { role: "user" | "assistant"; content: string };
+/** `human` is a team member of the business replying after a handoff. */
+export type GuestTurn = { role: "user" | "assistant" | "human"; content: string };
+export type ConversationStatus = GuestConversation["status"];
+
+/** While a person is (or will be) answering, the AI stays quiet and the chat polls for replies. */
+export const isPaused = (status: ConversationStatus) =>
+  status === "needs_human" || status === "human_active";
+const POLL_MS = 5000;
 
 const tokenKey = (slug: string) => `agentree:guest:${slug}`;
 const convKey = (slug: string) => `agentree:guest-conv:${slug}`;
@@ -71,6 +78,12 @@ const GUEST_MESSAGES: Record<string, string> = {
   idempotency_conflict: "Please send the form again.",
 };
 
+function toTurns(conversation: GuestConversation): GuestTurn[] {
+  return conversation.messages
+    .filter((m) => m.role === "user" || m.role === "assistant" || m.role === "human")
+    .map((m) => ({ role: m.role as GuestTurn["role"], content: m.content }));
+}
+
 /** Visitor-facing copy: short, neutral, and never mentions providers, models or keys. */
 export function guestErrorMessage(err: unknown): string {
   if (err instanceof ApiError) {
@@ -88,6 +101,15 @@ async function newToken(slug: string): Promise<string> {
   const s = await api<GuestSession>(`${base(slug)}/sessions`, "POST", undefined, opts());
   write(tokenKey(slug), s.token);
   return s.token;
+}
+
+function fetchConversation(slug: string, token: string, conversationId: string) {
+  return api<GuestConversation>(
+    `${base(slug)}/conversations/${encodeURIComponent(conversationId)}`,
+    "GET",
+    undefined,
+    opts(token),
+  );
 }
 
 async function chatOnce(slug: string, message: string, channel: GuestChannel): Promise<GuestChatReply> {
@@ -138,6 +160,7 @@ function newIdempotencyKey(): string {
 
 export function useGuestChat(slug: string, channel: GuestChannel) {
   const [turns, setTurns] = useState<GuestTurn[]>([]);
+  const [status, setStatus] = useState<ConversationStatus>("open");
   // Prefill offered by the agent after the visitor shared contact details (never sent as-is).
   const [suggestion, setSuggestion] = useState<LeadSuggestion | null>(null);
   const [busy, setBusy] = useState(false);
@@ -149,32 +172,20 @@ export function useGuestChat(slug: string, channel: GuestChannel) {
     let cancelled = false;
     const token = read(tokenKey(slug));
     const conversationId = read(convKey(slug));
-    const done = (restored: GuestTurn[]) => {
+    const done = (restored: GuestConversation | null) => {
       if (cancelled) return;
-      setTurns(restored);
+      setTurns(restored ? toTurns(restored) : []);
+      setStatus(restored?.status ?? "open");
       setRestoring(false);
     };
     if (!token || !conversationId) {
-      void Promise.resolve().then(() => done([]));
+      void Promise.resolve().then(() => done(null));
     } else {
-      api<GuestMessage[]>(
-        `${base(slug)}/conversations/${encodeURIComponent(conversationId)}/messages`,
-        "GET",
-        undefined,
-        opts(token),
-      ).then(
-        (messages) =>
-          done(
-            messages
-              .filter((m) => m.role === "user" || m.role === "assistant")
-              .map((m) => ({ role: m.role as GuestTurn["role"], content: m.content })),
-          ),
-        (err) => {
-          if (isApiError(err, 401)) write(tokenKey(slug), null);
-          if (isApiError(err, 401) || isApiError(err, 404)) write(convKey(slug), null);
-          done([]);
-        },
-      );
+      fetchConversation(slug, token, conversationId).then(done, (err) => {
+        if (isApiError(err, 401)) write(tokenKey(slug), null);
+        if (isApiError(err, 401) || isApiError(err, 404)) write(convKey(slug), null);
+        done(null);
+      });
     }
     return () => {
       cancelled = true;
@@ -191,7 +202,9 @@ export function useGuestChat(slug: string, channel: GuestChannel) {
       setTurns((t) => [...t, { role: "user", content: text }]);
       try {
         const reply = await chatOnce(slug, text, channel);
-        setTurns((t) => [...t, { role: "assistant", content: reply.reply }]);
+        // An empty reply: a person is answering this conversation, the AI stayed quiet.
+        if (reply.reply) setTurns((t) => [...t, { role: "assistant", content: reply.reply }]);
+        setStatus(reply.status);
         if (reply.lead_suggestion) setSuggestion(reply.lead_suggestion);
         return true;
       } catch (err) {
@@ -205,8 +218,57 @@ export function useGuestChat(slug: string, channel: GuestChannel) {
     [slug, channel],
   );
 
+  // While paused, poll for the team's replies and for the hand-back to the assistant.
+  const busyRef = useRef(false);
+  useEffect(() => {
+    busyRef.current = busy;
+  }, [busy]);
+  useEffect(() => {
+    if (!isPaused(status)) return;
+    const timer = setInterval(() => {
+      const token = read(tokenKey(slug));
+      const conversationId = read(convKey(slug));
+      if (!token || !conversationId || busyRef.current) return;
+      fetchConversation(slug, token, conversationId).then(
+        (conversation) => {
+          if (busyRef.current) return;
+          setTurns(toTurns(conversation));
+          setStatus(conversation.status);
+        },
+        () => {
+          // transient: the next tick retries
+        },
+      );
+    }, POLL_MS);
+    return () => clearInterval(timer);
+  }, [slug, status]);
+
+  /** The visitor asks for a person (`true`) or chooses to continue with the assistant. */
+  const setHandoff = useCallback(
+    async (wanted: boolean): Promise<void> => {
+      const token = read(tokenKey(slug));
+      const conversationId = read(convKey(slug));
+      if (!token || !conversationId) return;
+      setError(null);
+      try {
+        const conversation = await api<GuestConversation>(
+          `${base(slug)}/conversations/${encodeURIComponent(conversationId)}/handoff`,
+          wanted ? "POST" : "DELETE",
+          undefined,
+          opts(token),
+        );
+        setTurns(toTurns(conversation));
+        setStatus(conversation.status);
+      } catch (err) {
+        setError(guestErrorMessage(err));
+      }
+    },
+    [slug],
+  );
+
   const reset = useCallback(() => {
     write(convKey(slug), null);
+    setStatus("open");
     setTurns([]);
     setSuggestion(null);
     setError(null);
@@ -238,5 +300,17 @@ export function useGuestChat(slug: string, channel: GuestChannel) {
     [slug],
   );
 
-  return { turns, busy, restoring, error, send, reset, suggestion, submitLead, newIdempotencyKey };
+  return {
+    turns,
+    status,
+    busy,
+    restoring,
+    error,
+    send,
+    reset,
+    setHandoff,
+    suggestion,
+    submitLead,
+    newIdempotencyKey,
+  };
 }
