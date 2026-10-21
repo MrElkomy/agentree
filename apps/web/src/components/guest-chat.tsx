@@ -54,14 +54,17 @@ export function GuestChat({
     setManualOpen(false);
     setDismissed(suggestion);
   };
-  const endRef = useRef<HTMLDivElement>(null);
+  const logRef = useRef<HTMLElement>(null);
   const keyRef = useRef("");
   const inputId = useId();
   const counterId = `${inputId}-counter`;
   const agentName = `${displayName} Sales Agent`;
 
+  // Keep the newest message in view by scrolling the conversation box only: scrolling the page
+  // (scrollIntoView) would push the message box out of sight on the public page and widget.
   useEffect(() => {
-    endRef.current?.scrollIntoView?.({ behavior: "smooth", block: "end" });
+    const log = logRef.current;
+    if (log) log.scrollTop = log.scrollHeight;
   }, [turns, busy, showForm, leadSent, status]);
 
   async function submit() {
@@ -89,6 +92,7 @@ export function GuestChat({
   return (
     <div className={`flex min-h-0 flex-col ${className}`} data-testid="guest-chat">
       <section
+        ref={logRef}
         aria-label={`Conversation with ${agentName}`}
         aria-live="polite"
         aria-busy={busy}
@@ -213,7 +217,6 @@ export function GuestChat({
             {agentName} is typing…
           </p>
         ) : null}
-        <div ref={endRef} />
       </section>
 
       <form
