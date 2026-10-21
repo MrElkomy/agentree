@@ -12,10 +12,11 @@ from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from fastapi.security import APIKeyHeader
 
 from agentree.actions import service as gateway
+from agentree.agents import inbox
 from agentree.agents import service as agents
 from agentree.core import ratelimit
 from agentree.core.client_ip import client_ip
@@ -25,6 +26,7 @@ from agentree.public import service
 from agentree.public.schemas import (
     GuestChatIn,
     GuestChatOut,
+    GuestConversationOut,
     GuestLeadIn,
     GuestLeadOut,
     GuestMessageOut,
@@ -173,7 +175,7 @@ async def _guest(
 
 @public_router.post("/chat")
 async def guest_chat(
-    slug: str, body: GuestChatIn, creds: GuestToken, request: Request
+    slug: str, body: GuestChatIn, creds: GuestToken, request: Request, tasks: BackgroundTasks
 ) -> GuestChatOut:
     page = await _page(request, slug)
     if not await _within(request, "public-chat:ip", _ip(request),
@@ -203,9 +205,12 @@ async def guest_chat(
         raise _not_found() from None
     except agents.AgentUnavailableError:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "agent_unavailable") from None
+    if turn.handoff_requested:  # the agent brought in a person: tell the team (after replying)
+        tasks.add_task(inbox.notify_handoff, st.session_factory, st.settings, st.mailer,
+                       page.tenant, turn.conversation_id, reason="agent")  # fmt: skip
     suggestion = turn.lead_suggestion
     return GuestChatOut(
-        conversation_id=turn.conversation_id, reply=turn.reply,
+        conversation_id=turn.conversation_id, reply=turn.reply, status=turn.status,
         lead_suggestion=LeadSuggestionOut(name=suggestion.name, email=suggestion.email,
                                           phone=suggestion.phone, need=suggestion.need)
         if suggestion else None,
@@ -258,3 +263,67 @@ async def guest_messages(
     except agents.NotFoundError:
         raise _not_found() from None
     return [GuestMessageOut(role=m.role, content=m.content, created_at=m.created_at) for m in rows]
+
+
+@public_router.get("/conversations/{conversation_id}")
+async def guest_conversation(
+    slug: str, conversation_id: UUID, creds: GuestToken, request: Request
+) -> GuestConversationOut:
+    """Status and messages of the visitor's own conversation (polled while a person helps)."""
+    page = await _page(request, slug)
+    guest = await _guest(request, page, creds, touch=False)
+    factory = request.app.state.session_factory
+    try:
+        rows = await agents.list_guest_messages(factory, page.tenant, guest_session_id=guest,
+                                                conversation_id=conversation_id)  # fmt: skip
+        current = await inbox.conversation_status(factory, page.tenant, conversation_id)
+    except (agents.NotFoundError, inbox.NotFoundError):
+        raise _not_found() from None
+    return GuestConversationOut(
+        status=current,
+        messages=[GuestMessageOut(role=m.role, content=m.content, created_at=m.created_at)
+                  for m in rows],
+    )  # fmt: skip
+
+
+@public_router.post("/conversations/{conversation_id}/handoff")
+async def guest_request_handoff(
+    slug: str, conversation_id: UUID, creds: GuestToken, request: Request, tasks: BackgroundTasks
+) -> GuestConversationOut:
+    """The visitor asks to talk to a person: the AI pauses and the team is alerted."""
+    page = await _page(request, slug)
+    guest = await _guest(request, page, creds, touch=True)
+    if not await _within(request, "public-handoff:session", str(guest), 10, 3600):
+        raise _busy()
+    st = request.app.state
+    try:
+        await agents.guest_conversation_channel(st.session_factory, page.tenant,
+                                                guest_session_id=guest,
+                                                conversation_id=conversation_id)  # fmt: skip
+        requested = await inbox.mark_handoff_requested(
+            st.session_factory, page.tenant, conversation_id, reason="visitor"
+        )
+    except (agents.NotFoundError, inbox.NotFoundError):
+        raise _not_found() from None
+    if requested:
+        tasks.add_task(inbox.notify_handoff, st.session_factory, st.settings, st.mailer,
+                       page.tenant, conversation_id, reason="visitor")  # fmt: skip
+    return await guest_conversation(slug, conversation_id, creds, request)
+
+
+@public_router.delete("/conversations/{conversation_id}/handoff")
+async def guest_cancel_handoff(
+    slug: str, conversation_id: UUID, creds: GuestToken, request: Request
+) -> GuestConversationOut:
+    """The visitor continues with the assistant (only before someone took over)."""
+    page = await _page(request, slug)
+    guest = await _guest(request, page, creds, touch=True)
+    st = request.app.state
+    try:
+        await agents.guest_conversation_channel(st.session_factory, page.tenant,
+                                                guest_session_id=guest,
+                                                conversation_id=conversation_id)  # fmt: skip
+        await inbox.cancel_handoff_by_guest(st.session_factory, page.tenant, conversation_id)
+    except (agents.NotFoundError, inbox.NotFoundError):
+        raise _not_found() from None
+    return await guest_conversation(slug, conversation_id, creds, request)

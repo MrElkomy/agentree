@@ -74,6 +74,20 @@ function describe(e: AuditEvent): string {
       if (d.to_status === "done") return `${who} marked a follow-up done`;
       if (d.to_status === "canceled") return `${who} canceled a follow-up`;
       return `${who} updated a follow-up`;
+    case "conversation.handoff_requested":
+      return d.reason === "agent"
+        ? "The AI asked for a person to take over a conversation"
+        : "A visitor asked to talk to a person";
+    case "conversation.handoff_canceled":
+      return "A visitor chose to continue with the AI";
+    case "conversation.taken_over":
+      return `${who} took over a conversation`;
+    case "conversation.assigned":
+      return d.assigned ? `${who} assigned a conversation` : `${who} unassigned a conversation`;
+    case "conversation.released":
+      return `${who} handed a conversation back to the AI`;
+    case "conversation.resolved":
+      return `${who} resolved a conversation`;
     default:
       return `${who}: ${e.action}`;
   }

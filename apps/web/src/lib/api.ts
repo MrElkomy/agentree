@@ -23,6 +23,7 @@ export type PublicPage = Schemas["PublicPageOut"];
 export type GuestSession = Schemas["GuestSessionOut"];
 export type GuestChatReply = Schemas["GuestChatOut"];
 export type GuestMessage = Schemas["GuestMessageOut"];
+export type GuestConversation = Schemas["GuestConversationOut"];
 export type LeadSuggestion = Schemas["LeadSuggestionOut"];
 export type GuestLeadIn = Schemas["GuestLeadIn"];
 export type Lead = Schemas["LeadOut"];
@@ -33,6 +34,10 @@ export type FollowUp = Schemas["FollowUpOut"];
 export type FollowUpCreate = Schemas["FollowUpCreateIn"];
 export type AuditEvent = Schemas["AuditEventOut"];
 export type AuditPage = Schemas["AuditPageOut"];
+export type InboxItem = Schemas["InboxItemOut"];
+export type InboxPage = Schemas["InboxPageOut"];
+export type InboxMessage = Schemas["InboxMessageOut"];
+export type InboxConversation = Schemas["InboxConversationOut"];
 
 export class ApiError extends Error {
   constructor(

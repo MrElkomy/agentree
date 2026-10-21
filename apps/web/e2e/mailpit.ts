@@ -35,3 +35,29 @@ export async function linkFromEmail(to: string, path: string): Promise<string> {
   if (!found.link) throw new Error(`no ${path} link for ${to}`);
   return found.link;
 }
+
+/** Waits for an email to `to` whose plain-text body contains `text`; returns that body. */
+export async function emailText(to: string, text: string): Promise<string> {
+  const found: { body?: string } = {};
+  await expect
+    .poll(
+      async () => {
+        const res = await fetch(`${MAILPIT}/api/v1/search?query=${encodeURIComponent(`to:"${to}"`)}`);
+        if (!res.ok) return null;
+        const { messages } = (await res.json()) as { messages: Summary[] };
+        for (const m of messages) {
+          const full = await fetch(`${MAILPIT}/api/v1/message/${m.ID}`);
+          if (!full.ok) continue;
+          const { Text } = (await full.json()) as { Text: string };
+          if (Text.includes(text)) {
+            found.body = Text;
+            return Text;
+          }
+        }
+        return null;
+      },
+      { message: `email to ${to} containing ${text}`, timeout: 30_000, intervals: [500, 1000] },
+    )
+    .not.toBeNull();
+  return found.body ?? "";
+}

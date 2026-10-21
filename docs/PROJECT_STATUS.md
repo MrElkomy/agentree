@@ -26,7 +26,8 @@ that changes what it describes. Last updated: 2026-10-21.
   retention, staging, public page + widget + guest sessions), brand identity, Task 10 (audit log
   #27, branded emails #28), Task 11 (leads + Action Gateway #29), Task 11b (follow-up reminders
   #30).
-- **Next:** Task 12 — Human inbox + handoff + email alert (approved to start 2026-10-21).
+- **In review:** Task 12 — Human inbox + handoff + email alert (`docs/architecture/INBOX.md`).
+- **Next (needs PO "ابدأ"):** Task 13 — AI reliability (streaming, circuit breaker, monitoring).
 
 ## Staging (tryagentree.com, behind a basic-auth gate, synthetic data only)
 - Shared Hetzner host with TRACK, IELTS and the Telegram bridge — never disrupt them.

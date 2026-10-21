@@ -39,6 +39,9 @@ const MESSAGES: Record<string, string> = {
   invalid_widget_origin:
     "One of the widget websites isn't valid. Use the exact address, like https://www.example.com (no path).",
   invalid_link: "One of the links isn't valid. Links must start with https://.",
+  conversation_state: "This conversation changed in the meantime. Reload to see its current state.",
+  invalid_assignee: "Pick a member of this business.",
+  invalid_content: "Write a message first (up to 4,000 characters).",
   busy: "We're getting a lot of messages — please try again in a moment.",
   agent_unavailable: "The assistant is unavailable right now.",
   guest_session_invalid: "Your chat session has ended. Send your message again to start a new one.",

@@ -4,7 +4,13 @@ import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent 
 import { RichText, textDirection } from "@/components/rich-text";
 import { Button } from "@/components/ui";
 import type { LeadSuggestion } from "@/lib/api";
-import { MAX_GUEST_MESSAGE, useGuestChat, type GuestChannel, type LeadDraft } from "@/lib/guest-chat";
+import {
+  MAX_GUEST_MESSAGE,
+  isPaused,
+  useGuestChat,
+  type GuestChannel,
+  type LeadDraft,
+} from "@/lib/guest-chat";
 
 /**
  * Visitor chat with a business's Sales Agent (public page panel and website widget).
@@ -22,8 +28,21 @@ export function GuestChat({
   channel: GuestChannel;
   className?: string;
 }) {
-  const { turns, busy, restoring, error, send, reset, suggestion, submitLead, newIdempotencyKey } =
-    useGuestChat(slug, channel);
+  const {
+    turns,
+    status,
+    busy,
+    restoring,
+    error,
+    send,
+    reset,
+    setHandoff,
+    suggestion,
+    submitLead,
+    newIdempotencyKey,
+  } = useGuestChat(slug, channel);
+  const paused = isPaused(status);
+  const teamName = `${displayName} team`;
   const [draft, setDraft] = useState("");
   // The details form opens when the agent offers it (a new suggestion) or when the visitor asks.
   const [manualOpen, setManualOpen] = useState(false);
@@ -42,7 +61,7 @@ export function GuestChat({
 
   useEffect(() => {
     endRef.current?.scrollIntoView?.({ behavior: "smooth", block: "end" });
-  }, [turns, busy, showForm, leadSent]);
+  }, [turns, busy, showForm, leadSent, status]);
 
   async function submit() {
     const text = draft.trim();
@@ -96,6 +115,15 @@ export function GuestChat({
                 {t.content}
               </p>
             </div>
+          ) : t.role === "human" ? (
+            <div key={i} className="me-auto flex max-w-[85%] flex-col gap-1" data-testid="guest-human">
+              <div className="rounded-lg border border-brand/30 bg-brand-soft px-4 py-2.5">
+                <p dir={textDirection(t.content)} className="break-words whitespace-pre-wrap">
+                  {t.content}
+                </p>
+              </div>
+              <p className="text-xs font-semibold text-brand-deep">{teamName}</p>
+            </div>
           ) : (
             <div key={i} className="me-auto flex max-w-[85%] flex-col gap-1" data-testid="guest-assistant">
               <div className="rounded-lg border border-line bg-paper px-4 py-2.5">
@@ -129,7 +157,38 @@ export function GuestChat({
             Thanks! {displayName} has your details and will contact you soon.
           </p>
         ) : null}
-        {busy ? (
+        {status === "needs_human" ? (
+          <div
+            className="flex flex-col items-start gap-2 rounded-lg border border-warn/30 bg-warn-soft px-4 py-3 text-sm"
+            role="status"
+            data-testid="handoff-waiting"
+          >
+            <p>
+              You asked to talk to a person. The {teamName} has been notified and will reply here.
+              You can keep writing in the meantime.
+            </p>
+            <button
+              type="button"
+              onClick={() => void setHandoff(false)}
+              className="font-semibold underline-offset-2 hover:underline"
+            >
+              Continue with the assistant
+            </button>
+          </div>
+        ) : status === "human_active" ? (
+          <p
+            className="rounded-lg border border-brand/30 bg-brand-soft px-4 py-3 text-sm"
+            role="status"
+            data-testid="handoff-active"
+          >
+            You&apos;re now chatting with the {teamName}.
+          </p>
+        ) : null}
+        {busy && paused ? (
+          <p className="me-auto text-sm text-ink-muted" role="status">
+            Sending…
+          </p>
+        ) : busy ? (
           <p className="me-auto flex items-center gap-2 text-sm text-ink-muted" role="status">
             <span aria-hidden="true" className="flex gap-1">
               <span className="size-1.5 animate-bounce rounded-full bg-current" />
@@ -173,8 +232,21 @@ export function GuestChat({
           </Button>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-ink-muted">
-          <p>You&apos;re chatting with an AI assistant.</p>
-          <div className="flex items-center gap-3">
+          <p>
+            {status === "human_active"
+              ? `You're chatting with the ${teamName}.`
+              : "You're chatting with an AI assistant."}
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            {turns.length && !busy && !paused ? (
+              <button
+                type="button"
+                onClick={() => void setHandoff(true)}
+                className="font-semibold underline-offset-2 hover:underline"
+              >
+                Talk to a person
+              </button>
+            ) : null}
             {turns.length && !busy && !showForm && !leadSent ? (
               <button
                 type="button"

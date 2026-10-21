@@ -42,6 +42,12 @@ class AuditAction(StrEnum):
     LEAD_DELETED = "lead.deleted"
     FOLLOW_UP_CREATED = "follow_up.created"
     FOLLOW_UP_UPDATED = "follow_up.updated"
+    CONVERSATION_HANDOFF_REQUESTED = "conversation.handoff_requested"
+    CONVERSATION_HANDOFF_CANCELED = "conversation.handoff_canceled"
+    CONVERSATION_TAKEN_OVER = "conversation.taken_over"
+    CONVERSATION_ASSIGNED = "conversation.assigned"
+    CONVERSATION_RELEASED = "conversation.released"
+    CONVERSATION_RESOLVED = "conversation.resolved"
 
 
 # Detail keys that may be stored. Anything else is dropped, so a careless caller cannot leak a
@@ -64,6 +70,7 @@ ALLOWED_DETAILS = frozenset(
         "kind",
         "due_at",
         "assigned",
+        "reason",
     }
 )
 MAX_DETAIL_LEN = 200

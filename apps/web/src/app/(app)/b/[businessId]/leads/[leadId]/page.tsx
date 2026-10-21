@@ -207,6 +207,13 @@ export default function LeadDetailPage() {
                 <div key={i} className="ms-auto max-w-[85%] rounded-lg bg-brand px-4 py-2.5 text-white">
                   <p dir={textDirection(m.content)} className="whitespace-pre-wrap break-words">{m.content}</p>
                 </div>
+              ) : m.role === "human" ? (
+                <div key={i} className="me-auto flex max-w-[85%] flex-col gap-1">
+                  <div className="rounded-lg border border-brand/30 bg-brand-soft px-4 py-2.5">
+                    <p dir={textDirection(m.content)} className="whitespace-pre-wrap break-words">{m.content}</p>
+                  </div>
+                  <p className="text-xs text-ink-muted">Team member</p>
+                </div>
               ) : (
                 <div key={i} className="me-auto max-w-[85%] rounded-lg border border-line bg-paper px-4 py-2.5">
                   <RichText text={m.content} />

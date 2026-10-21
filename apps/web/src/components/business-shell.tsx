@@ -135,6 +135,7 @@ function Sidebar({ businessId, current }: { businessId: string; current: Busines
           <ul className="flex flex-col gap-0.5">
             <NavItem href={`/b/${businessId}`} label="Overview" />
             <NavItem href={`/b/${businessId}/agents/sales`} label="Sales Agent" />
+            <NavItem href={`/b/${businessId}/inbox`} label="Inbox" section />
             <NavItem href={`/b/${businessId}/leads`} label="Leads" section />
             <NavItem href={`/b/${businessId}/knowledge`} label="Knowledge" />
             <NavItem href={`/b/${businessId}/public-page`} label="Public page & widget" />
@@ -149,7 +150,7 @@ function Sidebar({ businessId, current }: { businessId: string; current: Busines
               Coming soon
             </p>
             <ul aria-labelledby="upcoming-heading" className="flex flex-col gap-0.5">
-              {["Support & Tech agents", "Conversations", "Inbox"].map((label) => (
+              {["Support & Tech agents"].map((label) => (
                 <li key={label}>
                   <span
                     aria-disabled="true"

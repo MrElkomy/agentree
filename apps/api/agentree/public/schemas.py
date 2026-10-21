@@ -133,10 +133,22 @@ class LeadSuggestionOut(BaseModel):
     need: str
 
 
+ConversationStatus = Literal["open", "needs_human", "human_active", "resolved"]
+
+
 class GuestChatOut(BaseModel):
     conversation_id: UUID
+    # Empty while a person handles the conversation (the AI does not answer then).
     reply: str
     lead_suggestion: LeadSuggestionOut | None = None
+    status: ConversationStatus = "open"
+
+
+class GuestConversationOut(BaseModel):
+    """What the visitor's chat polls while waiting for, or talking to, a person."""
+
+    status: ConversationStatus
+    messages: list["GuestMessageOut"]
 
 
 class GuestLeadIn(BaseModel):
