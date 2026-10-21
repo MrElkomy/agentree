@@ -27,10 +27,10 @@ that changes what it describes. Last updated: 2026-10-21.
   #27, branded emails #28), Task 11 (leads + Action Gateway #29), Task 11b (follow-up reminders
   #30).
 - **Merged:** Task 12 — Human inbox + handoff + email alert (#32, `docs/architecture/INBOX.md`).
-- **In progress:** Task 13 (approved 2026-10-21). 13a (streaming, circuit breaker, recovery,
-  health, metrics; `docs/architecture/RELIABILITY.md`) in review; 13b (Web Push alerts, PO
-  approved adding it) next. Deploying 13b needs VAPID keys made on the server: give the PO the
-  command only when 13b is ready to deploy.
+- **In review:** Task 13 (approved 2026-10-21; `docs/architecture/RELIABILITY.md`):
+  13a streaming, circuit breaker, recovery, health, metrics (#33); 13b Web Push alerts (PO
+  approved adding it). Web Push on staging needs a VAPID key made on the server (runbook,
+  "Optional settings"): give the PO that command only at deploy time, with explanation.
 
 ## Staging (tryagentree.com, behind a basic-auth gate, synthetic data only)
 - Shared Hetzner host with TRACK, IELTS and the Telegram bridge — never disrupt them.

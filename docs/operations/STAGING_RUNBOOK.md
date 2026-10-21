@@ -185,6 +185,24 @@ The live database is not touched. Delete the identity file from the server again
 **9. After measurement**: run `measure.sh demo` during a demo session and send the three
 snapshots (baseline / after deploy / during demo) for the upgrade decision.
 
+## Optional settings (Task 13)
+Both live only in `~/agentree-secrets/staging.env` (mode 600); empty means off. Explain to the
+PO and get approval before adding them; then `deploy.sh` (or restart api and worker) applies them.
+
+- **Web Push alerts (13b):** one command generates the VAPID key on the server and appends it
+  to the secrets file without printing it:
+  ```bash
+  echo "AGENTREE_VAPID_PRIVATE_KEY=$(openssl ecparam -name prime256v1 -genkey -noout -outform DER | base64 -w0)" >> ~/agentree-secrets/staging.env
+  ```
+  Generate it once: a new key makes every device turn alerts on again. Never paste it into
+  chat, GitHub or logs. Optional `AGENTREE_VAPID_SUBJECT=mailto:<ops address>` (defaults to
+  the site URL). Browsers reach their push services directly; the server only makes outbound
+  HTTPS calls to `*.googleapis.com`, `*.push.services.mozilla.com`, `*.push.apple.com` and
+  `*.notify.windows.com`. No DNS, Caddy or firewall change.
+- **Metrics (13a):** `AGENTREE_METRICS_TOKEN=<long random value>` enables
+  `GET /api/internal/metrics` with header `X-Agentree-Metrics-Token`. Leave empty until a
+  monitoring tool is chosen.
+
 ## Update and rollback
 - Update: `deploy.sh origin/main`. A pre-deploy encrypted backup is taken automatically.
 - Automatic rollback: if the new version fails health checks, the previous images are started

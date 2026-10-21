@@ -90,3 +90,40 @@ plain words, and a banner when a key is down (with or without a working backup).
 
 With `AGENTREE_LLM_DEMO_MODE=true` the demo provider streams word by word and cuts off the first
 reply to a message containing "simulate an interruption", for browser tests of the retry path.
+
+## Alerts and Web Push (Task 13b)
+
+Owners and Admins get alerts by **email** (always) and by **Web Push** on each device where they
+turned alerts on (Notifications page, Owners/Admins only):
+
+| Event | Sent by | Opens |
+|---|---|---|
+| New lead | public `POST /leads` (background) | `/b/{id}/leads/{lead}` |
+| Visitor waiting for a person (visitor or AI handoff) | public chat/handoff (background) | `/b/{id}/inbox/{conversation}` |
+| AI key down (breaker opened) | worker, every `AGENTREE_OUTAGE_ALERT_INTERVAL_SECONDS` (60) | `/b/{id}/ai-providers` |
+
+- **Privacy:** push titles and texts name the business only, never a visitor's name, contact
+  details or messages (lock screens are public). Emails keep their existing content rules.
+- **Outage alerts:** the worker claims newly opened breakers once
+  (`agentree_claim_provider_outages`, SECURITY DEFINER, migration 0014); closing the breaker
+  clears the mark. At most one alert per business and key every 6 hours, so a flapping key
+  does not spam. The email says whether the backup key is answering.
+- **Delivery:** `agentree/core/webpush.py` encrypts each payload (aes128gcm, `http-ece`) and
+  signs a VAPID JWT (`py-vapid`, ES256, 12 h). Endpoints are browser-supplied URLs, so only
+  https URLs on the browsers' push services are accepted (Google FCM, Mozilla, Apple, Microsoft
+  WNS), checked when storing and again when sending; redirects are not followed and endpoints
+  are never logged. `404/410` responses delete the subscription. Roles are checked at send time,
+  so a demoted or removed member stops receiving alerts.
+- **Storage:** `push_subscriptions` (tenant table, RLS): business, user, endpoint, browser keys,
+  up to 10 devices per user per business. A device subscription is shared by all businesses in
+  that browser; turning alerts off removes it for the current business only.
+- **Browser side:** `public/push-sw.js` shows the notification and focuses or opens the
+  same-origin path on click (anything else falls back to `/dashboard`). It caches nothing.
+  `manifest.webmanifest` lets iPhone/iPad users add the dashboard to the Home Screen, which iOS
+  16.4+ requires for Web Push.
+- **Configuration:** `AGENTREE_VAPID_PRIVATE_KEY` (P-256, base64 DER or PEM; empty = push off,
+  email only) and optional `AGENTREE_VAPID_SUBJECT`. Generation command: staging runbook.
+- **Testing:** delivery, encryption (decrypted with the receiver key in tests), VAPID claims,
+  the host allowlist and all alert paths are covered by `tests/test_push.py` with a fake push
+  service. Headless Chromium reports notifications as blocked, so real delivery to a phone is
+  checked by the PO on staging after deploy.
