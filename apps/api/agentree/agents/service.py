@@ -7,7 +7,7 @@ messages. Message content is never logged.
 
 import logging
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -15,7 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from agentree.agents.models import Conversation, Message
-from agentree.agents.prompts import sales_messages
+from agentree.agents.prompts import LeadSuggestion, sales_messages, split_lead_marker
 from agentree.core.ids import uuid7
 from agentree.core.vault import Vault, VaultDecryptError, VaultUnavailableError
 from agentree.knowledge import service as knowledge
@@ -74,6 +74,7 @@ class TurnResult:
 class GuestTurnResult:
     conversation_id: UUID
     reply: str
+    lead_suggestion: LeadSuggestion | None = None
 
 
 @dataclass(frozen=True)
@@ -160,14 +161,21 @@ async def _call_with_fallback(
 async def _complete_turn(
     factory: Factory, vault: Vault | None, provider_factories: ProviderFactories,
     ctx: TenantContext, *, conv_id: UUID, history: list[ChatMessage], message: str, public: bool,
-) -> tuple[ChatResult, list[tuple[UUID, str]], str, bool]:  # fmt: skip
-    """Retrieve published knowledge, call the provider(s), persist both messages."""
+) -> tuple[ChatResult, list[tuple[UUID, str]], str, bool, LeadSuggestion | None]:  # fmt: skip
+    """Retrieve published knowledge, call the provider(s), persist both messages.
+
+    Lead markers are stripped before the reply is stored or returned; in public conversations a
+    vetted suggestion is returned so the visitor can confirm their details in a form.
+    """
     business = await tenancy.get_business(factory, ctx)
     entries = await knowledge.retrieve(factory, ctx, message)
     prompt = sales_messages(business.name, entries, history, message, public=public)
     result, slot, fallback = await _call_with_fallback(
         factory, vault, ctx, provider_factories, prompt
     )
+    visitor = [m.content for m in history if m.role == "user"] + [message]
+    reply, suggestion = split_lead_marker(result.text, visitor)
+    result = replace(result, text=reply)
 
     now = datetime.now(UTC)
     async with tenant_session(factory, ctx) as session:
@@ -184,7 +192,13 @@ async def _complete_turn(
         conv_row = await session.get(Conversation, conv_id)
         if conv_row is not None:
             conv_row.last_message_at = now
-    return result, [(e.id, e.title) for e in entries], slot, fallback
+    return (
+        result,
+        [(e.id, e.title) for e in entries],
+        slot,
+        fallback,
+        suggestion if public else None,
+    )
 
 
 async def sales_console_turn(
@@ -195,7 +209,7 @@ async def sales_console_turn(
         conv = await _conversation(session, ctx, conversation_id, user_id)
         history = await _history(session, ctx, conv.id)
         conv_id = conv.id
-    result, sources, slot, fallback = await _complete_turn(
+    result, sources, slot, fallback, _suggestion = await _complete_turn(
         factory, vault, provider_factories, ctx, conv_id=conv_id, history=history,
         message=message, public=False,
     )  # fmt: skip
@@ -240,7 +254,7 @@ async def public_sales_turn(
         history = await _history(session, ctx, conv.id)
         conv_id = conv.id
     try:
-        result, _sources, _slot, _fallback = await _complete_turn(
+        result, _sources, _slot, _fallback, suggestion = await _complete_turn(
             factory, vault, provider_factories, ctx, conv_id=conv_id, history=history,
             message=message, public=True,
         )  # fmt: skip
@@ -251,7 +265,16 @@ async def public_sales_turn(
         logger.warning("public agent unavailable", extra={"error_type": type(exc).__name__,
                        "business_id": str(ctx.business_id)})  # fmt: skip
         raise AgentUnavailableError from None
-    return GuestTurnResult(conv_id, result.text)
+    return GuestTurnResult(conv_id, result.text, suggestion)
+
+
+async def guest_conversation_channel(
+    factory: Factory, ctx: TenantContext, *, guest_session_id: UUID, conversation_id: UUID
+) -> str:
+    """Channel of a conversation owned by this guest session (else NotFoundError)."""
+    async with tenant_session(factory, ctx) as session:
+        conv = await _guest_conversation(session, ctx, conversation_id, guest_session_id)
+        return conv.channel
 
 
 async def list_guest_messages(

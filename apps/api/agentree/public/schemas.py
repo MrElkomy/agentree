@@ -124,9 +124,38 @@ class GuestChatIn(BaseModel):
         return v
 
 
+class LeadSuggestionOut(BaseModel):
+    """Prefill for the visitor's confirmation form (only details the visitor wrote)."""
+
+    name: str
+    email: str
+    phone: str
+    need: str
+
+
 class GuestChatOut(BaseModel):
     conversation_id: UUID
     reply: str
+    lead_suggestion: LeadSuggestionOut | None = None
+
+
+class GuestLeadIn(BaseModel):
+    """Contact details the visitor confirmed. Consent is required and must be explicit."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    conversation_id: UUID
+    name: str = Field(default="", max_length=100)
+    email: str | None = Field(default=None, max_length=254)
+    phone: str | None = Field(default=None, max_length=32)
+    need: str = Field(default="", max_length=500)
+    consent: Literal[True]
+    # Client-generated per form submission, so a retried request records the lead once.
+    idempotency_key: str = Field(min_length=8, max_length=100, pattern=r"^[A-Za-z0-9_-]+$")
+
+
+class GuestLeadOut(BaseModel):
+    received: bool
 
 
 class GuestMessageOut(BaseModel):

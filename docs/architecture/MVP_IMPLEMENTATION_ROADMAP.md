@@ -81,7 +81,7 @@ until then the item remains an open MVP requirement and blocks the final pilot g
   HTML and plain text, links unchanged, no user content injected unescaped.
 - **Out of scope:** audit export, SIEM forwarding, marketing emails.
 
-### Task 11 — Lead management + Action Gateway
+### Task 11 — Lead management + Action Gateway — 🟡 implemented (pending PO approval), see `LEADS.md`
 - **Scope:** `leads` linked to conversation and channel; fields: name, email and/or phone (at least
   one required), need, contact consent, status (new → contacted → qualified → won/lost), owner notes.
   Sales Agent asks conversationally; optional in-chat form. All agent writes go through the gateway

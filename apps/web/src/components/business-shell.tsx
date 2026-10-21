@@ -135,6 +135,7 @@ function Sidebar({ businessId, current }: { businessId: string; current: Busines
           <ul className="flex flex-col gap-0.5">
             <NavItem href={`/b/${businessId}`} label="Overview" />
             <NavItem href={`/b/${businessId}/agents/sales`} label="Sales Agent" />
+            <NavItem href={`/b/${businessId}/leads`} label="Leads" section />
             <NavItem href={`/b/${businessId}/knowledge`} label="Knowledge" />
             <NavItem href={`/b/${businessId}/public-page`} label="Public page & widget" />
             <NavItem href={`/b/${businessId}/ai-providers`} label="AI Providers" />
@@ -176,9 +177,10 @@ function AccountEmail() {
   return <span className="min-w-0 truncate text-sm text-ink-muted">{me.email}</span>;
 }
 
-function NavItem({ href, label }: { href: string; label: string }) {
+function NavItem({ href, label, section = false }: { href: string; label: string; section?: boolean }) {
   const pathname = usePathname();
-  const active = pathname === href;
+  // `section`: also active on child pages (e.g. a lead's detail page).
+  const active = pathname === href || (section && pathname.startsWith(`${href}/`));
   return (
     <li>
       <Link

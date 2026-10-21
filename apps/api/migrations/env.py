@@ -8,10 +8,12 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import create_async_engine
 
 # Register every module's models on Base.metadata (used by autogenerate / alembic check).
+import agentree.actions.models
 import agentree.agents.models
 import agentree.audit.models
 import agentree.identity.models
 import agentree.knowledge.models
+import agentree.leads.models
 import agentree.providers.models
 import agentree.public.models
 import agentree.tenancy.models  # noqa: F401

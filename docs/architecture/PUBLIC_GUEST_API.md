@@ -57,3 +57,7 @@ All return 429 `busy`. The business budget is consumed before the AI call (a fai
 
 ## Not in this slice
 Bot challenge (U-16), provisional customer profile / email OTP (3.4), streaming, lead capture, human handoff, custom domains (excluded from MVP).
+
+## Leads (Task 11)
+`POST /chat` may return `lead_suggestion` (prefill only, from details the visitor wrote).
+`POST /leads` records the visitor's confirmed details with explicit consent; see `LEADS.md`.

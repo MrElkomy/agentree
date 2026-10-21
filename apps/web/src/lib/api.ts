@@ -23,6 +23,12 @@ export type PublicPage = Schemas["PublicPageOut"];
 export type GuestSession = Schemas["GuestSessionOut"];
 export type GuestChatReply = Schemas["GuestChatOut"];
 export type GuestMessage = Schemas["GuestMessageOut"];
+export type LeadSuggestion = Schemas["LeadSuggestionOut"];
+export type GuestLeadIn = Schemas["GuestLeadIn"];
+export type Lead = Schemas["LeadOut"];
+export type LeadDetail = Schemas["LeadDetailOut"];
+export type LeadPage = Schemas["LeadPageOut"];
+export type LeadStatus = Schemas["LeadStatus"];
 export type AuditEvent = Schemas["AuditEventOut"];
 export type AuditPage = Schemas["AuditPageOut"];
 

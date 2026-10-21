@@ -401,7 +401,10 @@ async def test_guest_chat_happy_path_returns_only_conversation_and_reply(
     r = await _chat(c, biz, token, channel="widget")
     assert r.status_code == 200, r.text
     body = r.json()
-    assert set(body) == {"conversation_id", "reply"}
+    # No provider, model, slot or sources; a lead suggestion only when the visitor shared contact
+    # details (tests/test_leads.py).
+    assert set(body) == {"conversation_id", "reply", "lead_suggestion"}
+    assert body["lead_suggestion"] is None
     assert body["reply"] == "The Ergo chair is $299."
     cid = body["conversation_id"]
     assert fake.calls[-1][0] == PRIMARY_KEY  # the customer's own key (BYOK)

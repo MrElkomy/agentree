@@ -14,7 +14,16 @@
  * only ever reaches its own conversations.
  */
 import { useCallback, useEffect, useState } from "react";
-import { ApiError, api, isApiError, type GuestChatReply, type GuestMessage, type GuestSession } from "./api";
+import {
+  ApiError,
+  api,
+  isApiError,
+  type GuestChatReply,
+  type GuestLeadIn,
+  type GuestMessage,
+  type GuestSession,
+  type LeadSuggestion,
+} from "./api";
 
 export const MAX_GUEST_MESSAGE = 1000;
 
@@ -56,6 +65,10 @@ const GUEST_MESSAGES: Record<string, string> = {
   not_found: "This chat isn't available right now.",
   network_error: "Can't connect right now. Check your connection and try again.",
   validation_error: "That message can't be sent. Keep it under 1,000 characters.",
+  invalid_email: "Check the email address.",
+  invalid_phone: "Check the phone number (digits, spaces, + and dashes).",
+  invalid_contact: "Add an email address or a phone number so the team can reach you.",
+  idempotency_conflict: "Please send the form again.",
 };
 
 /** Visitor-facing copy: short, neutral, and never mentions providers, models or keys. */
@@ -113,8 +126,20 @@ async function chatOnce(slug: string, message: string, channel: GuestChannel): P
   }
 }
 
+export type LeadDraft = Omit<GuestLeadIn, "conversation_id" | "consent" | "idempotency_key">;
+
+function newIdempotencyKey(): string {
+  try {
+    return crypto.randomUUID();
+  } catch {
+    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  }
+}
+
 export function useGuestChat(slug: string, channel: GuestChannel) {
   const [turns, setTurns] = useState<GuestTurn[]>([]);
+  // Prefill offered by the agent after the visitor shared contact details (never sent as-is).
+  const [suggestion, setSuggestion] = useState<LeadSuggestion | null>(null);
   const [busy, setBusy] = useState(false);
   const [restoring, setRestoring] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -167,6 +192,7 @@ export function useGuestChat(slug: string, channel: GuestChannel) {
       try {
         const reply = await chatOnce(slug, text, channel);
         setTurns((t) => [...t, { role: "assistant", content: reply.reply }]);
+        if (reply.lead_suggestion) setSuggestion(reply.lead_suggestion);
         return true;
       } catch (err) {
         setTurns((t) => t.slice(0, -1)); // not answered: give the text back to the visitor
@@ -182,8 +208,35 @@ export function useGuestChat(slug: string, channel: GuestChannel) {
   const reset = useCallback(() => {
     write(convKey(slug), null);
     setTurns([]);
+    setSuggestion(null);
     setError(null);
   }, [slug]);
 
-  return { turns, busy, restoring, error, send, reset };
+  /**
+   * Sends the details the visitor reviewed, with their explicit consent. The key is fixed per
+   * form attempt, so a network retry records the lead once. Throws a visitor-facing message.
+   */
+  const submitLead = useCallback(
+    async (draft: LeadDraft, idempotencyKey: string): Promise<void> => {
+      const token = read(tokenKey(slug));
+      const conversationId = read(convKey(slug));
+      if (!token || !conversationId) throw new Error(GUEST_MESSAGES.not_found);
+      const body: GuestLeadIn = {
+        ...draft,
+        email: draft.email?.trim() || null,
+        phone: draft.phone?.trim() || null,
+        conversation_id: conversationId,
+        consent: true,
+        idempotency_key: idempotencyKey,
+      };
+      try {
+        await api(`${base(slug)}/leads`, "POST", body, opts(token));
+      } catch (err) {
+        throw new Error(guestErrorMessage(err));
+      }
+    },
+    [slug],
+  );
+
+  return { turns, busy, restoring, error, send, reset, suggestion, submitLead, newIdempotencyKey };
 }

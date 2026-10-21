@@ -5,6 +5,7 @@ import { useBusiness } from "@/components/business-shell";
 import { useSession } from "@/components/session";
 import { Alert, Button, Spinner } from "@/components/ui";
 import { api, type AuditEvent, type AuditPage, type Role } from "@/lib/api";
+import { CHANNEL_LABEL, LEAD_STATUS_LABEL } from "@/lib/leads";
 import { ROLE_LABEL, atLeast } from "@/lib/roles";
 
 const PAGE_SIZE = 50;
@@ -17,6 +18,12 @@ function roleLabel(value: unknown): string {
 
 function slotLabel(value: unknown): string {
   return value === "backup" ? "backup" : "primary";
+}
+
+function statusLabel(value: unknown): string {
+  return typeof value === "string" && value in LEAD_STATUS_LABEL
+    ? LEAD_STATUS_LABEL[value as keyof typeof LEAD_STATUS_LABEL]
+    : String(value ?? "");
 }
 
 function actorName(e: AuditEvent): string {
@@ -51,6 +58,16 @@ function describe(e: AuditEvent): string {
       return `${who} ${d.replaced ? "replaced" : "added"} the ${slotLabel(d.slot)} AI provider key`;
     case "provider_key.removed":
       return `${who} removed the ${slotLabel(d.slot)} AI provider key`;
+    case "lead.created":
+      return `A visitor shared their contact details (${CHANNEL_LABEL[String(d.channel)] ?? "chat"})`;
+    case "lead.updated":
+      return "A visitor updated their contact details";
+    case "lead.status_changed":
+      return `${who} moved a lead from ${statusLabel(d.from_status)} to ${statusLabel(d.to_status)}`;
+    case "lead.notes_updated":
+      return `${who} updated the notes on a lead`;
+    case "lead.deleted":
+      return `${who} deleted a lead`;
     default:
       return `${who}: ${e.action}`;
   }

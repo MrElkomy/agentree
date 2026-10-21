@@ -58,6 +58,7 @@ async def _snapshot(client: AsyncClient, business_id: str) -> tuple[object, ...]
         (await client.get(f"{base}/knowledge")).json(),
         (await client.get(f"{base}/public-profile")).json(),
         (await client.get(f"{base}/audit-events")).json(),
+        (await client.get(f"{base}/leads")).json(),
     )
 
 
@@ -87,6 +88,17 @@ async def test_owner_of_a_cannot_touch_b(harness: AppHarness, method: str, path:
     pending = await bob.client.post(
         f"/api/businesses/{b['id']}/invitations", json={"email": "p@example.com"}
     )
+    # A real lead in B: a visitor of B's public page confirms their details.
+    visitor = harness.new_client()
+    pub = f"/api/public/{b['slug']}"
+    guest = {"X-Agentree-Guest": (await visitor.post(f"{pub}/sessions")).json()["token"]}
+    chat = await visitor.post(f"{pub}/chat", json={"message": "hi"}, headers=guest)
+    assert chat.status_code == 200, chat.text
+    lead = await visitor.post(f"{pub}/leads", headers=guest, json={
+        "conversation_id": chat.json()["conversation_id"], "email": "v@example.com",
+        "consent": True, "idempotency_key": "matrix-lead-1"})  # fmt: skip
+    assert lead.status_code == 200, lead.text
+    lead_id = (await bob.client.get(f"/api/businesses/{b['id']}/leads")).json()["leads"][0]["id"]
     before = await _snapshot(bob.client, b["id"])
     url = path.format(
         business_id=b["id"],
@@ -95,6 +107,7 @@ async def test_owner_of_a_cannot_touch_b(harness: AppHarness, method: str, path:
         slot="primary",  # B has a stored primary key
         entry_id=entry.json()["id"],  # a real knowledge entry in B
         conversation_id=convo.json()["conversation_id"],  # a real conversation in B
+        lead_id=lead_id,  # a real lead in B
     )
     r = await alice.client.request(method, url, json=PLACEHOLDER_BODIES.get(method))
     assert r.status_code == 404, (method, url, r.status_code, r.text)
@@ -102,6 +115,7 @@ async def test_owner_of_a_cannot_touch_b(harness: AppHarness, method: str, path:
     after = await _snapshot(bob.client, b["id"])
     assert after[0] == before[0] and after[1] == before[1]
     assert after[3] == before[3] and after[4] == before[4] and after[5] == before[5]
+    assert after[6] == before[6] and after[7] == before[7]
 
 
 @pytest.mark.parametrize(("method", "path"), BUSINESS_ROUTES)
@@ -114,6 +128,7 @@ async def test_unknown_business_is_404_not_403(harness: AppHarness, method: str,
         slot="primary",
         entry_id=uuid.uuid4(),
         conversation_id=uuid.uuid4(),
+        lead_id=uuid.uuid4(),
     )
     r = await alice.client.request(method, url, json=PLACEHOLDER_BODIES.get(method))
     assert r.status_code == 404
@@ -129,6 +144,7 @@ async def test_anonymous_is_rejected(harness: AppHarness, method: str, path: str
         slot="primary",
         entry_id=uuid.uuid4(),
         conversation_id=uuid.uuid4(),
+        lead_id=uuid.uuid4(),
     )
     r = await c.request(method, url, json=PLACEHOLDER_BODIES.get(method))
     assert r.status_code == 401

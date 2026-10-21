@@ -35,12 +35,31 @@ class AuditAction(StrEnum):
     MEMBER_LEFT = "member.left"
     PROVIDER_KEY_SAVED = "provider_key.saved"
     PROVIDER_KEY_REMOVED = "provider_key.removed"
+    LEAD_CREATED = "lead.created"
+    LEAD_UPDATED = "lead.updated"  # the visitor re-submitted their details
+    LEAD_STATUS_CHANGED = "lead.status_changed"
+    LEAD_NOTES_UPDATED = "lead.notes_updated"
+    LEAD_DELETED = "lead.deleted"
 
 
 # Detail keys that may be stored. Anything else is dropped, so a careless caller cannot leak a
 # secret into the trail by passing a whole object.
 ALLOWED_DETAILS = frozenset(
-    {"email", "role", "from_role", "to_role", "slot", "provider", "model", "replaced", "verified"}
+    {
+        "email",
+        "role",
+        "from_role",
+        "to_role",
+        "slot",
+        "provider",
+        "model",
+        "replaced",
+        "verified",
+        "channel",
+        "agent",
+        "from_status",
+        "to_status",
+    }
 )
 MAX_DETAIL_LEN = 200
 
