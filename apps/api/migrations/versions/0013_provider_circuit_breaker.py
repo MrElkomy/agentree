@@ -46,7 +46,7 @@ def upgrade() -> None:
     op.add_column("provider_credentials", sa.Column("breaker_open_until", TS))
     op.add_column("provider_credentials", sa.Column("probe_until", TS))
     op.create_check_constraint(
-        "ck_provider_credentials_failure_count", "provider_credentials", "failure_count >= 0"
+        op.f("ck_provider_credentials_failure_count"), "provider_credentials", "failure_count >= 0"
     )
     op.execute(HEALTH_FUNCTION)
     op.execute(f"REVOKE ALL ON FUNCTION {SIGNATURE} FROM PUBLIC")
@@ -55,6 +55,8 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.execute(f"DROP FUNCTION IF EXISTS {SIGNATURE}")
-    op.drop_constraint("ck_provider_credentials_failure_count", "provider_credentials")
+    op.drop_constraint(
+        op.f("ck_provider_credentials_failure_count"), "provider_credentials", type_="check"
+    )
     for column in ("probe_until", "breaker_open_until", "last_failure_at", "failure_count"):
         op.drop_column("provider_credentials", column)
