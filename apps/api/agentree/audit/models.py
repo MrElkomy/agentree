@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import DateTime, ForeignKey, String, func
+from sqlalchemy import DateTime, ForeignKey, Index, String, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -14,6 +14,7 @@ from agentree.core.models import Base
 
 class AuditEvent(Base):
     __tablename__ = "audit_events"
+    __table_args__ = (Index("ix_audit_events_business_id_id", "business_id", "id"),)
 
     id: Mapped[UUID] = mapped_column(primary_key=True)  # uuid7: time-ordered
     business_id: Mapped[UUID] = mapped_column(ForeignKey("businesses.id", ondelete="CASCADE"))
