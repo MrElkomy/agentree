@@ -66,6 +66,8 @@ class Settings(BaseSettings):
     # Raw conversation retention (AGT-010). Never longer than the approved 30 days.
     retention_days: int = Field(default=30, ge=1, le=30)
     retention_interval_seconds: int = Field(default=3600, ge=60)
+    # How often the worker looks for overdue follow-up tasks to remind the team about.
+    follow_up_interval_seconds: int = Field(default=300, ge=30)
 
     # BYOK vault master key: base64 of 32 random bytes. Required to store/read provider keys.
     master_key: SecretStr | None = None

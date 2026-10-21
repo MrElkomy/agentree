@@ -99,6 +99,9 @@ async def test_owner_of_a_cannot_touch_b(harness: AppHarness, method: str, path:
         "consent": True, "idempotency_key": "matrix-lead-1"})  # fmt: skip
     assert lead.status_code == 200, lead.text
     lead_id = (await bob.client.get(f"/api/businesses/{b['id']}/leads")).json()["leads"][0]["id"]
+    task_id = (
+        await bob.client.get(f"/api/businesses/{b['id']}/leads/{lead_id}/follow-ups")
+    ).json()[0]["id"]
     before = await _snapshot(bob.client, b["id"])
     url = path.format(
         business_id=b["id"],
@@ -108,6 +111,7 @@ async def test_owner_of_a_cannot_touch_b(harness: AppHarness, method: str, path:
         entry_id=entry.json()["id"],  # a real knowledge entry in B
         conversation_id=convo.json()["conversation_id"],  # a real conversation in B
         lead_id=lead_id,  # a real lead in B
+        task_id=task_id,  # a real follow-up task in B
     )
     r = await alice.client.request(method, url, json=PLACEHOLDER_BODIES.get(method))
     assert r.status_code == 404, (method, url, r.status_code, r.text)
@@ -129,6 +133,7 @@ async def test_unknown_business_is_404_not_403(harness: AppHarness, method: str,
         entry_id=uuid.uuid4(),
         conversation_id=uuid.uuid4(),
         lead_id=uuid.uuid4(),
+        task_id=uuid.uuid4(),
     )
     r = await alice.client.request(method, url, json=PLACEHOLDER_BODIES.get(method))
     assert r.status_code == 404
@@ -145,6 +150,7 @@ async def test_anonymous_is_rejected(harness: AppHarness, method: str, path: str
         entry_id=uuid.uuid4(),
         conversation_id=uuid.uuid4(),
         lead_id=uuid.uuid4(),
+        task_id=uuid.uuid4(),
     )
     r = await c.request(method, url, json=PLACEHOLDER_BODIES.get(method))
     assert r.status_code == 401

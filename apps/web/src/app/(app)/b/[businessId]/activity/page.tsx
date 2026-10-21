@@ -68,6 +68,12 @@ function describe(e: AuditEvent): string {
       return `${who} updated the notes on a lead`;
     case "lead.deleted":
       return `${who} deleted a lead`;
+    case "follow_up.created":
+      return d.agent ? "Sales Agent added a follow-up reminder for a new lead" : `${who} added a follow-up reminder`;
+    case "follow_up.updated":
+      if (d.to_status === "done") return `${who} marked a follow-up done`;
+      if (d.to_status === "canceled") return `${who} canceled a follow-up`;
+      return `${who} updated a follow-up`;
     default:
       return `${who}: ${e.action}`;
   }

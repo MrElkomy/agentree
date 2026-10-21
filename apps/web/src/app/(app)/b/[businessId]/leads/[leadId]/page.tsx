@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { useBusiness } from "@/components/business-shell";
 import { Dialog } from "@/components/dialog";
+import { FollowUps } from "@/components/follow-ups";
 import { LeadStatusBadge } from "@/components/lead-status-badge";
 import { RichText, textDirection } from "@/components/rich-text";
 import { useSession } from "@/components/session";
@@ -187,6 +188,8 @@ export default function LeadDetailPage() {
           </div>
         </form>
       </section>
+
+      <FollowUps key={lead.status} businessId={business.id} leadId={lead.id} />
 
       <section aria-labelledby="conversation-heading" className="flex flex-col gap-3">
         <h2 id="conversation-heading" className="text-lg font-semibold">

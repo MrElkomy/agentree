@@ -1,11 +1,11 @@
 """Worker entrypoint.
 
 The Postgres-backed job queue is introduced in a later task (TD-06). For now the worker
-runs the periodic 30-day conversation retention job (AGT-010) as the unprivileged
-`agentree_app` role.
+runs two periodic jobs as the unprivileged `agentree_app` role: the 30-day conversation
+retention purge (AGT-010) and follow-up reminders for overdue lead tasks (Task 11b).
 
     python -m agentree.worker          # run until SIGTERM/SIGINT
-    python -m agentree.worker --once   # one retention pass, then exit (ops, CI)
+    python -m agentree.worker --once   # one pass of each job, then exit (ops, CI)
 """
 
 import argparse
@@ -16,7 +16,9 @@ import signal
 from agentree.core.config import get_settings
 from agentree.core.db import create_app_engine, create_session_factory
 from agentree.core.db_roles import assert_safe_app_role
+from agentree.core.email import SmtpEmailSender
 from agentree.core.logging import configure_logging
+from agentree.leads.follow_ups import run_follow_up_loop, send_due_reminders
 from agentree.retention.service import purge_expired_conversations, run_retention_loop
 
 logger = logging.getLogger("agentree.worker")
@@ -29,8 +31,10 @@ async def run(*, once: bool) -> None:
         # Same guard as the API: refuse to run as a role that can bypass RLS.
         await assert_safe_app_role(engine)
         factory = create_session_factory(engine)
+        mailer = SmtpEmailSender(settings)
         if once:
             await purge_expired_conversations(factory, retention_days=settings.retention_days)
+            await send_due_reminders(factory, settings, mailer)
             return
         stop = asyncio.Event()
         loop = asyncio.get_running_loop()
@@ -41,13 +45,23 @@ async def run(*, once: bool) -> None:
             extra={
                 "retention_days": settings.retention_days,
                 "retention_interval_seconds": settings.retention_interval_seconds,
+                "follow_up_interval_seconds": settings.follow_up_interval_seconds,
             },
         )
-        await run_retention_loop(
-            factory,
-            retention_days=settings.retention_days,
-            interval_seconds=settings.retention_interval_seconds,
-            stop=stop,
+        await asyncio.gather(
+            run_retention_loop(
+                factory,
+                retention_days=settings.retention_days,
+                interval_seconds=settings.retention_interval_seconds,
+                stop=stop,
+            ),
+            run_follow_up_loop(
+                factory,
+                settings,
+                mailer,
+                interval_seconds=settings.follow_up_interval_seconds,
+                stop=stop,
+            ),
         )
         logger.info("worker stopped")
     finally:
@@ -56,7 +70,7 @@ async def run(*, once: bool) -> None:
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="agentree.worker")
-    parser.add_argument("--once", action="store_true", help="run one retention pass and exit")
+    parser.add_argument("--once", action="store_true", help="run one pass of each job and exit")
     args = parser.parse_args(argv)
     configure_logging(get_settings().log_level)
     asyncio.run(run(once=args.once))

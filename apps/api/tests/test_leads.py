@@ -280,8 +280,9 @@ async def test_members_follow_up_admins_delete(harness: AppHarness) -> None:
     events = (await biz.owner.client.get(f"{biz.base}/audit-events")).json()["events"]
     assert events[0]["action"] == "lead.deleted"
     # Status and notes changed in one request: same transaction, order within it not defined.
-    same_request = {e["action"]: e for e in events[1:3]}
-    assert set(same_request) == {"lead.status_changed", "lead.notes_updated"}
+    # Moving past "new" also closes the agent's first-contact follow-up (test_follow_ups.py).
+    same_request = {e["action"]: e for e in events[1:4]}
+    assert set(same_request) == {"lead.status_changed", "lead.notes_updated", "follow_up.updated"}
     assert same_request["lead.status_changed"]["details"] == {
         "from_status": "new", "to_status": "contacted",
     }  # fmt: skip

@@ -49,3 +49,28 @@ class Lead(Base):
     notes: Mapped[str] = mapped_column(Text, server_default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class FollowUpTask(Base):
+    """A reminder for the team to follow up on a lead (people contact the customer, not the AI)."""
+
+    __tablename__ = "follow_up_tasks"
+    __table_args__ = (
+        Index("ix_follow_up_tasks_business_id_lead_id", "business_id", "lead_id"),
+        Index("ix_follow_up_tasks_due", "status", "due_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    business_id: Mapped[UUID] = mapped_column(ForeignKey("businesses.id", ondelete="CASCADE"))
+    lead_id: Mapped[UUID] = mapped_column(ForeignKey("leads.id", ondelete="CASCADE"))
+    title: Mapped[str] = mapped_column(String(200))
+    due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # No foreign key: a task keeps its assignee id if the member leaves (shown as unassigned).
+    assignee_user_id: Mapped[UUID | None] = mapped_column()
+    status: Mapped[str] = mapped_column(String(16), server_default="open")  # open | done | canceled
+    kind: Mapped[str] = mapped_column(String(16), server_default="manual")  # first_contact | manual
+    created_by_agent: Mapped[str | None] = mapped_column(String(32))
+    created_by_user_id: Mapped[UUID | None] = mapped_column()
+    reminder_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

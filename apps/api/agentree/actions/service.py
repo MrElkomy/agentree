@@ -26,11 +26,12 @@ from agentree.tenancy.context import TenantContext
 class Action(StrEnum):
     CREATE_LEAD = "create_lead"
     UPDATE_LEAD = "update_lead"
+    CREATE_FOLLOW_UP_TASK = "create_follow_up_task"
 
 
 # Agent role -> actions it may run. Agents not listed may run nothing.
 PERMISSIONS: Mapping[str, frozenset[Action]] = {
-    "sales": frozenset({Action.CREATE_LEAD, Action.UPDATE_LEAD}),
+    "sales": frozenset({Action.CREATE_LEAD, Action.UPDATE_LEAD, Action.CREATE_FOLLOW_UP_TASK}),
 }
 
 MAX_KEY_LEN = 100

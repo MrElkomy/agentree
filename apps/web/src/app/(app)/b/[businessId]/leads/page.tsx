@@ -124,7 +124,10 @@ export default function LeadsPage() {
                       {lead.need ? ` — ${lead.need}` : ""}
                     </span>
                   </div>
-                  <div className="flex shrink-0 items-center gap-3 text-sm text-ink-muted">
+                  <div className="flex shrink-0 flex-wrap items-center gap-3 text-sm text-ink-muted">
+                    {lead.next_follow_up_at ? (
+                      <FollowUpDue at={lead.next_follow_up_at} />
+                    ) : null}
                     <span>{CHANNEL_LABEL[lead.channel] ?? lead.channel}</span>
                     <time dateTime={lead.created_at}>{dateTime.format(new Date(lead.created_at))}</time>
                     <LeadStatusBadge status={lead.status} />
@@ -143,5 +146,15 @@ export default function LeadsPage() {
         </section>
       )}
     </div>
+  );
+}
+
+function FollowUpDue({ at }: { at: string }) {
+  const [now] = useState(() => Date.now()); // judged when the row first renders
+  const overdue = new Date(at).getTime() < now;
+  return (
+    <span className={overdue ? "font-semibold text-danger" : undefined} data-testid="lead-follow-up">
+      {overdue ? "Follow-up overdue" : `Follow up by ${dateTime.format(new Date(at))}`}
+    </span>
   );
 }
