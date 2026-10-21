@@ -104,9 +104,9 @@ Rules: at least one Owner always exists; nobody can grant a role higher than the
 | U-09 | Initial supported providers list | OpenAI-compatible + Anthropic + Google Gemini, verified at Phase 2 | Phase 2 |
 | U-10 | Risk-based auto-publish of knowledge | Manual publish | Phase 3 |
 | U-11 | Hosting provider/region, managed vs self-run Postgres | Hetzner US + self-run with WAL-G | Phase 7 |
-| U-12 | Individual (non-verbatim) conversation summaries beyond 30 days | **Unresolved.** Not retained beyond the 30-day raw window until a data-minimization, access, deletion and retention policy is approved. *Approved separately:* privacy-conscious daily aggregated operational metrics, under their own documented retention policy. | Phase 3 |
+| U-12 | Individual (non-verbatim) conversation summaries beyond 30 days | **Resolved 2026-10-21 (PO): not kept.** Nothing derived from a conversation (summaries, customer memory items) outlives the 30-day raw window, and customers are told so in the chat. *Approved separately:* privacy-conscious daily aggregated operational metrics, under their own documented retention policy. | Task 16 |
 | U-17 | Authentication solution | **Resolved 2026-10-19:** first-party FastAPI auth, no managed provider (ADR-001) | — |
-| U-13 | Memory review schedule | `review_at` = 180 days default | Phase 3 |
+| U-13 | Memory review schedule | **Resolved 2026-10-21 (PO), follows U-12:** no long-term review schedule; memory items are deleted within the 30-day window (the 180-day proposal is withdrawn). | Task 16 |
 | U-14 | Telegram two-way Executive chat in MVP | Outbound notifications + deep links only | Phase 6 |
 | U-15 | Billing/payment implementation | Out of MVP code until prices exist | Post-MVP |
 | U-16 | Bot challenge provider | Cloudflare Turnstile candidate | Phase 4 |

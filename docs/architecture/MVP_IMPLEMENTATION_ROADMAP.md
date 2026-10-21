@@ -151,12 +151,10 @@ until then the item remains an open MVP requirement and blocks the final pilot g
 - **Acceptance:** entering an email alone unlocks nothing; unverified sessions cannot read verified
   memory or history; memory items never contain verbatim message text; no memory item outlives the
   retention the PO approves; deleting a customer deletes their memory; cross-tenant isolation.
-- **Open PO decisions (must be decided before Task 16 starts; nothing here is an approved default):**
-  U-12 (whether anything derived from a conversation may be kept beyond the 30-day raw window, and
-  under which data-minimization, access and deletion policy) and U-13 (memory review timing; the
-  180-day figure in ARCHITECTURE_DECISIONS.md is a proposal, not approved). Until decided, memory
-  retention and review timing are configuration with the conservative behaviour: memory items are
-  deleted within the same 30-day window as raw messages.
+- **PO decisions (2026-10-21):** U-12 — nothing derived from a conversation is kept beyond the
+  30-day raw window: memory items are deleted within the same 30 days as raw messages. U-13 — no
+  long-term review schedule (follows U-12). Customers are told in the chat how long their
+  conversation and what the agents remember about them are kept.
 - **Out of scope:** SMS/phone verification, customer self-service portal.
 
 ### Task 17 — Knowledge file uploads

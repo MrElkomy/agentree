@@ -31,9 +31,9 @@ that changes what it describes. Last updated: 2026-10-21.
   #35 chat scroll fix merged and deployed.
 - **Merged:** Task 14 — agent framework, routing, shared context (#36,
   `docs/architecture/AGENTS.md`).
-- **In review:** Task 15 — complete Customer Service + Technical Support agents, knowledge
-  scoping per agent, resolution by the AI, the visitor or the team (`AGENTS.md`). Batch 2 =
-  Tasks 14–16.
+- **Merged:** Task 15 — complete Customer Service + Technical Support agents, knowledge
+  scoping per agent, resolution by the AI, the visitor or the team (#37, `AGENTS.md`).
+  Batch 2 = Tasks 14–16.
 - Shared Hetzner host with TRACK, IELTS and the Telegram bridge — never disrupt them.
 - Deploy: the PO runs `~/agentree/infra/staging/deploy.sh origin/main` (pre-deploy encrypted
   backup, migrations, automatic rollback). Details: `docs/operations/STAGING_RUNBOOK.md`.
@@ -44,8 +44,11 @@ that changes what it describes. Last updated: 2026-10-21.
 - AI on staging: Groq (free tier) as the demo provider key. Nightly encrypted backups to Google
   Drive at 03:00 America/New_York.
 
+## Recent PO decisions
+- **U-12 / U-13 (2026-10-21):** customer memory is not kept beyond the 30-day raw-message window;
+  no long-term review schedule; customers are told in the chat (Task 16).
+
 ## Open PO decisions (do not assume answers)
-- **U-12 / U-13** (customer memory retention and review timing) — must be decided before Task 16.
 - **Google Sheets** (required; three uses: lead sync, reports, knowledge for agents instead of
   server uploads) — placement to propose with Task 17.
 - Other deferrals and placements: see the roadmap's tracking table; each needs PO approval.
