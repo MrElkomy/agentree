@@ -487,7 +487,7 @@ export interface paths {
         put?: never;
         /**
          * Sales Console Stream
-         * @description The console turn as server-sent events: `delta`*, `restart`, then `done` or `error`.
+         * @description The console turn as server-sent events (see `agents/events.py`), then `done` / `error`.
          */
         post: operations["sales_console_stream_api_businesses__business_id__agents_sales_console_stream_post"];
         delete?: never;
@@ -610,7 +610,7 @@ export interface paths {
         put?: never;
         /**
          * Guest Chat Stream
-         * @description The chat turn as server-sent events: `delta`*, `restart`, then `done` or `error`.
+         * @description The chat turn as server-sent events (`agents/events.py`), then `done` or `error`.
          *
          *     `done` carries the same body as POST /chat; its `reply` is final (it replaces the streamed
          *     text). After `error` nothing was stored and the visitor can send the message again.
@@ -910,6 +910,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/businesses/{business_id}/agents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Agents */
+        get: operations["list_agents_api_businesses__business_id__agents_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/businesses/{business_id}/agents/{role}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update Agent */
+        put: operations["update_agent_api_businesses__business_id__agents__role__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/businesses/{business_id}/notifications/push": {
         parameters: {
             query?: never;
@@ -1007,6 +1041,66 @@ export interface components {
             /** Token */
             token: string;
         };
+        /** AgentConfigIn */
+        AgentConfigIn: {
+            /** Enabled */
+            enabled: boolean;
+            /**
+             * Display Name
+             * @default
+             */
+            display_name: string;
+            /** Public */
+            public: boolean;
+            /** Tools */
+            tools?: string[];
+        };
+        /** AgentConfigOut */
+        AgentConfigOut: {
+            /** Role */
+            role: string;
+            /** Title */
+            title: string;
+            /** Name */
+            name: string;
+            /** Display Name */
+            display_name: string;
+            /**
+             * Audience
+             * @enum {string}
+             */
+            audience: "public" | "internal";
+            /** Handles */
+            handles: string;
+            /** Available */
+            available: boolean;
+            /** Enabled */
+            enabled: boolean;
+            /** Public */
+            public: boolean;
+            /** Tools */
+            tools: string[];
+            /** Available Tools */
+            available_tools: string[];
+            /** Version */
+            version: number;
+            /** Updated At */
+            updated_at: string | null;
+        };
+        /** AgentReplyOut */
+        AgentReplyOut: {
+            /** Agent */
+            agent: string;
+            /** Agent Name */
+            agent_name: string;
+            /** Content */
+            content: string;
+        };
+        /**
+         * AgentRole
+         * @enum {string}
+         */
+        AgentRole: "sales" | "customer_service" | "technical_support" | "data_analyst" | "executive";
         /** AuditActorOut */
         AuditActorOut: {
             /**
@@ -1090,6 +1184,8 @@ export interface components {
             message: string;
             /** Conversation Id */
             conversation_id?: string | null;
+            /** Agent */
+            agent?: string | null;
         };
         /** ConsoleReplyOut */
         ConsoleReplyOut: {
@@ -1110,6 +1206,14 @@ export interface components {
             slot: string;
             /** Fallback Used */
             fallback_used: boolean;
+            /** Agent */
+            agent: string;
+            /** Agent Name */
+            agent_name: string;
+            /** Replies */
+            replies: components["schemas"]["AgentReplyOut"][];
+            /** Handoffs */
+            handoffs: components["schemas"]["HandoffOut"][];
         };
         /** CredentialIn */
         CredentialIn: {
@@ -1262,6 +1366,8 @@ export interface components {
              * @enum {string}
              */
             channel: "public" | "widget";
+            /** Agent */
+            agent?: string | null;
         };
         /** GuestChatOut */
         GuestChatOut: {
@@ -1279,6 +1385,15 @@ export interface components {
              * @enum {string}
              */
             status: "open" | "needs_human" | "human_active" | "resolved";
+            /** Agent */
+            agent?: string | null;
+            /** Agent Name */
+            agent_name?: string | null;
+            /**
+             * Replies
+             * @default []
+             */
+            replies: components["schemas"]["GuestReplyOut"][];
         };
         /**
          * GuestConversationOut
@@ -1341,6 +1456,19 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Agent */
+            agent?: string | null;
+            /** Agent Name */
+            agent_name?: string | null;
+        };
+        /** GuestReplyOut */
+        GuestReplyOut: {
+            /** Agent */
+            agent: string;
+            /** Agent Name */
+            agent_name: string;
+            /** Content */
+            content: string;
         };
         /** GuestSessionOut */
         GuestSessionOut: {
@@ -1356,6 +1484,13 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** HandoffOut */
+        HandoffOut: {
+            /** From Agent */
+            from_agent: string;
+            /** To Agent */
+            to_agent: string;
         };
         /**
          * Health
@@ -1426,6 +1561,8 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Agent */
+            agent?: string | null;
         };
         /** InboxPageOut */
         InboxPageOut: {
@@ -1671,12 +1808,21 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Agent */
+            agent?: string | null;
         };
         /**
          * ProviderName
          * @enum {string}
          */
         ProviderName: "openai" | "anthropic" | "gemini" | "groq";
+        /** PublicAgentOut */
+        PublicAgentOut: {
+            /** Role */
+            role: string;
+            /** Name */
+            name: string;
+        };
         /** PublicPageOut */
         PublicPageOut: {
             /** Slug */
@@ -1689,6 +1835,10 @@ export interface components {
             links: components["schemas"]["LinkOut"][];
             /** Chat Enabled */
             chat_enabled: boolean;
+            /** Agents */
+            agents: components["schemas"]["PublicAgentOut"][];
+            /** Lead Capture */
+            lead_capture: boolean;
         };
         /**
          * PublicProfileIn
@@ -3838,6 +3988,73 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_agents_api_businesses__business_id__agents_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentConfigOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_agent_api_businesses__business_id__agents__role__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                role: components["schemas"]["AgentRole"];
+                business_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentConfigIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentConfigOut"];
+                };
             };
             /** @description Validation Error */
             422: {

@@ -17,8 +17,13 @@ from fastapi.responses import StreamingResponse
 from fastapi.security import APIKeyHeader
 
 from agentree.actions import service as gateway
+from agentree.actions.service import Action
+from agentree.agents import configs as agent_configs
+from agentree.agents import events as agent_events
 from agentree.agents import inbox
 from agentree.agents import service as agents
+from agentree.agents.prompts import CustomerFacts
+from agentree.agents.registry import AgentRole
 from agentree.core import ratelimit, sse
 from agentree.core.client_ip import client_ip
 from agentree.core.config import Environment
@@ -31,9 +36,11 @@ from agentree.public.schemas import (
     GuestLeadIn,
     GuestLeadOut,
     GuestMessageOut,
+    GuestReplyOut,
     GuestSessionOut,
     LeadSuggestionOut,
     LinkOut,
+    PublicAgentOut,
     PublicPageOut,
     PublicProfileIn,
     PublicProfileOut,
@@ -139,8 +146,15 @@ def _ip(request: Request) -> str:
 @public_router.get("")
 async def public_page(slug: str, request: Request) -> PublicPageOut:
     page = await _page(request, slug)
-    return PublicPageOut(slug=page.slug, display_name=page.display_name, bio=page.bio,
-                         links=_links(page.links), chat_enabled=True)  # fmt: skip
+    roster = await agent_configs.roster(request.app.state.session_factory, page.tenant)
+    reachable = [c for c in roster.all() if roster.allowed(c.role, guest=True)]
+    sales = roster.config(AgentRole.SALES)
+    return PublicPageOut(
+        slug=page.slug, display_name=page.display_name, bio=page.bio, links=_links(page.links),
+        chat_enabled=bool(reachable),
+        agents=[PublicAgentOut(role=c.role, name=c.name) for c in reachable],
+        lead_capture=sales is not None and Action.CREATE_LEAD in sales.effective_tools,
+    )  # fmt: skip
 
 
 @public_router.get("/widget-config")
@@ -201,6 +215,8 @@ async def _chat_admission(
 def _guest_turn_error(exc: Exception) -> HTTPException | None:
     if isinstance(exc, agents.NotFoundError):
         return _not_found()
+    if isinstance(exc, agents.AgentNotAllowedError):
+        return HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "invalid_agent")
     if isinstance(exc, agents.AgentUnavailableError):
         return HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "agent_unavailable")
     return None
@@ -213,7 +229,23 @@ def _chat_out(turn: agents.GuestTurnResult) -> GuestChatOut:
         lead_suggestion=LeadSuggestionOut(name=suggestion.name, email=suggestion.email,
                                           phone=suggestion.phone, need=suggestion.need)
         if suggestion else None,
+        agent=turn.agent, agent_name=turn.agent_name,
+        replies=[GuestReplyOut(agent=r.agent, agent_name=r.name, content=r.content)
+                 for r in turn.replies],
     )  # fmt: skip
+
+
+async def _facts(
+    request: Request, page: service.PublicPage, conversation_id: UUID | None
+) -> CustomerFacts | None:
+    """What this visitor confirmed in this conversation (team context; never contact data)."""
+    if conversation_id is None:
+        return None
+    lead = await leads.lead_for_conversation(request.app.state.session_factory, page.tenant,
+                                             conversation_id)  # fmt: skip
+    if lead is None:
+        return None
+    return CustomerFacts(name=lead.name, need=lead.need, has_contact=bool(lead.email or lead.phone))
 
 
 def _notify_if_handoff(
@@ -235,7 +267,8 @@ async def guest_chat(
         turn = await agents.public_sales_turn(
             st.session_factory, st.vault, st.llm_providers, page.tenant,
             guest_session_id=guest, message=body.message, conversation_id=body.conversation_id,
-            channel=body.channel,
+            channel=body.channel, agent=body.agent,
+            facts=await _facts(request, page, body.conversation_id),
         )  # fmt: skip
     except Exception as exc:
         if (err := _guest_turn_error(exc)) is None:
@@ -253,7 +286,7 @@ async def guest_chat(
 async def guest_chat_stream(
     slug: str, body: GuestChatIn, creds: GuestToken, request: Request
 ) -> StreamingResponse:
-    """The chat turn as server-sent events: `delta`*, `restart`, then `done` or `error`.
+    """The chat turn as server-sent events (`agents/events.py`), then `done` or `error`.
 
     `done` carries the same body as POST /chat; its `reply` is final (it replaces the streamed
     text). After `error` nothing was stored and the visitor can send the message again.
@@ -263,7 +296,8 @@ async def guest_chat_stream(
     items = agents.stream_public_sales_turn(
         st.session_factory, st.vault, st.llm_providers, page.tenant,
         guest_session_id=guest, message=body.message, conversation_id=body.conversation_id,
-        channel=body.channel,
+        channel=body.channel, agent=body.agent,
+        facts=await _facts(request, page, body.conversation_id),
     )  # fmt: skip
     try:
         first = await anext(items)
@@ -273,11 +307,9 @@ async def guest_chat_stream(
         raise err from None
     tasks = BackgroundTasks()  # run after the stream ends
 
-    def encode(item: agents.Delta | agents.Restart | agents.GuestTurnResult) -> bytes:
-        if isinstance(item, agents.Delta):
-            return sse.event("delta", {"text": item.text})
-        if isinstance(item, agents.Restart):
-            return sse.event("restart", {})
+    def encode(item: agents.StreamEvent | agents.GuestTurnResult) -> bytes:
+        if not isinstance(item, agents.GuestTurnResult):
+            return agent_events.encode(item)
         _notify_if_handoff(request, page, item, tasks)
         return sse.event("done", _chat_out(item).model_dump(mode="json"))
 
@@ -318,6 +350,8 @@ async def guest_lead(
         raise _not_found() from None
     except gateway.IdempotencyConflictError:
         raise HTTPException(status.HTTP_409_CONFLICT, "idempotency_conflict") from None
+    except leads.LeadCaptureOffError:
+        raise HTTPException(status.HTTP_409_CONFLICT, "lead_capture_off") from None
     return GuestLeadOut(received=True)
 
 
@@ -334,7 +368,8 @@ async def guest_messages(
         )  # fmt: skip
     except agents.NotFoundError:
         raise _not_found() from None
-    return [GuestMessageOut(role=m.role, content=m.content, created_at=m.created_at) for m in rows]
+    names = await _agent_names(request, page)
+    return [_message_out(m, names) for m in rows]
 
 
 @public_router.get("/conversations/{conversation_id}")
@@ -351,11 +386,19 @@ async def guest_conversation(
         current = await inbox.conversation_status(factory, page.tenant, conversation_id)
     except (agents.NotFoundError, inbox.NotFoundError):
         raise _not_found() from None
-    return GuestConversationOut(
-        status=current,
-        messages=[GuestMessageOut(role=m.role, content=m.content, created_at=m.created_at)
-                  for m in rows],
-    )  # fmt: skip
+    names = await _agent_names(request, page)
+    return GuestConversationOut(status=current, messages=[_message_out(m, names) for m in rows])
+
+
+async def _agent_names(request: Request, page: service.PublicPage) -> dict[str, str]:
+    roster = await agent_configs.roster(request.app.state.session_factory, page.tenant)
+    return {c.role: c.name for c in roster.all()}
+
+
+def _message_out(m: agents.MessageInfo, names: dict[str, str]) -> GuestMessageOut:
+    name = names.get(m.agent) if m.agent else None
+    return GuestMessageOut(role=m.role, content=m.content, created_at=m.created_at,
+                           agent=m.agent, agent_name=name)  # fmt: skip
 
 
 @public_router.post("/conversations/{conversation_id}/handoff")

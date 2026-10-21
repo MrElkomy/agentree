@@ -39,6 +39,9 @@ export type InboxPage = Schemas["InboxPageOut"];
 export type InboxMessage = Schemas["InboxMessageOut"];
 export type InboxConversation = Schemas["InboxConversationOut"];
 export type PushConfig = Schemas["PushConfigOut"];
+export type AgentConfig = Schemas["AgentConfigOut"];
+export type AgentConfigIn = Schemas["AgentConfigIn"];
+export type PublicAgent = Schemas["PublicAgentOut"];
 
 export class ApiError extends Error {
   constructor(

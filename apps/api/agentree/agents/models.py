@@ -22,6 +22,7 @@ from sqlalchemy import (
     false,
     func,
 )
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 
 from agentree.core.models import Base
@@ -48,6 +49,11 @@ class Conversation(Base):
             name="handoff_reason",
         ),
         Index("ix_conversations_business_id_status", "business_id", "status"),
+        CheckConstraint(
+            "active_agent IN ('sales', 'customer_service', 'technical_support', 'data_analyst', "
+            "'executive')",
+            name="active_agent",
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
@@ -101,3 +107,60 @@ class Message(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), index=True
     )
+
+
+AGENT_ROLES_SQL = "'sales', 'customer_service', 'technical_support', 'data_analyst', 'executive'"
+
+
+class AgentConfig(Base):
+    """A business's settings for one agent role (Task 14). No row: the role's defaults apply."""
+
+    __tablename__ = "agent_configs"
+    __table_args__ = (
+        UniqueConstraint("business_id", "role"),
+        CheckConstraint(f"role IN ({AGENT_ROLES_SQL})", name="role"),
+        CheckConstraint("version >= 1", name="version"),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    business_id: Mapped[UUID] = mapped_column(ForeignKey("businesses.id", ondelete="CASCADE"))
+    role: Mapped[str] = mapped_column(String(32))
+    enabled: Mapped[bool] = mapped_column(Boolean)
+    display_name: Mapped[str] = mapped_column(String(40), server_default="")
+    public: Mapped[bool] = mapped_column(Boolean)  # visitors may reach it (public roles only)
+    tools: Mapped[list[str]] = mapped_column(ARRAY(String(64)))  # within the role's allowlist
+    version: Mapped[int] = mapped_column(Integer, server_default="1")
+    updated_by_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AgentHandoff(Base):
+    """One agent handing a conversation to another (Task 14).
+
+    `note` is the handing-off agent's summary for its teammate: model output derived from the
+    conversation, so it is untrusted, shown to the next agent as delimited data only, and deleted
+    with the conversation by the retention job (same 30-day rule as messages).
+    """
+
+    __tablename__ = "agent_handoffs"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["business_id", "conversation_id"],
+            ["conversations.business_id", "conversations.id"],
+            ondelete="CASCADE",
+        ),
+        CheckConstraint(f"from_agent IN ({AGENT_ROLES_SQL})", name="from_agent"),
+        CheckConstraint(f"to_agent IN ({AGENT_ROLES_SQL})", name="to_agent"),
+        CheckConstraint("from_agent <> to_agent", name="distinct_agents"),
+        Index("ix_agent_handoffs_business_id_conversation_id", "business_id", "conversation_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    business_id: Mapped[UUID] = mapped_column()
+    conversation_id: Mapped[UUID] = mapped_column()
+    from_agent: Mapped[str] = mapped_column(String(32))
+    to_agent: Mapped[str] = mapped_column(String(32))
+    note: Mapped[str] = mapped_column(Text, server_default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

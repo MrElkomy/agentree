@@ -108,4 +108,24 @@ class DemoProvider:
             and "<<HANDOFF" in request.messages[0].content
         ):
             text = "Let me connect you with the team.\n<<HANDOFF>>"
+        else:
+            text = _demo_route(request.messages[0].content, last) or text
         return ChatResult(text=text, provider=self.name, model=request.model)
+
+
+def _demo_route(system: str, last: str) -> str | None:
+    """Mimic agent routing (agents/prompts.py) for demos and browser tests: technical problems
+    go to Technical Support, buying questions back to Sales, when that teammate is listed."""
+    if re.search(r"\b(error|broken|not working|install|setup)\b", last, re.I) and (
+        "  - technical_support:" in system
+    ):
+        note = f"the customer reports a problem: {last[:80]}"
+        return (
+            f"Let me bring in our Technical Support teammate.\n<<ROUTE technical_support: {note}>>"
+        )
+    if re.search(r"\b(buy|price|quote|order)\b", last, re.I) and "  - sales:" in system:
+        note = "the problem is solved; the customer now wants to buy"
+        return f"I'll hand you back to our Sales teammate for that.\n<<ROUTE sales: {note}>>"
+    if "the Technical Support of" in system:
+        return "Technical Support here. " + DEMO_REPLY
+    return None

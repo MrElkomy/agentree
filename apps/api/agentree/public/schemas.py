@@ -92,12 +92,19 @@ class PublicProfileOut(BaseModel):
 # --- public (anonymous visitors) --------------------------------------------------------
 
 
+class PublicAgentOut(BaseModel):
+    role: str
+    name: str  # display name (cosmetic)
+
+
 class PublicPageOut(BaseModel):
     slug: str
     display_name: str
     bio: str
     links: list[LinkOut]
     chat_enabled: bool
+    agents: list[PublicAgentOut]  # enabled agents visitors can start a chat with, in order
+    lead_capture: bool  # the "Leave your details" form is available
 
 
 class WidgetConfigOut(BaseModel):
@@ -115,6 +122,8 @@ class GuestChatIn(BaseModel):
     message: str = Field(min_length=1, max_length=MAX_GUEST_MESSAGE)
     conversation_id: UUID | None = None
     channel: Literal["public", "widget"] = "public"
+    # Agent to start a new conversation with (one of the page's `agents`); default: the first.
+    agent: str | None = Field(default=None, max_length=32)
 
     @field_validator("message")
     @classmethod
@@ -136,12 +145,21 @@ class LeadSuggestionOut(BaseModel):
 ConversationStatus = Literal["open", "needs_human", "human_active", "resolved"]
 
 
+class GuestReplyOut(BaseModel):
+    agent: str
+    agent_name: str
+    content: str
+
+
 class GuestChatOut(BaseModel):
     conversation_id: UUID
     # Empty while a person handles the conversation (the AI does not answer then).
     reply: str
     lead_suggestion: LeadSuggestionOut | None = None
     status: ConversationStatus = "open"
+    agent: str | None = None  # the agent now handling the conversation
+    agent_name: str | None = None
+    replies: list[GuestReplyOut] = []  # every agent reply of this turn (handoffs), in order
 
 
 class GuestConversationOut(BaseModel):
@@ -174,3 +192,5 @@ class GuestMessageOut(BaseModel):
     role: str
     content: str
     created_at: datetime
+    agent: str | None = None  # assistant messages: the agent's role
+    agent_name: str | None = None

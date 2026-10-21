@@ -1,7 +1,8 @@
 """Action Gateway: the only path by which an agent changes business data.
 
-Every agent action is (1) authorized against a fixed per-agent allowlist enforced here in the
-backend, never by the model, and (2) idempotent: the first execution of an idempotency key is
+Every agent action is (1) authorized against a fixed per-role allowlist enforced here in the
+backend, never by the model, narrowed by the tools the business enabled for that agent (Task 14),
+and (2) idempotent: the first execution of an idempotency key is
 recorded in the caller's transaction; a retry with the same key and parameters returns the
 original result instead of acting twice, and the same key with different parameters is refused.
 Model output never names the action or the agent: trusted server code does.
@@ -45,9 +46,12 @@ class IdempotencyConflictError(Exception):
     """The idempotency key was already used for a different action or parameters."""
 
 
-def authorize(agent: str, action: Action) -> None:
+def authorize(agent: str, action: Action, granted: frozenset[Action] | None = None) -> None:
+    """`granted`: the tools the business enabled for this agent (None: the role's allowlist)."""
     if action not in PERMISSIONS.get(agent, frozenset()):
         raise ActionDeniedError(f"{agent} may not {action}")
+    if granted is not None and action not in granted:
+        raise ActionDeniedError(f"{action} is turned off for {agent}")
 
 
 def params_hash(params: Mapping[str, Any]) -> str:
@@ -57,7 +61,7 @@ def params_hash(params: Mapping[str, Any]) -> str:
 
 async def claim(
     session: AsyncSession, ctx: TenantContext, *, agent: str, action: Action,
-    idempotency_key: str, params: Mapping[str, Any],
+    idempotency_key: str, params: Mapping[str, Any], granted: frozenset[Action] | None = None,
 ) -> UUID | None:  # fmt: skip
     """Authorize and reserve an idempotency key inside the caller's transaction.
 
@@ -65,7 +69,7 @@ async def claim(
     `complete`), or the result id of the earlier execution of the same request. A concurrent
     claim of the same key waits on the unique index until the first transaction finishes.
     """
-    authorize(agent, action)
+    authorize(agent, action, granted)
     if not idempotency_key or len(idempotency_key) > MAX_KEY_LEN:
         raise ValueError("invalid idempotency key")
     digest = params_hash(params)

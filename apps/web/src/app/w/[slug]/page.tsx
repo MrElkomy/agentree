@@ -22,5 +22,5 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function WidgetPage({ params }: Props) {
   const page = await loadPage((await params).slug);
   if (!page || !page.chat_enabled) notFound();
-  return <WidgetChat slug={page.slug} displayName={page.display_name} />;
+  return <WidgetChat slug={page.slug} displayName={page.display_name} leadCapture={page.lead_capture} />;
 }

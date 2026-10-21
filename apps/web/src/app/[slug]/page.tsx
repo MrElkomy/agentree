@@ -61,7 +61,12 @@ export default async function PublicBusinessPage({ params }: Props) {
             <h2 id="agents-heading" className="text-sm font-semibold tracking-normal text-ink-muted">
               Talk to our team
             </h2>
-            <ChatEntry slug={page.slug} displayName={page.display_name} />
+            <ChatEntry
+              slug={page.slug}
+              displayName={page.display_name}
+              agents={page.agents}
+              leadCapture={page.lead_capture}
+            />
           </section>
         ) : null}
 

@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from agentree.agents.api import router as agents_router
+from agentree.agents.config_api import router as agent_configs_router
 from agentree.agents.inbox_api import router as inbox_router
 from agentree.audit.api import router as audit_router
 from agentree.core.config import Settings, get_settings
@@ -94,6 +95,7 @@ def create_app(
     app.include_router(leads_router)
     app.include_router(follow_ups_router)
     app.include_router(inbox_router)
+    app.include_router(agent_configs_router)
     app.include_router(metrics_router)
     app.include_router(notifications_router)
     return app

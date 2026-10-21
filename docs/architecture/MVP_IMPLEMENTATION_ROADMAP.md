@@ -70,7 +70,7 @@ until then the item remains an open MVP requirement and blocks the final pilot g
 | Connected data source: **Google Sheets** (5.6) | **PO 2026-10-21: required, three uses** — write every lead to the business's sheet; publish reports to sheets; use sheets as a knowledge source for agents instead of uploading files to our server (affects Task 17). Needs the integration connections + OAuth (5.2). Placement to be proposed with Task 17 | Needs PO approval of placement |
 | Telegram linking and delivery (6.3) | Proposed deferral to after Task 22 (email alerts ship in Tasks 11, 12, 20) | Needs PO approval |
 | In-app notification center (6.3) | Proposed deferral to after Task 22 | Needs PO approval |
-| Custom agent display name (2.4, PO request 2026-10-20) | Proposed: add to Task 14 (per-business agent config) | Needs PO approval of placement |
+| Custom agent display name (2.4, PO request 2026-10-20) | **Approved 2026-10-21** (Task 14 authorization): display name per agent, cosmetic only | Task 14 |
 | Alert when a business hits its daily reply budget (4.3) | Proposed: add to Task 13 (monitoring) | Needs PO approval of placement |
 | Daily aggregated operational metrics job (approved with 5.4) | Proposed: add to Task 18 | Needs PO approval of placement |
 | **New (PO request 2026-10-21):** free Web Push notifications to Owners/Admins (new lead, handoff request, provider outage) via the standard Push API + VAPID, opt-in per device, email stays the fallback; iOS needs 16.4+ and Add to Home Screen | **Approved 2026-10-21:** Task 13b (lead, handoff and provider-down alerts) | Task 13b |
@@ -124,7 +124,7 @@ until then the item remains an open MVP requirement and blocks the final pilot g
   Push (PO approved adding it to Task 13 on 2026-10-21): opt-in per device for Owners/Admins,
   alerts for new lead, handoff request and a provider key going down; email stays the fallback.
 
-### Task 14 — Agent framework, routing, shared context
+### Task 14 — Agent framework, routing, shared context — 🟡 implemented (pending PO approval), see `AGENTS.md`
 - **Scope:** versioned per-business agent definitions (role, enabled, tools/permissions, public vs
   internal); router selecting the agent per turn; handoff events between agents; shared authorized
   context (conversation summary + lead/customer facts the receiving agent may see).
@@ -314,8 +314,8 @@ Partially delivered slices stay open until every item below is implemented and t
 
 ## Phase 3 — Integrated workforce
 
-### 3.1 Five agent definitions + per-business configuration (versioned)
-### 3.2 Routing and handoff
+### 3.1 Five agent definitions + per-business configuration (versioned) — 🟡 Task 14
+### 3.2 Routing and handoff — 🟡 Task 14
 - **Acceptance:** Sales → Technical Support → Sales without the customer repeating info; handoff events recorded; public agents cannot transfer to internal agents; tool rights follow the receiving agent.
 ### 3.3 Minimal Action Gateway + `create_lead`, `update_lead`, `create_follow_up_task` **[changed]**
 - **Acceptance:** retried tool call with same idempotency key creates exactly one lead; agent lacking permission is refused by the backend even if the model asks.

@@ -134,7 +134,8 @@ function Sidebar({ businessId, current }: { businessId: string; current: Busines
         <nav aria-label="Business" className="flex flex-col gap-6">
           <ul className="flex flex-col gap-0.5">
             <NavItem href={`/b/${businessId}`} label="Overview" />
-            <NavItem href={`/b/${businessId}/agents/sales`} label="Sales Agent" />
+            <NavItem href={`/b/${businessId}/agents`} label="AI team" />
+            <NavItem href={`/b/${businessId}/agents/sales`} label="Test chat" />
             <NavItem href={`/b/${businessId}/inbox`} label="Inbox" section />
             <NavItem href={`/b/${businessId}/leads`} label="Leads" section />
             <NavItem href={`/b/${businessId}/knowledge`} label="Knowledge" />
@@ -148,24 +149,6 @@ function Sidebar({ businessId, current }: { businessId: string; current: Busines
               </>
             ) : null}
           </ul>
-          <div className="flex flex-col gap-2">
-            <p id="upcoming-heading" className="px-3 text-sm font-semibold text-ink-muted">
-              Coming soon
-            </p>
-            <ul aria-labelledby="upcoming-heading" className="flex flex-col gap-0.5">
-              {["Support & Tech agents"].map((label) => (
-                <li key={label}>
-                  <span
-                    aria-disabled="true"
-                    className="flex items-center justify-between rounded-md px-3 py-2 text-sm text-ink-muted"
-                  >
-                    {label}
-                    <span className="rounded-full border border-line px-2 py-0.5 text-xs">Soon</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
         </nav>
         <div className="mt-auto hidden items-center gap-3 border-t border-line pt-4 lg:flex">
           <AccountMenu align="start" side="top" />

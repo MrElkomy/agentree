@@ -5,8 +5,15 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 
-from agentree.agents import service
-from agentree.agents.schemas import ConsoleMessageIn, ConsoleReplyOut, MessageOut, SourceOut
+from agentree.agents import events, service
+from agentree.agents.schemas import (
+    AgentReplyOut,
+    ConsoleMessageIn,
+    ConsoleReplyOut,
+    HandoffOut,
+    MessageOut,
+    SourceOut,
+)
 from agentree.core import ratelimit, sse
 from agentree.core.vault import VaultDecryptError, VaultUnavailableError
 from agentree.tenancy.deps import Member
@@ -27,6 +34,10 @@ async def _console_limit(request: Request, member: Member) -> None:
 def _turn_error(exc: Exception) -> HTTPException | None:
     if isinstance(exc, service.NotFoundError):
         return HTTPException(status.HTTP_404_NOT_FOUND, "not_found")
+    if isinstance(exc, service.NoAgentEnabledError):
+        return HTTPException(status.HTTP_409_CONFLICT, "no_agent_enabled")
+    if isinstance(exc, service.AgentNotAllowedError):
+        return HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "agent_unavailable")
     if isinstance(exc, service.NoProviderConfiguredError):
         return HTTPException(status.HTTP_409_CONFLICT, "no_ai_provider_configured")
     if isinstance(exc, service.ProvidersUnavailableError):
@@ -43,6 +54,11 @@ def _reply_out(turn: service.TurnResult) -> ConsoleReplyOut:
         conversation_id=turn.conversation_id, reply=turn.reply,
         sources=[SourceOut(id=i, title=t) for i, t in turn.sources], provider=turn.provider,
         model=turn.model, slot=turn.slot, fallback_used=turn.fallback_used,
+        agent=turn.agent, agent_name=turn.agent_name,
+        replies=[AgentReplyOut(agent=r.agent, agent_name=r.name, content=r.content)
+                 for r in turn.replies],
+        handoffs=[HandoffOut(from_agent=h.from_agent, to_agent=h.to_agent)
+                  for h in turn.handoffs],
     )  # fmt: skip
 
 
@@ -56,6 +72,7 @@ async def sales_console(
         turn = await service.sales_console_turn(
             st.session_factory, st.vault, st.llm_providers, member.tenant,
             user_id=member.user.id, message=body.message, conversation_id=body.conversation_id,
+            agent=body.agent,
         )  # fmt: skip
     except Exception as exc:
         if (err := _turn_error(exc)) is None:
@@ -64,15 +81,10 @@ async def sales_console(
     return _reply_out(turn)
 
 
-StreamItem = service.Delta | service.Restart | service.TurnResult
-
-
-def _console_event(item: StreamItem) -> bytes:
-    if isinstance(item, service.Delta):
-        return sse.event("delta", {"text": item.text})
-    if isinstance(item, service.Restart):
-        return sse.event("restart", {})
-    return sse.event("done", _reply_out(item).model_dump(mode="json"))
+def _console_event(item: service.StreamEvent | service.TurnResult) -> bytes:
+    if isinstance(item, service.TurnResult):
+        return sse.event("done", _reply_out(item).model_dump(mode="json"))
+    return events.encode(item)
 
 
 def _console_stream_error(exc: Exception) -> bytes | None:
@@ -90,12 +102,13 @@ def _console_stream_error(exc: Exception) -> bytes | None:
 async def sales_console_stream(
     body: ConsoleMessageIn, member: Member, request: Request
 ) -> StreamingResponse:
-    """The console turn as server-sent events: `delta`*, `restart`, then `done` or `error`."""
+    """The console turn as server-sent events (see `agents/events.py`), then `done` / `error`."""
     await _console_limit(request, member)
     st = request.app.state
     items = service.stream_sales_console_turn(
         st.session_factory, st.vault, st.llm_providers, member.tenant,
         user_id=member.user.id, message=body.message, conversation_id=body.conversation_id,
+        agent=body.agent,
     )  # fmt: skip
     try:
         first = await anext(items)
@@ -117,5 +130,6 @@ async def conversation_messages(
     except service.NotFoundError:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "not_found") from None
     return [
-        MessageOut(id=m.id, role=m.role, content=m.content, created_at=m.created_at) for m in rows
+        MessageOut(id=m.id, role=m.role, content=m.content, created_at=m.created_at, agent=m.agent)
+        for m in rows
     ]

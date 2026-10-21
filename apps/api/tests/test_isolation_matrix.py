@@ -60,6 +60,7 @@ async def _snapshot(client: AsyncClient, business_id: str) -> tuple[object, ...]
         (await client.get(f"{base}/audit-events")).json(),
         (await client.get(f"{base}/leads")).json(),
         (await client.get(f"{base}/inbox")).json(),
+        (await client.get(f"{base}/agents")).json(),
     )
 
 
@@ -116,6 +117,7 @@ async def test_owner_of_a_cannot_touch_b(harness: AppHarness, method: str, path:
         else convo.json()["conversation_id"],
         lead_id=lead_id,  # a real lead in B
         task_id=task_id,  # a real follow-up task in B
+        role="sales",  # B's Sales Agent
     )
     r = await alice.client.request(method, url, json=PLACEHOLDER_BODIES.get(method))
     assert r.status_code == 404, (method, url, r.status_code, r.text)
@@ -124,6 +126,7 @@ async def test_owner_of_a_cannot_touch_b(harness: AppHarness, method: str, path:
     assert after[0] == before[0] and after[1] == before[1]
     assert after[3] == before[3] and after[4] == before[4] and after[5] == before[5]
     assert after[6] == before[6] and after[7] == before[7] and after[8] == before[8]
+    assert after[9] == before[9]
 
 
 @pytest.mark.parametrize(("method", "path"), BUSINESS_ROUTES)
@@ -138,6 +141,7 @@ async def test_unknown_business_is_404_not_403(harness: AppHarness, method: str,
         conversation_id=uuid.uuid4(),
         lead_id=uuid.uuid4(),
         task_id=uuid.uuid4(),
+        role="sales",
     )
     r = await alice.client.request(method, url, json=PLACEHOLDER_BODIES.get(method))
     assert r.status_code == 404
@@ -155,6 +159,7 @@ async def test_anonymous_is_rejected(harness: AppHarness, method: str, path: str
         conversation_id=uuid.uuid4(),
         lead_id=uuid.uuid4(),
         task_id=uuid.uuid4(),
+        role="sales",
     )
     r = await c.request(method, url, json=PLACEHOLDER_BODIES.get(method))
     assert r.status_code == 401

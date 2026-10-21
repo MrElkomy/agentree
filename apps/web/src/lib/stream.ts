@@ -1,6 +1,7 @@
 /**
  * Streamed replies over server-sent events (POST, so not EventSource).
  *
+ * `agent` starts a reply from a named agent; `handoff` says the conversation moved to a teammate.
  * The backend sends `delta` events with text as the model writes it, `restart` when the backup
  * provider takes over mid-reply (drop the partial text), then `done` with the final body (its
  * `reply` replaces the streamed text) or `error`. Errors before the first event arrive as a
@@ -19,6 +20,10 @@ export class StreamInterruptedError extends ApiError {
 export type StreamHandlers = {
   onDelta: (text: string) => void;
   onRestart: () => void;
+  /** A reply from this agent starts (the next deltas belong to it). */
+  onAgent?: (agent: string, name: string) => void;
+  /** The previous agent handed the conversation to a teammate (its `onAgent` follows). */
+  onHandoff?: (toAgent: string, name: string) => void;
 };
 
 type Options = { guestToken?: string };
@@ -66,6 +71,9 @@ export async function streamApi<T>(
         if (!event) continue;
         if (event.name === "delta") handlers.onDelta(String(event.data.text ?? ""));
         else if (event.name === "restart") handlers.onRestart();
+        else if (event.name === "agent") handlers.onAgent?.(String(event.data.agent ?? ""), String(event.data.name ?? ""));
+        else if (event.name === "handoff")
+          handlers.onHandoff?.(String(event.data.to_agent ?? ""), String(event.data.name ?? ""));
         else if (event.name === "done") return event.data as T;
         else if (event.name === "error") throw new StreamInterruptedError(String(event.data.code ?? "unknown_error"));
       }

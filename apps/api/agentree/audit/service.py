@@ -48,6 +48,8 @@ class AuditAction(StrEnum):
     CONVERSATION_ASSIGNED = "conversation.assigned"
     CONVERSATION_RELEASED = "conversation.released"
     CONVERSATION_RESOLVED = "conversation.resolved"
+    AGENT_CONFIG_UPDATED = "agent.config_updated"
+    AGENT_HANDOFF = "agent.handoff"
 
 
 # Detail keys that may be stored. Anything else is dropped, so a careless caller cannot leak a
@@ -71,6 +73,11 @@ ALLOWED_DETAILS = frozenset(
         "due_at",
         "assigned",
         "reason",
+        "from_agent",
+        "to_agent",
+        "enabled",
+        "public",
+        "version",
     }
 )
 MAX_DETAIL_LEN = 200

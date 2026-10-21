@@ -29,10 +29,14 @@ import { StreamInterruptedError, streamApi, type StreamHandlers } from "./stream
 export const MAX_GUEST_MESSAGE = 1000;
 
 export type GuestChannel = "public" | "widget";
-/** `human` is a team member of the business replying after a handoff. */
+/**
+ * `human` is a team member replying after a handoff to a person; `joined` notes that another AI
+ * agent took over the conversation (agent-to-agent handoff).
+ */
 export type GuestTurn = {
-  role: "user" | "assistant" | "human";
+  role: "user" | "assistant" | "human" | "joined";
   content: string;
+  agentName?: string; // assistant replies: which agent wrote it
   failed?: boolean; // an assistant reply that broke off mid-way (nothing was saved)
 };
 export type ConversationStatus = GuestConversation["status"];
@@ -74,6 +78,8 @@ export const hasGuestConversation = (slug: string) =>
 const GUEST_MESSAGES: Record<string, string> = {
   busy: "We're getting a lot of messages — please try again in a moment.",
   agent_unavailable: "The assistant is unavailable right now.",
+  invalid_agent: "That assistant isn't available right now. Start a new conversation.",
+  lead_capture_off: "This business isn't taking contact details in the chat right now.",
   not_found: "This chat isn't available right now.",
   network_error: "Can't connect right now. Check your connection and try again.",
   validation_error: "That message can't be sent. Keep it under 1,000 characters.",
@@ -84,9 +90,40 @@ const GUEST_MESSAGES: Record<string, string> = {
 };
 
 function toTurns(conversation: GuestConversation): GuestTurn[] {
-  return conversation.messages
-    .filter((m) => m.role === "user" || m.role === "assistant" || m.role === "human")
-    .map((m) => ({ role: m.role as GuestTurn["role"], content: m.content }));
+  const turns: GuestTurn[] = [];
+  let lastAgent: string | null = null;
+  for (const m of conversation.messages) {
+    if (m.role === "assistant") {
+      // A different agent replying right after another one: it joined through a handoff.
+      if (lastAgent && m.agent && m.agent !== lastAgent && turns[turns.length - 1]?.role === "assistant") {
+        turns.push(joined(m.agent_name ?? "A teammate"));
+      }
+      turns.push({ role: "assistant", content: m.content, agentName: m.agent_name ?? undefined });
+      lastAgent = m.agent ?? lastAgent;
+    } else if (m.role === "user" || m.role === "human") {
+      turns.push({ role: m.role, content: m.content });
+    }
+  }
+  return turns;
+}
+
+const joined = (name: string): GuestTurn => ({ role: "joined", content: `${name} joined the conversation` });
+
+/** Replaces this turn's streamed replies with the final ones (`done` is authoritative). */
+function withFinalReplies(turns: GuestTurn[], reply: GuestChatReply): GuestTurn[] {
+  let lastUser = turns.length - 1;
+  while (lastUser >= 0 && turns[lastUser]?.role !== "user") lastUser--;
+  const out = turns.slice(0, lastUser + 1);
+  const replies = reply.replies?.length
+    ? reply.replies
+    : reply.reply
+      ? [{ agent: reply.agent ?? "", agent_name: reply.agent_name ?? "", content: reply.reply }]
+      : [];
+  replies.forEach((r, i) => {
+    if (i > 0) out.push(joined(r.agent_name));
+    out.push({ role: "assistant", content: r.content, agentName: r.agent_name || undefined });
+  });
+  return out;
 }
 
 /** Visitor-facing copy: short, neutral, and never mentions providers, models or keys. */
@@ -122,6 +159,7 @@ async function chatOnce(
   message: string,
   channel: GuestChannel,
   handlers: StreamHandlers,
+  agent?: string,
 ): Promise<GuestChatReply> {
   let token = read(tokenKey(slug)) ?? (await newToken(slug));
   let conversationId = read(convKey(slug));
@@ -131,7 +169,8 @@ async function chatOnce(
     try {
       const reply = await streamApi<GuestChatReply>(
         `${base(slug)}/chat/stream`,
-        { message, conversation_id: conversationId, channel },
+        // The chosen agent only starts a new conversation; later the backend routes.
+        { message, conversation_id: conversationId, channel, agent: conversationId ? undefined : agent },
         handlers,
         opts(token),
       );
@@ -168,7 +207,7 @@ function newIdempotencyKey(): string {
   }
 }
 
-export function useGuestChat(slug: string, channel: GuestChannel) {
+export function useGuestChat(slug: string, channel: GuestChannel, entryAgent?: string) {
   const [turns, setTurns] = useState<GuestTurn[]>([]);
   const [status, setStatus] = useState<ConversationStatus>("open");
   // Prefill offered by the agent after the visitor shared contact details (never sent as-is).
@@ -210,22 +249,27 @@ export function useGuestChat(slug: string, channel: GuestChannel) {
       setBusy(true);
       setError(null);
       setTurns((t) => [...t, { role: "user", content: text }]);
-      // The reply streams into an assistant turn after the visitor's message.
-      const setReply = (fn: (current: string) => string | null) =>
+      // Each agent's reply streams into its own assistant turn after the visitor's message.
+      const patchLast = (fn: (turn: GuestTurn) => GuestTurn) =>
         setTurns((t) => {
           const last = t[t.length - 1];
-          const current = last?.role === "assistant" ? last.content : null;
-          const next = fn(current ?? "");
-          const base = current === null ? t : t.slice(0, -1);
-          return next === null ? base : [...base, { role: "assistant", content: next }];
+          return last?.role === "assistant" ? [...t.slice(0, -1), fn(last)] : [...t, fn({ role: "assistant", content: "" })];
         });
       try {
-        const reply = await chatOnce(slug, text, channel, {
-          onDelta: (d) => setReply((c) => c + d),
-          onRestart: () => setReply(() => null), // the backup provider answers instead
-        });
-        // Final text replaces the streamed one. Empty: a person is answering, the AI stayed quiet.
-        setReply(() => reply.reply || null);
+        const reply = await chatOnce(
+          slug,
+          text,
+          channel,
+          {
+            onAgent: (_agent, name) => setTurns((t) => [...t, { role: "assistant", content: "", agentName: name }]),
+            onHandoff: (_agent, name) => setTurns((t) => [...t, joined(name)]),
+            onDelta: (d) => patchLast((a) => ({ ...a, content: a.content + d })),
+            onRestart: () => patchLast((a) => ({ ...a, content: "" })), // the backup provider answers
+          },
+          entryAgent,
+        );
+        // Final replies replace the streamed ones. None: a person is answering, the AI stayed quiet.
+        setTurns((t) => withFinalReplies(t, reply));
         setStatus(reply.status);
         if (reply.lead_suggestion) setSuggestion(reply.lead_suggestion);
         return true;
@@ -245,7 +289,7 @@ export function useGuestChat(slug: string, channel: GuestChannel) {
         setBusy(false);
       }
     },
-    [slug, channel],
+    [slug, channel, entryAgent],
   );
 
   // While paused, poll for the team's replies and for the hand-back to the assistant.
@@ -298,10 +342,12 @@ export function useGuestChat(slug: string, channel: GuestChannel) {
 
   /** Sends an interrupted message again (it was not saved). */
   const retry = useCallback(async (): Promise<void> => {
-    const user = turns[turns.length - 2];
-    if (busy || turns[turns.length - 1]?.failed !== true || user?.role !== "user") return;
-    setTurns((t) => t.slice(0, -2));
-    await send(user.content);
+    let lastUser = turns.length - 1;
+    while (lastUser >= 0 && turns[lastUser]?.role !== "user") lastUser--;
+    if (busy || turns[turns.length - 1]?.failed !== true || lastUser < 0) return;
+    const text = turns[lastUser]?.content ?? "";
+    setTurns((t) => t.slice(0, lastUser));
+    await send(text);
   }, [busy, send, turns]);
 
   const reset = useCallback(() => {

@@ -26,7 +26,7 @@ test("replies stream in; an interrupted reply can be retried; key health is show
   await expect(page.getByTestId("health-primary")).toHaveText("Not tested yet");
 
   // --- Console: streamed reply, then an interruption and a retry ------------------------
-  await page.getByRole("link", { name: "Sales Agent" }).first().click();
+  await page.getByRole("link", { name: "Test chat" }).first().click();
   const input = page.getByLabel("Message", { exact: true });
   await input.fill("What do you sell?");
   await input.press("Enter");
