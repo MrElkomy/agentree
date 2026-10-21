@@ -1246,6 +1246,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/businesses/{business_id}/analytics/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Monthly Summary */
+        get: operations["monthly_summary_api_businesses__business_id__analytics_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/businesses/{business_id}/analytics/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Monthly Export */
+        get: operations["monthly_export_api_businesses__business_id__analytics_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1502,6 +1536,18 @@ export interface components {
              * Format: date-time
              */
             last_seen_at: string;
+        };
+        /** DayOut */
+        DayOut: {
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Values */
+            values: {
+                [key: string]: number;
+            };
         };
         /** EmailIn */
         EmailIn: {
@@ -2165,6 +2211,15 @@ export interface components {
             /** Agent */
             agent?: string | null;
         };
+        /** MetricOut */
+        MetricOut: {
+            /** Name */
+            name: string;
+            /** Label */
+            label: string;
+            /** Value */
+            value: number;
+        };
         /**
          * ProviderName
          * @enum {string}
@@ -2294,6 +2349,15 @@ export interface components {
             /** Endpoint */
             endpoint: string;
         };
+        /** RateOut */
+        RateOut: {
+            /** Name */
+            name: string;
+            /** Label */
+            label: string;
+            /** Value */
+            value: number | null;
+        };
         /** RegisterIn */
         RegisterIn: {
             /**
@@ -2344,6 +2408,27 @@ export interface components {
         StatusOut: {
             /** Status */
             status: string;
+        };
+        /** SummaryOut */
+        SummaryOut: {
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
+            /**
+             * End
+             * Format: date
+             */
+            end: string;
+            /** Totals */
+            totals: components["schemas"]["MetricOut"][];
+            /** Rates */
+            rates: components["schemas"]["RateOut"][];
+            /** Days */
+            days: components["schemas"]["DayOut"][];
+            /** Missing Days */
+            missing_days: string[];
         };
         /** TokenIn */
         TokenIn: {
@@ -5105,6 +5190,74 @@ export interface operations {
                 };
                 content: {
                     "application/octet-stream": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    monthly_summary_api_businesses__business_id__analytics_summary_get: {
+        parameters: {
+            query: {
+                /** @description YYYY-MM (UTC) */
+                month: string;
+            };
+            header?: never;
+            path: {
+                business_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SummaryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    monthly_export_api_businesses__business_id__analytics_export_get: {
+        parameters: {
+            query: {
+                /** @description YYYY-MM (UTC) */
+                month: string;
+            };
+            header?: never;
+            path: {
+                business_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": unknown;
                 };
             };
             /** @description Validation Error */

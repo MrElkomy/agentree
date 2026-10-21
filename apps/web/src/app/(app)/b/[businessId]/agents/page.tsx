@@ -13,6 +13,8 @@ import { atLeast } from "@/lib/roles";
 const ROLE_NOTE: Record<string, string> = {
   customer_service:
     "Answers questions about your policies and services from your knowledge, never promises refunds or order updates, and brings in your team for anything it can't settle. Customers can mark its conversations resolved.",
+  data_analyst:
+    "Answers your team's questions about your numbers: conversations, leads, handoffs and trends. It only states numbers Agentree computed, never estimates. Internal: visitors can never reach it.",
   technical_support:
     "Asks what's wrong, then suggests troubleshooting steps from your knowledge. It never claims to have changed anything and brings in your team when a fix needs account access. Customers can mark its conversations resolved.",
 };
@@ -36,6 +38,8 @@ export default function AgentsPage() {
     };
   }, [base, handleError]);
 
+  const onSaved = (saved: AgentConfig) =>
+    setAgents((list) => list?.map((x) => (x.role === saved.role ? saved : x)) ?? list);
   const publicOnes = agents?.filter((a) => a.audience === "public") ?? [];
   const internalOnes = agents?.filter((a) => a.audience === "internal") ?? [];
 
@@ -65,9 +69,7 @@ export default function AgentsPage() {
               Customer-facing agents
             </h2>
             {publicOnes.map((a) => (
-              <AgentCard key={a.role} base={base} agent={a} canEdit={canEdit} onSaved={(saved) =>
-                setAgents((list) => list?.map((x) => (x.role === saved.role ? saved : x)) ?? list)
-              } />
+              <AgentCard key={a.role} base={base} agent={a} canEdit={canEdit} onSaved={onSaved} />
             ))}
           </section>
           <section aria-labelledby="internal-agents" className="flex flex-col gap-4">
@@ -80,7 +82,7 @@ export default function AgentsPage() {
               </p>
             </div>
             {internalOnes.map((a) => (
-              <AgentCard key={a.role} base={base} agent={a} canEdit={canEdit} onSaved={() => {}} />
+              <AgentCard key={a.role} base={base} agent={a} canEdit={canEdit} onSaved={onSaved} />
             ))}
           </section>
         </>
@@ -182,7 +184,7 @@ function AgentCard({
           </label>
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="flex flex-col gap-1 text-sm">
-              <span className="font-semibold">Name customers see</span>
+              <span className="font-semibold">{agent.audience === "public" ? "Name customers see" : "Name your team sees"}</span>
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}

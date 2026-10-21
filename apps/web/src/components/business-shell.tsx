@@ -140,6 +140,7 @@ function Sidebar({ businessId, current }: { businessId: string; current: Busines
             <NavItem href={`/b/${businessId}/inbox`} label="Inbox" section />
             <NavItem href={`/b/${businessId}/leads`} label="Leads" section />
             <NavItem href={`/b/${businessId}/customers`} label="Customers" />
+            <NavItem href={`/b/${businessId}/analytics`} label="Analytics" />
             <NavItem href={`/b/${businessId}/knowledge`} label="Knowledge" />
             <NavItem href={`/b/${businessId}/public-page`} label="Public page & widget" />
             <NavItem href={`/b/${businessId}/ai-providers`} label="AI Providers" />

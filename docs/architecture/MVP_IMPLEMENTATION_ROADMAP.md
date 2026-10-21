@@ -72,7 +72,7 @@ until then the item remains an open MVP requirement and blocks the final pilot g
 | In-app notification center (6.3) | Proposed deferral to after Task 22 | Needs PO approval |
 | Custom agent display name (2.4, PO request 2026-10-20) | **Approved 2026-10-21** (Task 14 authorization): display name per agent, cosmetic only | Task 14 |
 | Alert when a business hits its daily reply budget (4.3) | Proposed: add to Task 13 (monitoring) | Needs PO approval of placement |
-| Daily aggregated operational metrics job (approved with 5.4) | Proposed: add to Task 18 | Needs PO approval of placement |
+| Daily aggregated operational metrics job (approved with 5.4) | **Placed in Task 18a (PO 2026-10-22)**; 13-month retention | Done in 18a |
 | **New (PO request 2026-10-21):** free Web Push notifications to Owners/Admins (new lead, handoff request, provider outage) via the standard Push API + VAPID, opt-in per device, email stays the fallback; iOS needs 16.4+ and Add to Home Screen | **Approved 2026-10-21:** Task 13b (lead, handoff and provider-down alerts) | Task 13b |
 | **New (PO request 2026-10-21):** platform admin dashboard for the Agentree team, separate from business dashboards: manage customer businesses (e.g. suspend/reactivate), send announcements/notifications to customers, with room for many more capabilities | PO: "at the end" — after Task 22; scope and security (separate admin identity, audit) to be specified then | Later (after Task 22) |
 | **New (PO request 2026-10-21):** "Resolve" in conversations not limited to team members, and available in Customer Service chats (not the Sales chat) | **Confirmed by the PO 2026-10-21:** Task 15 — the Customer Service agent and the visitor can mark a support conversation resolved, as well as the team; Sales conversations keep team-only resolve | Task 15 |
@@ -157,7 +157,7 @@ until then the item remains an open MVP requirement and blocks the final pilot g
   conversation and what the agents remember about them are kept.
 - **Out of scope:** SMS/phone verification, customer self-service portal.
 
-### Task 17 — Knowledge file uploads — 🟡 implemented (pending PO approval), see `KNOWLEDGE_FILES.md`
+### Task 17 — Knowledge file uploads — ✅ merged (#42), see `KNOWLEDGE_FILES.md`
 - **Scope:** upload PDF/DOCX/TXT/MD (and CSV/XLSX storage for Task 18) with size/type limits,
   content sniffing, text extraction into draft knowledge entries, processing status; files stored
   tenant-scoped, never executed or served back as HTML.
@@ -165,7 +165,10 @@ until then the item remains an open MVP requirement and blocks the final pilot g
   (prompt-injection tests); drafts require manual publish (U-10 unchanged); isolation tests.
 - **Out of scope:** OCR of scanned PDFs, URL crawling (needs the SSRF guard).
 
-### Task 18 — Data Analyst
+### Task 18 — Data Analyst — 🟡 18a implemented (pending PO approval), see `ANALYTICS.md`; 18b (CSV/XLSX analysis) next
+- **PO 2026-10-22:** monthly summary + Excel export (the business uploads it to Google Drive);
+  analysis of uploaded sheets (18b); the business's Google Sheets after the Sheets connection.
+  The daily aggregated metrics job is part of this task (13-month retention).
 - **Scope:** internal agent; deterministic metrics library over Agentree data (leads, conversations,
   handoffs, response outcomes); CSV/XLSX import → snapshot → sandboxed SELECT-only queries; every
   number in an answer comes from a computed result and is cited.

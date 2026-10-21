@@ -16,6 +16,7 @@ export type ProviderName = Schemas["ProviderName"];
 export type Slot = Schemas["Slot"];
 export type KnowledgeEntry = Schemas["EntryOut"];
 export type KnowledgeFile = Schemas["KnowledgeFileOut"];
+export type AnalyticsSummary = Schemas["SummaryOut"];
 export type ConsoleReply = Schemas["ConsoleReplyOut"];
 export type ChatMessage = Schemas["MessageOut"];
 export type PublicProfile = Schemas["PublicProfileOut"];

@@ -97,6 +97,12 @@ class DemoProvider:
     async def chat(self, api_key: str, request: ChatRequest) -> ChatResult:
         text = DEMO_REPLY
         system = request.messages[0].content if request.messages else ""
+        if "<<<COMPUTED_NUMBERS" in system:  # Data Analyst: quote a computed number
+            block = system.split("Last 30 days", 1)[-1]
+            found = re.search(r"- Visitor conversations: (\d+)", block)
+            count = found.group(1) if found else "0"
+            return ChatResult(text=f"In the last 30 days you had {count} visitor conversations.",
+                              provider=self.name, model=request.model)  # fmt: skip
         if "You maintain short notes about a customer" in system:  # customer memory job
             item = {"category": "interest", "value": "Demo interest in the business's products"}
             return ChatResult(text=json.dumps({"items": [item]}), provider=self.name,

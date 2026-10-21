@@ -40,7 +40,7 @@ test("owner sets up the AI team; a visitor is handed Sales → Technical Support
   await support.getByRole("button", { name: "Save Technical Support" }).click();
   await expect(page.getByTestId("agent-status-technical_support")).toHaveText("On");
   // Internal agents cannot be turned on yet, and never by visitors.
-  await expect(page.getByTestId("agent-data_analyst")).toContainText("Coming soon");
+  await expect(page.getByTestId("agent-executive")).toContainText("Coming soon");
   await expect(page.getByTestId("agent-executive").getByRole("checkbox")).toHaveCount(0);
 
   await page.getByRole("link", { name: "Public page & widget" }).first().click();
@@ -86,4 +86,24 @@ test("owner sets up the AI team; a visitor is handed Sales → Technical Support
   await expect(log.filter({ hasText: "Sales Agent handed a conversation to Technical Support" })).toHaveCount(1);
   await expect(log.filter({ hasText: "Technical Support handed a conversation to Sales Agent" })).toHaveCount(1);
   await expect(log.filter({ hasText: `${ownerEmail} updated the Technical Support settings` })).toHaveCount(1);
+
+  // --- Task 18a: Analytics page, Excel export, and the Data Analyst (team only) ------------------
+  await page.goto(`${businessPath}/agents`);
+  const analyst = page.getByTestId("agent-data_analyst");
+  await analyst.getByLabel("Turn on Data Analyst").check();
+  await analyst.getByRole("button", { name: "Save Data Analyst" }).click();
+  await expect(page.getByTestId("agent-status-data_analyst")).toHaveText("On");
+  await page.getByRole("link", { name: "Analytics" }).first().click();
+  await expect(page.getByRole("heading", { level: 1, name: "Analytics" })).toBeVisible();
+  await expect(page.getByTestId("metric-conversations")).toBeVisible();
+  const href = await page.getByTestId("analytics-export").getAttribute("href");
+  const xlsx = await page.request.get(href!);
+  expect(xlsx.status()).toBe(200);
+  expect(xlsx.headers()["content-type"]).toContain("spreadsheetml");
+
+  await page.getByRole("link", { name: "Test chat" }).first().click();
+  await page.getByLabel("Start with").selectOption({ label: "Data Analyst" });
+  await page.getByLabel("Message", { exact: true }).fill("How many conversations did we have?");
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("chat-assistant").last()).toContainText("In the last 30 days you had");
 });
