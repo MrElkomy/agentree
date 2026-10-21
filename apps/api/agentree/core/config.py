@@ -70,6 +70,8 @@ class Settings(BaseSettings):
     follow_up_interval_seconds: int = Field(default=300, ge=30)
     # How often the worker derives customer memory from idle public conversations (Task 16).
     memory_interval_seconds: int = Field(default=300, ge=30)
+    # How often the worker refreshes today's and yesterday's daily metrics (Task 18).
+    metrics_interval_seconds: int = Field(default=3600, ge=60)
 
     # Monitoring: GET /api/internal/metrics answers only with this token in the
     # X-Agentree-Metrics-Token header; unset disables the endpoint (404).

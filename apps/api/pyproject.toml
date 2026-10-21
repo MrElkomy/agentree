@@ -20,6 +20,7 @@ dependencies = [
     "pypdf>=5.1",
     "defusedxml>=0.7.1",
     "python-multipart>=0.0.20",
+    "openpyxl>=3.1.5",
 ]
 
 [dependency-groups]
@@ -30,6 +31,7 @@ dev = [
     "mypy>=1.13",
     "import-linter>=2.1",
     "types-defusedxml>=0.7",
+    "types-openpyxl>=3.1.5.20261017",
 ]
 
 [build-system]
@@ -178,6 +180,23 @@ type = "forbidden"
 source_modules = ["agentree.leads.models", "agentree.leads.service"]
 forbidden_modules = ["fastapi", "agentree.main", "agentree.health"]
 allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "analytics reads other modules only through their service layer"
+type = "forbidden"
+source_modules = ["agentree.analytics"]
+forbidden_modules = [
+    "agentree.agents", "agentree.customers", "agentree.knowledge", "agentree.public",
+    "agentree.leads.models", "agentree.leads.api", "agentree.identity", "agentree.providers",
+    "agentree.llm", "agentree.retention", "agentree.main", "agentree.worker",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "the metrics library does not depend on leads (agents read it)"
+type = "forbidden"
+source_modules = ["agentree.analytics.service", "agentree.analytics.models"]
+forbidden_modules = ["agentree.leads", "fastapi"]
 
 [[tool.importlinter.contracts]]
 name = "customers use other modules only through their service layer"

@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 # Register every module's models on Base.metadata (used by autogenerate / alembic check).
 import agentree.actions.models
 import agentree.agents.models
+import agentree.analytics.models
 import agentree.audit.models
 import agentree.customers.models
 import agentree.identity.models

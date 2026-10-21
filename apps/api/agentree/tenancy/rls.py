@@ -10,8 +10,11 @@ Policy contract (fail closed):
 # Tables intentionally outside tenant RLS (platform-level, not owned by one business).
 # Adding a table here is a security decision: it must hold no tenant data.
 GLOBAL_TABLES = frozenset(
-    {"alembic_version", "users", "user_sessions", "auth_tokens", "rate_limit_buckets"}
-)
+    {
+        "alembic_version", "users", "user_sessions", "auth_tokens", "rate_limit_buckets",
+        "metric_days",  # Task 18: which UTC days the metrics job computed (dates only)
+    }
+)  # fmt: skip
 
 CURRENT_BUSINESS_FUNCTION = """
 CREATE OR REPLACE FUNCTION agentree_current_business_id() RETURNS uuid

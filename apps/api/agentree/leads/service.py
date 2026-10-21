@@ -341,3 +341,18 @@ async def delete_lead(
             target_type="lead", target_id=lead.id, details={"channel": lead.channel},
         )  # fmt: skip
         await session.delete(lead)
+
+
+async def leads_created_between(
+    factory: Factory, ctx: TenantContext, start: datetime, end: datetime, *, limit: int = 5000
+) -> list[LeadInfo]:
+    """Leads created in [start, end), oldest first (the monthly export, Task 18)."""
+    async with tenant_session(factory, ctx) as session:
+        rows = (
+            await session.execute(
+                select(Lead).where(Lead.business_id == ctx.business_id,
+                                   Lead.created_at >= start, Lead.created_at < end)
+                .order_by(Lead.created_at, Lead.id).limit(limit)
+            )
+        ).scalars().all()  # fmt: skip
+    return [_info(lead) for lead in rows]
