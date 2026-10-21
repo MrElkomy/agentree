@@ -65,7 +65,8 @@ source_modules = ["agentree.core"]
 forbidden_modules = [
     "agentree.health", "agentree.identity", "agentree.tenancy", "agentree.main", "agentree.worker",
     "agentree.providers", "agentree.llm", "agentree.knowledge", "agentree.agents",
-    "agentree.retention", "agentree.public", "agentree.audit",
+    "agentree.retention", "agentree.public", "agentree.audit", "agentree.actions",
+    "agentree.leads",
 ]
 
 [[tool.importlinter.contracts]]
@@ -109,7 +110,8 @@ name = "public uses other modules only through their service layer"
 type = "forbidden"
 source_modules = ["agentree.public"]
 forbidden_modules = [
-    "agentree.agents.models", "agentree.agents.api", "agentree.knowledge",
+    "agentree.agents.models", "agentree.agents.api", "agentree.knowledge", "agentree.leads.models",
+    "agentree.leads.api", "agentree.actions.models",
     "agentree.providers", "agentree.llm", "agentree.tenancy.models", "agentree.identity.models",
     "agentree.identity.service", "agentree.retention", "agentree.main", "agentree.worker",
 ]
@@ -142,10 +144,50 @@ forbidden_modules = ["fastapi", "agentree.main", "agentree.health"]
 allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
+name = "the action gateway depends only on core and the tenancy context"
+type = "forbidden"
+source_modules = ["agentree.actions"]
+forbidden_modules = [
+    "agentree.tenancy.service", "agentree.tenancy.models", "agentree.tenancy.api",
+    "agentree.identity", "agentree.providers", "agentree.llm", "agentree.knowledge",
+    "agentree.agents", "agentree.leads", "agentree.public", "agentree.audit",
+    "agentree.retention", "agentree.main", "agentree.worker", "fastapi",
+]
+
+[[tool.importlinter.contracts]]
+name = "leads use other modules only through their service layer"
+type = "forbidden"
+source_modules = ["agentree.leads"]
+forbidden_modules = [
+    "agentree.agents.models", "agentree.agents.api", "agentree.actions.models",
+    "agentree.tenancy.models", "agentree.tenancy.api", "agentree.identity", "agentree.public",
+    "agentree.providers", "agentree.llm", "agentree.main", "agentree.worker",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "leads domain code does not depend on the HTTP layer"
+type = "forbidden"
+source_modules = ["agentree.leads.models", "agentree.leads.service"]
+forbidden_modules = ["fastapi", "agentree.main", "agentree.health"]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "only public and the app depend on leads"
+type = "forbidden"
+source_modules = [
+    "agentree.identity", "agentree.tenancy", "agentree.providers", "agentree.knowledge",
+    "agentree.agents", "agentree.retention", "agentree.health", "agentree.audit",
+    "agentree.actions",
+]
+forbidden_modules = ["agentree.leads"]
+
+[[tool.importlinter.contracts]]
 name = "no other feature module depends on public"
 type = "forbidden"
 source_modules = [
     "agentree.identity", "agentree.tenancy", "agentree.providers", "agentree.knowledge",
-    "agentree.agents", "agentree.retention", "agentree.health",
+    "agentree.agents", "agentree.retention", "agentree.health", "agentree.leads",
+    "agentree.actions",
 ]
 forbidden_modules = ["agentree.public"]

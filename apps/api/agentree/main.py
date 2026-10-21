@@ -17,6 +17,7 @@ from agentree.core.logging import configure_logging
 from agentree.health.api import router as health_router
 from agentree.identity.api import router as auth_router
 from agentree.knowledge.api import router as knowledge_router
+from agentree.leads.api import router as leads_router
 from agentree.llm.base import LLMProvider, ProviderName
 from agentree.llm.fake import DemoProvider
 from agentree.llm.http_providers import PROVIDERS
@@ -79,4 +80,5 @@ def create_app(
     app.include_router(public_owner_router)
     app.include_router(public_router)
     app.include_router(audit_router)
+    app.include_router(leads_router)
     return app

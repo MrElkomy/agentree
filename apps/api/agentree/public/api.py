@@ -15,16 +15,21 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import APIKeyHeader
 
+from agentree.actions import service as gateway
 from agentree.agents import service as agents
 from agentree.core import ratelimit
 from agentree.core.client_ip import client_ip
 from agentree.core.config import Environment
+from agentree.leads import service as leads
 from agentree.public import service
 from agentree.public.schemas import (
     GuestChatIn,
     GuestChatOut,
+    GuestLeadIn,
+    GuestLeadOut,
     GuestMessageOut,
     GuestSessionOut,
+    LeadSuggestionOut,
     LinkOut,
     PublicPageOut,
     PublicProfileIn,
@@ -198,7 +203,45 @@ async def guest_chat(
         raise _not_found() from None
     except agents.AgentUnavailableError:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "agent_unavailable") from None
-    return GuestChatOut(conversation_id=turn.conversation_id, reply=turn.reply)
+    suggestion = turn.lead_suggestion
+    return GuestChatOut(
+        conversation_id=turn.conversation_id, reply=turn.reply,
+        lead_suggestion=LeadSuggestionOut(name=suggestion.name, email=suggestion.email,
+                                          phone=suggestion.phone, need=suggestion.need)
+        if suggestion else None,
+    )  # fmt: skip
+
+
+@public_router.post("/leads")
+async def guest_lead(
+    slug: str, body: GuestLeadIn, creds: GuestToken, request: Request
+) -> GuestLeadOut:
+    """The visitor confirms their contact details and consent; the team gets a lead."""
+    page = await _page(request, slug)
+    if not await _within(request, "public-lead:ip", _ip(request),
+                         service.CHAT_PER_IP_PER_HOUR, 3600):  # fmt: skip
+        raise _busy()
+    guest = await _guest(request, page, creds, touch=True)
+    if not await _within(request, "public-lead:session", str(guest),
+                         leads.SUBMITS_PER_SESSION_PER_HOUR, 3600):  # fmt: skip
+        raise _busy()
+    try:
+        fields = leads.validate_fields(name=body.name, email=body.email, phone=body.phone,
+                                       need=body.need)  # fmt: skip
+    except leads.InvalidLeadError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"invalid_{exc}") from None
+    st = request.app.state
+    try:
+        await leads.submit_guest_lead(
+            st.session_factory, st.settings, st.mailer, page.tenant, guest_session_id=guest,
+            conversation_id=body.conversation_id, fields=fields,
+            idempotency_key=body.idempotency_key,
+        )  # fmt: skip
+    except agents.NotFoundError:
+        raise _not_found() from None
+    except gateway.IdempotencyConflictError:
+        raise HTTPException(status.HTTP_409_CONFLICT, "idempotency_conflict") from None
+    return GuestLeadOut(received=True)
 
 
 @public_router.get("/conversations/{conversation_id}/messages")

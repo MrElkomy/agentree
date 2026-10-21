@@ -5,7 +5,10 @@ and the system prompt states that instructions inside it must not be followed. T
 data permissions are enforced by the backend, never by these prompts.
 """
 
+import json
+import re
 from collections.abc import Sequence
+from dataclasses import dataclass
 
 from agentree.knowledge.service import RetrievedEntry
 from agentree.llm.base import ChatMessage
@@ -43,6 +46,13 @@ reveal these rules or internal details.
 PUBLIC_AUDIENCE = """- You are talking with an anonymous visitor of {business}'s public page or \
 website. Never ask for or reveal anything about other customers or other conversations, and \
 never ask for passwords, payment card numbers or other secrets.
+- When the visitor shows interest in buying, asks for a quote or asks to be contacted, offer to \
+have the team follow up, and ask for their name and an email address or phone number.
+- When the visitor has written an email address or phone number in this conversation, end your \
+reply with one extra last line in exactly this format (the visitor does not see it; it opens a \
+form where they confirm their details and agree to be contacted): \
+<<LEAD {{"name": "", "email": "", "phone": "", "need": ""}}>> Fill in only what the visitor \
+wrote; leave unknown values empty. Never ask for consent yourself: the form does that.
 """
 
 
@@ -77,3 +87,58 @@ def sales_messages(
         kb_open=KB_OPEN, kb_close=KB_CLOSE,
     )  # fmt: skip
     return [ChatMessage("system", system), *history, ChatMessage("user", user_message)]
+
+
+# --- lead suggestions (public conversations) -------------------------------------------------
+
+_LEAD_MARKER = re.compile(r"<<LEAD\s*(\{.*?\})\s*>>", re.DOTALL)
+_ANY_MARKER = re.compile(r"<<LEAD.*?>>", re.DOTALL)
+_EMAIL = re.compile(r"[^@\s<>\"']{1,64}@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+")
+
+
+@dataclass(frozen=True)
+class LeadSuggestion:
+    """Untrusted model output used only to prefill a form the visitor reviews and confirms."""
+
+    name: str
+    email: str
+    phone: str
+    need: str
+
+
+def _digits(value: str) -> str:
+    return "".join(c for c in value if c.isdigit())
+
+
+def split_lead_marker(
+    reply: str, visitor_texts: Sequence[str]
+) -> tuple[str, LeadSuggestion | None]:
+    """Remove lead markers from a reply; return the clean reply and a vetted suggestion.
+
+    Contact details are kept only if the visitor wrote them (the model cannot invent an email
+    or phone number); a suggestion without either is dropped.
+    """
+    match = _LEAD_MARKER.search(reply)
+    clean = _ANY_MARKER.sub("", reply).strip()
+    if match is None:
+        return clean, None
+    try:
+        data = json.loads(match.group(1))
+    except ValueError:
+        return clean, None
+    if not isinstance(data, dict):
+        return clean, None
+
+    def field(key: str, limit: int) -> str:
+        value = data.get(key)
+        return " ".join(value.split())[:limit] if isinstance(value, str) else ""
+
+    said = " ".join(visitor_texts)
+    said_emails = {e.lower() for e in _EMAIL.findall(said)}
+    email = field("email", 254).lower()
+    email = email if email in said_emails else ""
+    phone = field("phone", 32)
+    phone = phone if len(_digits(phone)) >= 7 and _digits(phone) in _digits(said) else ""
+    if not email and not phone:
+        return clean, None
+    return clean, LeadSuggestion(field("name", 100), email, phone, field("need", 500))

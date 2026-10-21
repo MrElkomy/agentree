@@ -1,5 +1,7 @@
 """Scripted provider for tests and local demos. Never calls the network."""
 
+import json
+import re
 from collections import deque
 from dataclasses import dataclass, field
 
@@ -37,4 +39,11 @@ class DemoProvider:
     name: ProviderName = ProviderName.OPENAI
 
     async def chat(self, api_key: str, request: ChatRequest) -> ChatResult:
-        return ChatResult(text=DEMO_REPLY, provider=self.name, model=request.model)
+        text = DEMO_REPLY
+        # Mimic the Sales Agent's lead marker when the visitor writes an email (see prompts.py).
+        last = request.messages[-1].content if request.messages else ""
+        email = re.search(r"[^@\s]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+", last)
+        if email and "<<LEAD" in request.messages[0].content:
+            lead = {"name": "", "email": email.group(0), "phone": "", "need": "Demo request"}
+            text = f"{DEMO_REPLY}\n<<LEAD {json.dumps(lead)}>>"
+        return ChatResult(text=text, provider=self.name, model=request.model)
