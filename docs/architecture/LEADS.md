@@ -44,7 +44,28 @@
 | PATCH | `/api/businesses/{id}/leads/{lead_id}` `{status?, notes?}` | member |
 | DELETE | `/api/businesses/{id}/leads/{lead_id}` | admin+ |
 
-## Open decisions (Product Owner)
-- **Lead retention:** leads are kept until deleted by the business; no automatic expiry yet.
-- **Follow-up actions** (`create_follow_up_task`): proposed for this task in the roadmap's tracking
-  table, still awaiting PO approval of placement — not implemented here.
+## Follow-up reminders (Task 11b)
+People contact customers; the agent only schedules reminders for them (PO decision 2026-10-21:
+option A now; agent-sent follow-up messages come later with Approvals, Task 19).
+- **Rules** (fixed by Agentree for now; per-business sales playbooks come with agent configuration):
+  every new lead gets one *first contact* task from the Sales Agent, due 24 hours later, created
+  through the gateway (`create_follow_up_task`, idempotent per lead); moving the lead past *new*
+  closes it; the agent may hold at most 3 open tasks per lead, members 20; due dates within a year
+  (agent: 15 minutes to 30 days).
+- **Members** add reminders (title, due date, optionally a member to remind), mark them done or
+  reopen them. Every change is audited (`follow_up.created` / `follow_up.updated`).
+- **Reminders:** the worker (`python -m agentree.worker`, every `AGENTREE_FOLLOW_UP_INTERVAL_SECONDS`,
+  default 300) claims overdue open tasks through the SECURITY DEFINER function
+  `agentree_claim_due_follow_ups` (ids only, marked reminded atomically, `SKIP LOCKED`), then
+  emails one branded reminder per task — to the assignee, or to Owners and Admins when nobody is
+  assigned. A failed send clears the mark so the next pass retries. Changing the due date
+  re-arms the reminder.
+
+| Method | Path | Who |
+|---|---|---|
+| GET / POST | `/api/businesses/{id}/leads/{lead_id}/follow-ups` | member |
+| PATCH | `/api/businesses/{id}/follow-ups/{task_id}` `{status?, due_at?, assignee_user_id?}` | member |
+
+## Decisions (Product Owner, 2026-10-21)
+- **Lead retention:** leads are kept until the business deletes them, and will also be written to
+  the business's Google Sheet (see the roadmap's tracking table).

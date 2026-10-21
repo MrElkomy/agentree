@@ -8,7 +8,7 @@ are never written to logs or to the audit trail.
 
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from enum import StrEnum
 from uuid import UUID
@@ -24,6 +24,7 @@ from agentree.core.config import Settings
 from agentree.core.email import EmailSender, OutgoingEmail, branded_email, send_safely
 from agentree.core.email_layout import EmailAction, EmailContent, clean_text
 from agentree.core.ids import uuid7
+from agentree.leads import follow_ups
 from agentree.leads.models import Lead
 from agentree.tenancy import service as tenancy
 from agentree.tenancy.context import TenantContext
@@ -104,6 +105,7 @@ class LeadInfo:
     notes: str
     created_at: datetime
     updated_at: datetime
+    next_follow_up_at: datetime | None = None  # earliest open follow-up (lists only)
 
 
 def _info(lead: Lead) -> LeadInfo:
@@ -161,6 +163,7 @@ async def _submit(
             session.add(lead)
             await session.flush()
             audit_action = AuditAction.LEAD_CREATED
+            await follow_ups.create_first_contact_task(session, ctx, lead)
         else:
             lead = existing
             lead.name, lead.email, lead.phone = fields.name, fields.email, fields.phone
@@ -252,7 +255,9 @@ async def list_leads(
         query = query.where(Lead.id < before)
     async with tenant_session(factory, ctx) as session:
         rows = (await session.execute(query.order_by(Lead.id.desc()).limit(limit))).scalars()
-        return [_info(lead) for lead in rows]
+        leads = [_info(lead) for lead in rows]
+    due = await follow_ups.next_due(factory, ctx, [lead.id for lead in leads])
+    return [replace(lead, next_follow_up_at=due.get(lead.id)) for lead in leads]
 
 
 async def get_lead(factory: Factory, ctx: TenantContext, lead_id: UUID) -> LeadInfo:
@@ -275,6 +280,7 @@ async def update_lead(
                          actor_user_id=actor_id, target_type="lead", target_id=lead.id,
                          details={"from_status": lead.status, "to_status": status})  # fmt: skip
             lead.status = status
+            await follow_ups.close_first_contact(session, ctx, lead.id, status, actor_id)
             changed = True
         if notes is not None and notes != lead.notes:
             await record(session, ctx, action=AuditAction.LEAD_NOTES_UPDATED,

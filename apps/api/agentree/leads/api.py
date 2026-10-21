@@ -7,8 +7,11 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query, Request, status
 
 from agentree.agents import service as agents
-from agentree.leads import service
+from agentree.leads import follow_ups, service
 from agentree.leads.schemas import (
+    FollowUpCreateIn,
+    FollowUpOut,
+    FollowUpUpdateIn,
     LeadDetailOut,
     LeadMessageOut,
     LeadOut,
@@ -19,6 +22,7 @@ from agentree.tenancy.deps import Member
 from agentree.tenancy.roles import Role
 
 router = APIRouter(prefix="/api/businesses/{business_id}/leads", tags=["leads"])
+tasks_router = APIRouter(prefix="/api/businesses/{business_id}/follow-ups", tags=["leads"])
 
 
 def _not_found() -> HTTPException:
@@ -85,3 +89,57 @@ async def delete_lead(lead_id: UUID, member: Member, request: Request) -> None:
         )
     except service.NotFoundError:
         raise _not_found() from None
+
+
+# --- follow-up tasks (every member) -----------------------------------------------------------
+
+
+def _invalid(exc: follow_ups.InvalidTaskError) -> HTTPException:
+    return HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"invalid_{exc}")
+
+
+@router.get("/{lead_id}/follow-ups")
+async def list_follow_ups(lead_id: UUID, member: Member, request: Request) -> list[FollowUpOut]:
+    try:
+        rows = await follow_ups.list_tasks(
+            request.app.state.session_factory, member.tenant, lead_id
+        )
+    except follow_ups.NotFoundError:
+        raise _not_found() from None
+    return [FollowUpOut(**asdict(t)) for t in rows]
+
+
+@router.post("/{lead_id}/follow-ups", status_code=status.HTTP_201_CREATED)
+async def create_follow_up(
+    lead_id: UUID, body: FollowUpCreateIn, member: Member, request: Request
+) -> FollowUpOut:
+    try:
+        task = await follow_ups.create_task(
+            request.app.state.session_factory, member.tenant, lead_id, actor_id=member.user.id,
+            title=body.title, due_at=body.due_at, assignee_user_id=body.assignee_user_id,
+        )  # fmt: skip
+    except follow_ups.NotFoundError:
+        raise _not_found() from None
+    except follow_ups.InvalidTaskError as exc:
+        raise _invalid(exc) from None
+    except follow_ups.TaskLimitError:
+        raise HTTPException(status.HTTP_409_CONFLICT, "too_many_open_follow_ups") from None
+    return FollowUpOut(**asdict(task))
+
+
+@tasks_router.patch("/{task_id}")
+async def update_follow_up(
+    task_id: UUID, body: FollowUpUpdateIn, member: Member, request: Request
+) -> FollowUpOut:
+    try:
+        task = await follow_ups.update_task(
+            request.app.state.session_factory, member.tenant, task_id, actor_id=member.user.id,
+            status=body.status, due_at=body.due_at,
+            reassign="assignee_user_id" in body.model_fields_set,
+            assignee_user_id=body.assignee_user_id,
+        )  # fmt: skip
+    except follow_ups.NotFoundError:
+        raise _not_found() from None
+    except follow_ups.InvalidTaskError as exc:
+        raise _invalid(exc) from None
+    return FollowUpOut(**asdict(task))

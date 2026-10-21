@@ -29,6 +29,8 @@ export type Lead = Schemas["LeadOut"];
 export type LeadDetail = Schemas["LeadDetailOut"];
 export type LeadPage = Schemas["LeadPageOut"];
 export type LeadStatus = Schemas["LeadStatus"];
+export type FollowUp = Schemas["FollowUpOut"];
+export type FollowUpCreate = Schemas["FollowUpCreateIn"];
 export type AuditEvent = Schemas["AuditEventOut"];
 export type AuditPage = Schemas["AuditPageOut"];
 

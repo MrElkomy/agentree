@@ -40,6 +40,8 @@ class AuditAction(StrEnum):
     LEAD_STATUS_CHANGED = "lead.status_changed"
     LEAD_NOTES_UPDATED = "lead.notes_updated"
     LEAD_DELETED = "lead.deleted"
+    FOLLOW_UP_CREATED = "follow_up.created"
+    FOLLOW_UP_UPDATED = "follow_up.updated"
 
 
 # Detail keys that may be stored. Anything else is dropped, so a careless caller cannot leak a
@@ -59,6 +61,9 @@ ALLOWED_DETAILS = frozenset(
         "agent",
         "from_status",
         "to_status",
+        "kind",
+        "due_at",
+        "assigned",
     }
 )
 MAX_DETAIL_LEN = 200

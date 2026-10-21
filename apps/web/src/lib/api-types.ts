@@ -669,6 +669,41 @@ export interface paths {
         patch: operations["update_lead_api_businesses__business_id__leads__lead_id__patch"];
         trace?: never;
     };
+    "/api/businesses/{business_id}/leads/{lead_id}/follow-ups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Follow Ups */
+        get: operations["list_follow_ups_api_businesses__business_id__leads__lead_id__follow_ups_get"];
+        put?: never;
+        /** Create Follow Up */
+        post: operations["create_follow_up_api_businesses__business_id__leads__lead_id__follow_ups_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/businesses/{business_id}/follow-ups/{task_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Follow Up */
+        patch: operations["update_follow_up_api_businesses__business_id__follow_ups__task_id__patch"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -855,6 +890,67 @@ export interface components {
             /** Body */
             body?: string | null;
         };
+        /** FollowUpCreateIn */
+        FollowUpCreateIn: {
+            /** Title */
+            title: string;
+            /**
+             * Due At
+             * Format: date-time
+             */
+            due_at: string;
+            /** Assignee User Id */
+            assignee_user_id?: string | null;
+        };
+        /** FollowUpOut */
+        FollowUpOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Lead Id
+             * Format: uuid
+             */
+            lead_id: string;
+            /** Title */
+            title: string;
+            /**
+             * Due At
+             * Format: date-time
+             */
+            due_at: string;
+            /** Assignee User Id */
+            assignee_user_id: string | null;
+            /** Status */
+            status: string;
+            /** Kind */
+            kind: string;
+            /** Created By Agent */
+            created_by_agent: string | null;
+            /** Created By User Id */
+            created_by_user_id: string | null;
+            /** Completed At */
+            completed_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /**
+         * FollowUpUpdateIn
+         * @description Only the fields sent are changed; send `assignee_user_id: null` to unassign.
+         */
+        FollowUpUpdateIn: {
+            /** Status */
+            status?: ("open" | "done" | "canceled") | null;
+            /** Due At */
+            due_at?: string | null;
+            /** Assignee User Id */
+            assignee_user_id?: string | null;
+        };
         /** GuestChatIn */
         GuestChatIn: {
             /** Message */
@@ -1010,6 +1106,8 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+            /** Next Follow Up At */
+            next_follow_up_at?: string | null;
             /** Messages */
             messages: components["schemas"]["LeadMessageOut"][];
         };
@@ -1064,6 +1162,8 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+            /** Next Follow Up At */
+            next_follow_up_at?: string | null;
         };
         /** LeadPageOut */
         LeadPageOut: {
@@ -2796,6 +2896,110 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LeadOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_follow_ups_api_businesses__business_id__leads__lead_id__follow_ups_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                lead_id: string;
+                business_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FollowUpOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_follow_up_api_businesses__business_id__leads__lead_id__follow_ups_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                lead_id: string;
+                business_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FollowUpCreateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FollowUpOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_follow_up_api_businesses__business_id__follow_ups__task_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: string;
+                business_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FollowUpUpdateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FollowUpOut"];
                 };
             };
             /** @description Validation Error */

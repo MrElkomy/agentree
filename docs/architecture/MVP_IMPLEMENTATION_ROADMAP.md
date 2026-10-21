@@ -50,6 +50,11 @@ reason to skip security or tests. **Implementation starts only after PO approval
 
 Parallel lanes once Task 10 lands: {11 → 12}, {13}, {17}. Then 14 → {15, 16}; 18 → 19 → 20; 21.
 
+### Staging deployment batches (PO decision 2026-10-21)
+Not every merged PR is deployed to the shared staging server. Merge as tasks pass review, deploy in
+batches: **1** Tasks 11 + 11b + 12 + 13 (sales journey) · **2** Tasks 14–16 (three public agents) ·
+**3** Tasks 17–21 (intelligence) · **4** Task 22 (general testing). A security fix may ship alone.
+
 ### Approved requirements outside Tasks 10–22 (nothing removed)
 
 Every previously approved requirement stays in scope. Items below are not covered by a Task 10–22
@@ -58,11 +63,11 @@ until then the item remains an open MVP requirement and blocks the final pilot g
 
 | Requirement (phase ref) | Proposed handling | Status |
 |---|---|---|
-| Follow-up actions: `create_follow_up_task` via the gateway (3.3) | Proposed: add to Task 11 scope | Needs PO approval of placement |
+| Follow-up actions: `create_follow_up_task` via the gateway (3.3) | **Approved 2026-10-21:** (A) team reminders now as Task 11b; (B) agent-sent follow-up messages later, as drafts approved by the owner (with Task 19), within limits and the business's sales playbook | A: Task 11b · B: with Task 19 |
 | External handoff by signed webhook with context summary (4.5) | Proposed deferral to after Task 22 (email handoff ships in Task 12); needs the SSRF guard (5.2) | Needs PO approval |
 | Integration connections + SSRF-guarded HTTP client (5.2) | Proposed deferral to after Task 22 | Needs PO approval |
 | First external connector, `unknown`-outcome handling (5.3) | Proposed deferral to after Task 22 | Needs PO approval |
-| Connected data source, e.g. Google Sheets (5.6) | Proposed deferral to after Task 22 | Needs PO approval |
+| Connected data source: **Google Sheets** (5.6) | **PO 2026-10-21: required, three uses** — write every lead to the business's sheet; publish reports to sheets; use sheets as a knowledge source for agents instead of uploading files to our server (affects Task 17). Needs the integration connections + OAuth (5.2). Placement to be proposed with Task 17 | Needs PO approval of placement |
 | Telegram linking and delivery (6.3) | Proposed deferral to after Task 22 (email alerts ship in Tasks 11, 12, 20) | Needs PO approval |
 | In-app notification center (6.3) | Proposed deferral to after Task 22 | Needs PO approval |
 | Custom agent display name (2.4, PO request 2026-10-20) | Proposed: add to Task 14 (per-business agent config) | Needs PO approval of placement |

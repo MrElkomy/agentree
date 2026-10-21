@@ -55,15 +55,31 @@ test("visitor confirms their details in the chat; the owner follows up on the le
   const row = page.getByTestId("lead-row").filter({ hasText: "Sara Ahmed" });
   await expect(row).toContainText(visitorEmail);
   await expect(row).toContainText("New");
+  await expect(row.getByTestId("lead-follow-up")).toContainText("Follow up by");
   await row.getByRole("link").click();
   await expect(page.getByRole("heading", { level: 1, name: "Sara Ahmed" })).toBeVisible();
   await expect(page.getByRole("link", { name: visitorEmail })).toHaveAttribute("href", `mailto:${visitorEmail}`);
   await expect(page.getByText(`Email me at ${visitorEmail}`)).toBeVisible(); // the conversation
+  // The Sales Agent's first-contact reminder; contacting the lead closes it.
+  const reminder = page.getByTestId("follow-up").filter({ hasText: "Contact Sara Ahmed" });
+  await expect(reminder).toContainText("added by Sales Agent");
+  await expect(reminder.getByRole("button", { name: "Mark done" })).toBeVisible();
   await page.getByLabel("Status").selectOption("contacted");
   await expect(page.getByText("Status updated.")).toBeVisible();
+  await expect(reminder.getByRole("button", { name: "Reopen" })).toBeVisible();
+
+  // A reminder of the team's own.
+  await page.getByLabel("New reminder").fill("Send the price list");
+  await page.getByRole("button", { name: "Add reminder" }).click();
+  await expect(page.getByTestId("follow-up").filter({ hasText: "Send the price list" })).toContainText(
+    "Owners and admins",
+  );
 
   await page.getByRole("link", { name: "Activity log" }).first().click();
-  const events = page.getByTestId("audit-event");
-  await expect(events.nth(0)).toContainText(`${ownerEmail} moved a lead from New to Contacted`);
-  await expect(events.nth(1)).toContainText("A visitor shared their contact details (Public page)");
+  const log = page.getByTestId("audit-event");
+  await expect(log.filter({ hasText: `${ownerEmail} moved a lead from New to Contacted` })).toHaveCount(1);
+  await expect(log.filter({ hasText: `${ownerEmail} marked a follow-up done` })).toHaveCount(1);
+  await expect(log.filter({ hasText: `${ownerEmail} added a follow-up reminder` })).toHaveCount(1);
+  await expect(log.filter({ hasText: "Sales Agent added a follow-up reminder for a new lead" })).toHaveCount(1);
+  await expect(log.filter({ hasText: "A visitor shared their contact details (Public page)" })).toHaveCount(1);
 });
