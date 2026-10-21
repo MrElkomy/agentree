@@ -285,6 +285,9 @@ async def test_mid_stream_outage_without_backup_ends_with_an_error_and_stores_no
     assert r.status_code == 200
     events = _events(r.text)
     assert events[-1] == ("error", {"code": "agent_unavailable"})
+    # The partial text stays on screen with the error: no restart without a backup answer.
+    assert "restart" not in [e for e, _ in events]
+    assert "".join(d["text"] for e, d in events if e == "delta") == "Half a rep"
     assert all(e != "done" for e, _ in events)
     seen = (await c.get(f"{biz.pub}/conversations/{conv_id}", headers=auth)).json()
     assert [m["content"] for m in seen["messages"]] == ["Hi", "Hello"]

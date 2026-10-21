@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { logIn, runId, signUp, verifyFromEmail } from "./helpers";
+import { logIn, replyDone, runId, signUp, verifyFromEmail } from "./helpers";
 
 // Runs against the dev stack with AGENTREE_LLM_DEMO_MODE=true: the backend replaces AI
 // providers with a canned reply, so no real AI key or network call is needed.
@@ -59,6 +59,7 @@ test("owner connects a key, publishes knowledge and chats with the Sales Agent",
   await expect(answer).toContainText(`${businessName} Sales Agent`);
 
   // The conversation survives a page refresh.
+  await replyDone(page);
   await page.reload();
   await expect(page.getByTestId("chat-user")).toHaveText("How much is the Ergo chair?");
   await expect(page.getByTestId("chat-assistant")).toContainText(DEMO_REPLY_START);

@@ -67,6 +67,15 @@ export default function AiProvidersPage() {
         <Alert tone="info">Only owners and admins can add or change provider keys.</Alert>
       ) : null}
       {creds === null && !error ? <Spinner label="Loading providers…" /> : null}
+      {creds?.some((c) => c.health === "down") ? (
+        <Alert tone="warning">
+          <span data-testid="provider-outage">
+            {creds.length > 1 && creds.some((c) => c.health !== "down")
+              ? "A provider key is down. Your agents answer with the other key and switch back automatically when it recovers."
+              : "Your AI provider is down, so your agents can't answer right now. Agentree tests it again automatically; add a backup key to keep answering during outages."}
+          </span>
+        </Alert>
+      ) : null}
       {creds ? (
         <div className="grid gap-6 lg:grid-cols-2">
           {SLOTS.map((s) => (
@@ -159,16 +168,8 @@ function SlotCard({
           <dt className="text-ink-muted">Key</dt>
           <dd className="font-mono">{credential.key_hint ? `•••• ${credential.key_hint}` : "••••"}</dd>
           <dt className="text-ink-muted">Status</dt>
-          <dd>
-            {credential.last_error_kind ? (
-              <span className="font-semibold text-danger">Last call failed ({credential.last_error_kind})</span>
-            ) : credential.last_verified_at ? (
-              <span className="font-semibold text-brand-deep">
-                Working · checked {new Date(credential.last_verified_at).toLocaleString()}
-              </span>
-            ) : (
-              <span className="text-ink-muted">Not tested yet</span>
-            )}
+          <dd data-testid={`health-${slot}`}>
+            <HealthStatus credential={credential} />
           </dd>
         </dl>
       ) : null}
@@ -295,5 +296,45 @@ function KeyForm({
         </Button>
       </div>
     </form>
+  );
+}
+
+const ERROR_LABEL: Record<string, string> = {
+  auth: "the provider rejected the key",
+  quota: "the account is out of credit or quota",
+  rate_limit: "the provider is rate-limiting this key",
+  unavailable: "the provider is having an outage",
+  transient: "the provider could not be reached",
+  bad_request: "the provider rejected the request (check the model)",
+};
+
+/** Health from the backend's circuit breaker; text carries the meaning, colour reinforces it. */
+function HealthStatus({ credential }: { credential: Credential }) {
+  const why = credential.last_error_kind ? (ERROR_LABEL[credential.last_error_kind] ?? credential.last_error_kind) : null;
+  if (credential.health === "down") {
+    return (
+      <span className="flex flex-col gap-0.5">
+        <span className="font-semibold text-danger">Down{why ? ` — ${why}` : ""}</span>
+        {credential.breaker_open_until ? (
+          <span className="text-ink-muted">
+            Paused until {new Date(credential.breaker_open_until).toLocaleTimeString()}, then tested
+            automatically. Test it now after fixing the problem.
+          </span>
+        ) : null}
+      </span>
+    );
+  }
+  if (credential.health === "recovering") {
+    return <span className="font-semibold text-warn">Recovering — the next conversation tests it</span>;
+  }
+  if (credential.health === "degraded") {
+    return <span className="font-semibold text-warn">Working, with recent errors{why ? ` — ${why}` : ""}</span>;
+  }
+  return credential.last_verified_at ? (
+    <span className="font-semibold text-brand-deep">
+      Working · last success {new Date(credential.last_verified_at).toLocaleString()}
+    </span>
+  ) : (
+    <span className="text-ink-muted">Not tested yet</span>
   );
 }

@@ -208,15 +208,17 @@ async def _stream_with_fallback(
     """Stream from the first usable key: primary, else backup.
 
     Keys whose circuit breaker is open are skipped; an open key past its cooldown gets this
-    call as its probe. Availability errors move on to the next key, also mid-reply (after a
-    Restart). Nothing is persisted here.
+    call as its probe. Availability errors move on to the next key, also mid-reply: a Restart
+    precedes the backup's first text, so if no key answers the partial text stays on screen
+    for the error. Nothing is persisted here.
     """
     configured = {c.slot for c in await providers.list_credentials(factory, ctx)}
     order = [s for s in (providers.Slot.PRIMARY, providers.Slot.BACKUP) if s in configured]
     if not order:
         raise NoProviderConfiguredError
     failures: list[str] = []
-    started = False
+    started = False  # text from the current key has been yielded
+    shown = False  # text from an earlier, failed key is on screen
     for slot in order:
         admission = await providers.admit(factory, ctx, slot)
         if admission is providers.Admission.OPEN:
@@ -230,8 +232,11 @@ async def _stream_with_fallback(
             async for item in llm.stream(cred.api_key, ChatRequest(model=cred.model,
                                                                    messages=messages)):  # fmt: skip
                 if isinstance(item, TextDelta):
-                    if not started:
-                        started = True
+                    if shown and not started:
+                        # Only now that the backup answers: replace the broken-off text.
+                        yield Restart()
+                        shown = False
+                    started = True
                     yield item
                 else:
                     result = item
@@ -248,8 +253,7 @@ async def _stream_with_fallback(
             if not exc.kind.availability_problem:
                 break  # our request is wrong; another provider will not fix it
             if started:
-                yield Restart()
-                started = False
+                shown, started = True, False
             continue
         await providers.record_outcome(factory, ctx, slot, None, probe=probe)
         yield _Answered(result, slot, slot != order[0])

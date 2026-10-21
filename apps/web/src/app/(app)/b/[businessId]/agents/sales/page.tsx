@@ -7,11 +7,17 @@ import { RichText, textDirection } from "@/components/rich-text";
 import { Alert, Button, buttonClass } from "@/components/ui";
 import { api, isApiError, type ChatMessage, type ConsoleReply } from "@/lib/api";
 import { messageFor } from "@/lib/messages";
+import { StreamInterruptedError, streamApi } from "@/lib/stream";
 
-type Turn =
-  | { role: "user"; content: string }
+type AssistantTurn = {
+  role: "assistant";
+  content: string;
   // meta exists only for replies received in this page session (restored history has none).
-  | { role: "assistant"; content: string; meta?: Pick<ConsoleReply, "sources" | "fallback_used"> };
+  meta?: Pick<ConsoleReply, "sources" | "fallback_used">;
+  streaming?: boolean;
+  failed?: boolean; // the reply broke off mid-way; nothing was saved
+};
+type Turn = { role: "user"; content: string } | AssistantTurn;
 
 // The open conversation survives a page refresh (per business, this browser only).
 const storageKey = (businessId: string) => `agentree:sales-conversation:${businessId}`;
@@ -66,38 +72,60 @@ export default function SalesAgentPage() {
     };
   }, [base, business.id]);
 
+  // Updates the reply being streamed (always the last turn).
+  function patchReply(fn: (a: AssistantTurn) => AssistantTurn) {
+    setTurns((t) => {
+      const last = t[t.length - 1];
+      return last?.role === "assistant" ? [...t.slice(0, -1), fn(last)] : t;
+    });
+  }
+
   async function send(message: string) {
     const text = message.trim();
     if (!text || busy) return;
     setBusy(true);
     setError(null);
-    setTurns((t) => [...t, { role: "user", content: text }]);
+    setTurns((t) => [...t, { role: "user", content: text }, { role: "assistant", content: "", streaming: true }]);
     setDraft("");
     try {
-      const r = await api<ConsoleReply>(`${base}/agents/sales/console`, "POST", {
-        message: text,
-        conversation_id: conversationId,
-      });
+      const r = await streamApi<ConsoleReply>(
+        `${base}/agents/sales/console/stream`,
+        { message: text, conversation_id: conversationId },
+        {
+          onDelta: (d) => patchReply((a) => ({ ...a, content: a.content + d })),
+          onRestart: () => patchReply((a) => ({ ...a, content: "" })), // the backup answers instead
+        },
+      );
       setConversationId(r.conversation_id);
       remember(business.id, r.conversation_id);
-      setTurns((t) => [
-        ...t,
-        {
-          role: "assistant",
-          content: r.reply,
-          meta: { sources: r.sources, fallback_used: r.fallback_used },
-        },
-      ]);
+      patchReply(() => ({
+        role: "assistant",
+        content: r.reply, // final text replaces the streamed one
+        meta: { sources: r.sources, fallback_used: r.fallback_used },
+      }));
     } catch (err) {
-      setTurns((t) => t.slice(0, -1)); // the message was not answered or saved
-      setDraft(text);
-      setError({
-        text: messageFor(err),
-        needsProvider: isApiError(err, 409, "no_ai_provider_configured") || isApiError(err, 503, "ai_unavailable"),
-      });
+      if (err instanceof StreamInterruptedError) {
+        patchReply((a) => ({ ...a, streaming: false, failed: true })); // keep the partial text
+      } else {
+        setTurns((t) => t.slice(0, -2)); // the message was not answered or saved
+        setDraft(text);
+        setError({
+          text: messageFor(err),
+          needsProvider:
+            isApiError(err, 409, "no_ai_provider_configured") || isApiError(err, 503, "ai_unavailable"),
+        });
+      }
     } finally {
       setBusy(false);
     }
+  }
+
+  /** Sends the interrupted message again (it was not saved). */
+  function retry() {
+    const user = turns[turns.length - 2];
+    if (!user || user.role !== "user" || busy) return;
+    setTurns((t) => t.slice(0, -2));
+    void send(user.content);
   }
 
   function onSubmit(e: FormEvent) {
@@ -142,6 +170,7 @@ export default function SalesAgentPage() {
       <section
         aria-label="Conversation"
         aria-live="polite"
+        aria-busy={busy}
         className="flex min-h-80 flex-col gap-4 rounded-lg border border-line bg-surface p-4 sm:p-6"
       >
         {turns.length === 0 ? (
@@ -163,9 +192,23 @@ export default function SalesAgentPage() {
             </div>
           ) : (
             <div key={i} className="mr-auto flex max-w-[85%] flex-col gap-2" data-testid="chat-assistant">
-              <div className="rounded-lg border border-line bg-paper px-4 py-3">
-                <RichText text={t.content} />
-              </div>
+              {t.content ? (
+                <div className={`rounded-lg border border-line bg-paper px-4 py-3 ${t.failed ? "opacity-70" : ""}`}>
+                  <RichText text={t.content} />
+                </div>
+              ) : t.streaming ? (
+                <p className="text-sm text-ink-muted" role="status">
+                  Sales Agent is typing…
+                </p>
+              ) : null}
+              {t.failed ? (
+                <p className="flex flex-wrap items-center gap-2 text-sm text-danger" role="alert" data-testid="chat-interrupted">
+                  The reply was interrupted and nothing was saved.
+                  <Button size="sm" variant="secondary" onClick={retry} disabled={busy}>
+                    Retry
+                  </Button>
+                </p>
+              ) : null}
               <p className="text-xs text-ink-muted">
                 {business.name} Sales Agent
                 {t.meta && !t.meta.sources.length ? (
@@ -179,11 +222,6 @@ export default function SalesAgentPage() {
             </div>
           ),
         )}
-        {busy ? (
-          <p className="mr-auto text-sm text-ink-muted" role="status">
-            Sales Agent is typing…
-          </p>
-        ) : null}
         <div ref={endRef} />
       </section>
 

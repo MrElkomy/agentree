@@ -65,6 +65,8 @@ class FakeProvider:
                          input_tokens=10, output_tokens=len(reply.split()))  # fmt: skip
 
 
+_interrupted: set[str] = set()  # demo mode only: messages whose reply was already cut off
+
 DEMO_REPLY = (
     "This is a demo reply from Agentree's local demo mode. No AI provider was called. "
     "Connect a real provider key to get real answers."
@@ -79,7 +81,15 @@ class DemoProvider:
 
     async def stream(self, api_key: str, request: ChatRequest) -> AsyncIterator[StreamItem]:
         result = await self.chat(api_key, request)
-        for piece in _chunks(result.text):
+        last = request.messages[-1].content if request.messages else ""
+        # Browser tests: the first reply to a message asking to "simulate an interruption"
+        # breaks off mid-way (a retry of the same message then succeeds).
+        interrupt = "simulate an interruption" in last.lower() and last not in _interrupted
+        pieces = _chunks(result.text)
+        for i, piece in enumerate(pieces):
+            if interrupt and i == len(pieces) // 2:
+                _interrupted.add(last)
+                raise ProviderError(self.name, ErrorKind.TRANSIENT)
             await asyncio.sleep(0.02)  # visible streaming in demos and browser tests
             yield TextDelta(piece)
         yield result
