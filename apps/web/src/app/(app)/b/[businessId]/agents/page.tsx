@@ -14,7 +14,7 @@ const ROLE_NOTE: Record<string, string> = {
   customer_service:
     "Answers questions about your policies and services from your knowledge, never promises refunds or order updates, and brings in your team for anything it can't settle. Customers can mark its conversations resolved.",
   technical_support:
-    "Asks what's wrong, then suggests troubleshooting steps from your knowledge. It never claims to have changed anything and brings in your team when a fix needs account access.",
+    "Asks what's wrong, then suggests troubleshooting steps from your knowledge. It never claims to have changed anything and brings in your team when a fix needs account access. Customers can mark its conversations resolved.",
 };
 
 export default function AgentsPage() {

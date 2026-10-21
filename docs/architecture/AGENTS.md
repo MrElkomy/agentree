@@ -17,8 +17,8 @@ and the customer does not repeat themselves. Everything that decides access is s
 Each definition is versioned (`version`, bump when a role's prompt or behaviour changes) and
 carries its title, audience, what it handles, and its Action Gateway allowlist
 (`actions.service.PERMISSIONS`): Sales holds `create_lead`, `update_lead`,
-`create_follow_up_task`; Customer Service holds `resolve_conversation`; Technical Support holds
-none (it guides, people act).
+`create_follow_up_task`; Customer Service and Technical Support hold `resolve_conversation`
+(Technical Support since 2026-10-22; otherwise it guides and people act).
 
 ## Per-business configuration (`agent_configs`, migration 0015, RLS)
 
@@ -79,6 +79,16 @@ by the 30-day retention job (composite FK `ON DELETE CASCADE`). Since Task 16 th
 holds the verified customer's memory, filtered to the categories the answering role may read
 (`CUSTOMERS.md`).
 
+## Honest handoffs (2026-10-22)
+
+Every agent's prompt says it must never claim to transfer or connect the customer unless its
+reply ends with the matching marker (`<<HANDOFF>>` or `<<ROUTE …>>`); where no marker is
+offered (the dashboard test chat has no person to hand over to) it cannot transfer at all. The
+handoff sentence is written in the customer's language. The agent a teammate just handed the
+message to is told it is the agent the customer was looking for, so "I want customer service"
+is answered by Customer Service instead of a promise to transfer. Test chats never reach the
+Inbox (members test there; the Inbox is for visitors).
+
 ## Customer Service and Technical Support (Task 15)
 
 Both are public agents on this framework (no separate architecture): role prompts in
@@ -106,12 +116,12 @@ agent and per hop (after a handoff the next agent retrieves again with its own r
 the scope returns a published entry to draft, like any edit. Unknown roles are refused
 (422 `invalid_agent_roles`). The knowledge page has "All agents / Only these agents".
 
-### Who may resolve a conversation (approved PO decision)
+### Who may resolve a conversation (approved PO decisions; Technical Support added 2026-10-22)
 
 | Conversation led by | Team member | Visitor | The agent |
 |---|---|---|---|
-| Customer Service | yes | yes (open or waiting for a person; not while a member handles it) | yes, with its `resolve_conversation` tool on, after the customer confirms |
-| Sales, Technical Support | yes | no (403 `resolve_not_allowed`) | no (marker ignored) |
+| Customer Service, Technical Support | yes | yes (open or waiting for a person; not while a member handles it) | yes, with its `resolve_conversation` tool on, after the customer confirms |
+| Sales | yes | no (403 `resolve_not_allowed`) | no (marker ignored) |
 
 "Led by" is the conversation's `active_agent`, set by the backend. Roles with
 `shared_resolution` are fixed in the registry; the visitor's button appears only when the backend

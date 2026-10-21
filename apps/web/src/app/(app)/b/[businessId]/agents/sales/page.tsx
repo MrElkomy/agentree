@@ -203,7 +203,8 @@ export default function SalesAgentPage() {
           <p className="max-w-prose text-ink-muted">
             Talk to your AI team the way a customer would. Agents answer only from your published
             knowledge, using your own AI provider, and hand the conversation to a teammate when
-            that fits better.
+            that fits better. Test chats stay here: they don&apos;t go to the Inbox and can&apos;t be handed
+            to a person. To try the Inbox, chat from your public page.
           </p>
         </div>
         {turns.length ? (

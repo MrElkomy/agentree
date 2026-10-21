@@ -35,8 +35,9 @@ class AgentDefinition:
     handles: str  # what the role is for: shown to owners and to teammates when routing
     available: bool  # implemented enough to be enabled (later tasks complete the others)
     enabled_by_default: bool
-    # Approved PO decision (Task 15): conversations this agent leads may be marked resolved by
-    # the visitor and (with the resolve tool) by the agent, not only by the team.
+    # Approved PO decisions (Task 15; Technical Support added 2026-10-22): conversations this
+    # agent leads may be marked resolved by the visitor and (with the resolve tool) by the
+    # agent, not only by the team. Sales stays team-only.
     shared_resolution: bool = False
     # Customer memory categories (agentree.customers) this role may read about a verified
     # customer (Task 16). Fixed here; nothing else widens it.
@@ -52,22 +53,23 @@ DEFINITIONS: Mapping[AgentRole, AgentDefinition] = {
     d.role: d
     for d in (
         AgentDefinition(
-            AgentRole.SALES, 2, "Sales Agent", Audience.PUBLIC,
+            AgentRole.SALES, 3, "Sales Agent", Audience.PUBLIC,
             "products, services, prices, quotes and buying", available=True,
             enabled_by_default=True,
             memory=frozenset({"interest", "owned", "preference", "constraint"}),
         ),
         # Task 15: complete agents. Off until the business turns them on.
         AgentDefinition(
-            AgentRole.CUSTOMER_SERVICE, 2, "Customer Service", Audience.PUBLIC,
+            AgentRole.CUSTOMER_SERVICE, 3, "Customer Service", Audience.PUBLIC,
             "general questions, company policies, service information, orders, accounts and "
             "complaints", available=True, enabled_by_default=False, shared_resolution=True,
             memory=frozenset({"owned", "issue", "preference"}),
         ),
         AgentDefinition(
-            AgentRole.TECHNICAL_SUPPORT, 2, "Technical Support", Audience.PUBLIC,
+            AgentRole.TECHNICAL_SUPPORT, 3, "Technical Support", Audience.PUBLIC,
             "setup, troubleshooting, errors and how-to questions", available=True,
-            enabled_by_default=False, memory=frozenset({"owned", "issue"}),
+            enabled_by_default=False, shared_resolution=True,
+            memory=frozenset({"owned", "issue"}),
         ),
         # Internal roles: built in Tasks 18 and 20. They can never be enabled for guests.
         AgentDefinition(

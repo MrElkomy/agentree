@@ -35,7 +35,8 @@ class Action(StrEnum):
 PERMISSIONS: Mapping[str, frozenset[Action]] = {
     "sales": frozenset({Action.CREATE_LEAD, Action.UPDATE_LEAD, Action.CREATE_FOLLOW_UP_TASK}),
     "customer_service": frozenset({Action.RESOLVE_CONVERSATION}),
-    # technical_support runs no actions: it diagnoses and guides; people act (Task 15).
+    # PO decision 2026-10-22: support conversations too may be closed by the agent.
+    "technical_support": frozenset({Action.RESOLVE_CONVERSATION}),
 }
 
 MAX_KEY_LEN = 100

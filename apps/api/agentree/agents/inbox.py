@@ -5,10 +5,10 @@ the AI is paused), `human_active` (a member is replying; the AI is paused), `res
 A visitor writing to a resolved conversation reopens it for the AI. Every status change and
 assignment is audited; message content never goes to the audit trail or the logs.
 
-Who may resolve (approved PO decision, Task 15): a team member always; in conversations led by
-an agent with shared resolution (Customer Service) also the visitor and that agent (when the
-business left its resolve tool on). Sales conversations stay team-only. Checked here, never by
-the model or the browser.
+Who may resolve (approved PO decisions, Task 15 and 2026-10-22): a team member always; in
+conversations led by an agent with shared resolution (Customer Service, Technical Support) also
+the visitor and that agent (when the business left its resolve tool on). Sales conversations
+stay team-only. Checked here, never by the model or the browser.
 """
 
 import logging
@@ -341,7 +341,7 @@ def shared_resolution(agent: str) -> bool:
 
 
 def visitor_may_resolve(status: str, agent: str) -> bool:
-    """Visitors may resolve open or waiting conversations their Customer Service agent leads;
+    """Visitors may resolve open or waiting conversations a shared-resolution agent leads;
     not while a team member is handling it, never Sales conversations."""
     return status in ("open", "needs_human") and shared_resolution(agent)
 

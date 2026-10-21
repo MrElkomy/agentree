@@ -76,7 +76,7 @@ async def test_each_role_gets_its_own_rules_and_only_cs_may_resolve(harness: App
         _fake(harness).replies.append("Hello.")
         assert (await _say(c, biz, auth, "hi", agent=role)).status_code == 200
         system = _system(harness)
-        assert ("<<RESOLVED>>" in system) is (role == CS)
+        assert ("<<RESOLVED>>" in system) is (role in (CS, TS))
         assert "<<HANDOFF>>" in system  # every public agent can bring in a person
         assert ("<<LEAD" in system) is (role == SALES)
     cs, ts = _system(harness, -3), _system(harness, -2)
@@ -92,9 +92,10 @@ async def test_agent_definitions_are_complete_and_resolve_is_a_cs_tool(harness: 
     agents = {a["role"]: a for a in (await biz.owner.client.get(biz.agents)).json()}
     assert agents[CS]["version"] >= 1 and agents[CS]["available_tools"] == ["resolve_conversation"]
     assert agents[CS]["tools"] == ["resolve_conversation"]
-    assert agents[TS]["available_tools"] == [] and agents[TS]["tools"] == []
+    assert agents[TS]["available_tools"] == ["resolve_conversation"]
+    assert agents[TS]["tools"] == ["resolve_conversation"]
     # Tools outside a role's allowlist are refused whatever the client sends.
-    for role, tools in ((TS, ["resolve_conversation"]), (CS, ["create_lead"]),
+    for role, tools in ((TS, ["create_lead"]), (CS, ["create_lead"]),
                         (SALES, ["resolve_conversation"])):  # fmt: skip
         current = agents[role]
         r = await biz.owner.client.put(f"{biz.agents}/{role}", json={
@@ -177,7 +178,7 @@ async def test_sales_to_customer_service_to_technical_support_and_back(
 
     fake.replies.extend([CS_TO_TS, "Which version of the app do you use?"])
     body = (await _say(c, biz, auth, "Also the app shows error 42", conv)).json()
-    assert body["agent"] == TS and body["can_resolve"] is False
+    assert body["agent"] == TS and body["can_resolve"] is True  # PO 2026-10-22
     ts = _system(harness)
     assert "From Sales Agent: wants to return a chair" in ts and "error 42" in ts
     # Context: Technical Support sees the whole conversation so far.
@@ -293,7 +294,7 @@ async def test_cs_resolve_needs_the_business_tool(harness: AppHarness) -> None:
     assert _resolved_events(await _events(biz)) == []
 
 
-@pytest.mark.parametrize("role", [SALES, TS])
+@pytest.mark.parametrize("role", [SALES])
 async def test_other_agents_cannot_resolve_even_if_the_model_says_so(
     harness: AppHarness, role: str
 ) -> None:
@@ -415,3 +416,39 @@ async def test_streamed_cs_reply_hides_the_resolve_marker(harness: AppHarness) -
     done = events[-1][1]
     assert events[-1][0] == "done" and done["status"] == "resolved"
     assert done["reply"] == "Glad it's sorted!" and done["can_resolve"] is False
+
+
+async def test_technical_support_conversations_may_be_resolved_too(harness: AppHarness) -> None:
+    """PO decision 2026-10-22: like Customer Service, by the agent and by the visitor."""
+    biz = await _support_business(harness)
+    c, auth = await _visitor(harness, biz)
+    _fake(harness).replies.append("Try restarting it.")
+    body = (await _say(c, biz, auth, "My app crashes", agent=TS)).json()
+    assert body["can_resolve"] is True and "<<RESOLVED>>" in _system(harness)
+    _fake(harness).replies.append(DONE)
+    body = (await _say(c, biz, auth, "That fixed it!", body["conversation_id"])).json()
+    assert body["status"] == "resolved" and body["reply"] == "Glad it's sorted!"
+    _fake(harness).replies.append("Try restarting it.")
+    conv = (await _say(c, biz, auth, "It crashes again", agent=TS)).json()["conversation_id"]
+    r = await c.post(f"{biz.pub}/conversations/{conv}/resolve", headers=auth)
+    assert r.status_code == 200 and r.json()["status"] == "resolved"
+    assert [e["resolved_by"] for e in _resolved_events(await _events(biz))] == ["visitor", "agent"]
+
+
+async def test_agents_never_claim_a_transfer_without_its_marker(harness: AppHarness) -> None:
+    biz = await _support_business(harness)
+    c, auth = await _visitor(harness, biz)
+    _fake(harness).replies.extend([TO_CS, "Hello! How can I help?"])
+    await _say(c, biz, auth, "I want to talk to customer service")
+    joined = _system(harness)
+    assert "You are the Customer Service they were looking for" in joined
+    assert "never say you will transfer them" in joined
+    assert "Never say that you are transferring or connecting" in joined
+    sales = _system(harness, -2)
+    assert "in the customer's language telling them you are bringing" in sales
+    assert "You are the Sales Agent they were looking for" not in sales
+    # The dashboard test chat has no person to hand over to: the same rule applies.
+    _fake(harness).replies.append("Hi.")
+    await biz.owner.client.post(f"{biz.base}/agents/sales/console", json={"message": "hi"})
+    console = _system(harness)
+    assert "Never say that you are transferring" in console and "<<HANDOFF>>" not in console
