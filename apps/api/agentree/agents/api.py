@@ -3,48 +3,107 @@
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request, status
+from fastapi.responses import StreamingResponse
 
 from agentree.agents import service
 from agentree.agents.schemas import ConsoleMessageIn, ConsoleReplyOut, MessageOut, SourceOut
-from agentree.core import ratelimit
+from agentree.core import ratelimit, sse
 from agentree.core.vault import VaultDecryptError, VaultUnavailableError
 from agentree.tenancy.deps import Member
 
 router = APIRouter(prefix="/api/businesses/{business_id}", tags=["agents"])
 
 
-@router.post("/agents/sales/console")
-async def sales_console(
-    body: ConsoleMessageIn, member: Member, request: Request
-) -> ConsoleReplyOut:
-    st = request.app.state
+async def _console_limit(request: Request, member: Member) -> None:
     # Protects the customer's own AI quota from runaway usage.
     if not await ratelimit.hit(
-        st.session_factory,
+        request.app.state.session_factory,
         ratelimit.key_for("agent-console:business", str(member.tenant.business_id)),
         limit=300, window_seconds=3600,
     ):  # fmt: skip
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "rate_limited")
-    try:
-        turn = await service.sales_console_turn(
-            st.session_factory, st.vault, st.llm_providers, member.tenant,
-            user_id=member.user.id, message=body.message, conversation_id=body.conversation_id,
-        )  # fmt: skip
-    except service.NotFoundError:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "not_found") from None
-    except service.NoProviderConfiguredError:
-        raise HTTPException(status.HTTP_409_CONFLICT, "no_ai_provider_configured") from None
-    except service.ProvidersUnavailableError as exc:
-        raise HTTPException(
+
+
+def _turn_error(exc: Exception) -> HTTPException | None:
+    if isinstance(exc, service.NotFoundError):
+        return HTTPException(status.HTTP_404_NOT_FOUND, "not_found")
+    if isinstance(exc, service.NoProviderConfiguredError):
+        return HTTPException(status.HTTP_409_CONFLICT, "no_ai_provider_configured")
+    if isinstance(exc, service.ProvidersUnavailableError):
+        return HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE, {"code": "ai_unavailable", "errors": exc.kinds}
-        ) from None
-    except (VaultUnavailableError, VaultDecryptError):
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "key_vault_unavailable") from None
+        )
+    if isinstance(exc, (VaultUnavailableError, VaultDecryptError)):
+        return HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "key_vault_unavailable")
+    return None
+
+
+def _reply_out(turn: service.TurnResult) -> ConsoleReplyOut:
     return ConsoleReplyOut(
         conversation_id=turn.conversation_id, reply=turn.reply,
         sources=[SourceOut(id=i, title=t) for i, t in turn.sources], provider=turn.provider,
         model=turn.model, slot=turn.slot, fallback_used=turn.fallback_used,
     )  # fmt: skip
+
+
+@router.post("/agents/sales/console")
+async def sales_console(
+    body: ConsoleMessageIn, member: Member, request: Request
+) -> ConsoleReplyOut:
+    await _console_limit(request, member)
+    st = request.app.state
+    try:
+        turn = await service.sales_console_turn(
+            st.session_factory, st.vault, st.llm_providers, member.tenant,
+            user_id=member.user.id, message=body.message, conversation_id=body.conversation_id,
+        )  # fmt: skip
+    except Exception as exc:
+        if (err := _turn_error(exc)) is None:
+            raise
+        raise err from None
+    return _reply_out(turn)
+
+
+StreamItem = service.Delta | service.Restart | service.TurnResult
+
+
+def _console_event(item: StreamItem) -> bytes:
+    if isinstance(item, service.Delta):
+        return sse.event("delta", {"text": item.text})
+    if isinstance(item, service.Restart):
+        return sse.event("restart", {})
+    return sse.event("done", _reply_out(item).model_dump(mode="json"))
+
+
+def _console_stream_error(exc: Exception) -> bytes | None:
+    if (err := _turn_error(exc)) is None:
+        return None
+    detail = err.detail if isinstance(err.detail, dict) else {"code": err.detail}
+    return sse.event("error", detail)
+
+
+@router.post(
+    "/agents/sales/console/stream",
+    response_class=StreamingResponse,
+    responses={200: {"content": {"text/event-stream": {}}}},
+)
+async def sales_console_stream(
+    body: ConsoleMessageIn, member: Member, request: Request
+) -> StreamingResponse:
+    """The console turn as server-sent events: `delta`*, `restart`, then `done` or `error`."""
+    await _console_limit(request, member)
+    st = request.app.state
+    items = service.stream_sales_console_turn(
+        st.session_factory, st.vault, st.llm_providers, member.tenant,
+        user_id=member.user.id, message=body.message, conversation_id=body.conversation_id,
+    )  # fmt: skip
+    try:
+        first = await anext(items)
+    except Exception as exc:
+        if (err := _turn_error(exc)) is None:
+            raise
+        raise err from None
+    return sse.stream_response(first, items, _console_event, _console_stream_error)
 
 
 @router.get("/conversations/{conversation_id}/messages")

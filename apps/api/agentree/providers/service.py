@@ -16,10 +16,11 @@ from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from uuid import UUID
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from agentree.audit.service import AuditAction, record
+from agentree.core import metrics
 from agentree.core.config import Settings
 from agentree.core.ids import uuid7
 from agentree.core.vault import SealedSecret, Vault, VaultUnavailableError, parse_master_key
@@ -320,7 +321,10 @@ async def record_outcome(
                 c.probe_until = None
                 transition = Transition.REOPENED if was_open else Transition.OPENED
         provider = c.provider
+    metrics.inc("agentree_llm_calls_total", provider=provider, slot=slot,
+                outcome=error.kind if error else "ok")  # fmt: skip
     if transition is not None:
+        metrics.inc("agentree_breaker_transitions_total", transition=transition)
         # Operational signal for monitoring: ids, provider and error kind only.
         logger.warning(
             "provider breaker %s", transition,
@@ -342,3 +346,17 @@ async def record_check(
             _close(c, _now())
         else:
             c.last_error_kind = error.kind
+
+
+async def health_counts(factory: Factory) -> dict[str, int]:
+    """Platform-wide count of stored keys per breaker state (closed, open, half_open)."""
+    async with factory() as session, session.begin():
+        rows = (
+            await session.execute(
+                text("SELECT state, keys FROM agentree_provider_health_counts(:now)"),
+                {"now": _now()},
+            )
+        ).all()
+    counts = {"closed": 0, "open": 0, "half_open": 0}
+    counts.update({state: int(keys) for state, keys in rows})
+    return counts
