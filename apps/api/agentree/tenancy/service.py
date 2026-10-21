@@ -9,7 +9,8 @@ from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from agentree.core.config import Settings
-from agentree.core.email import EmailSender, OutgoingEmail, send_safely
+from agentree.core.email import EmailSender, OutgoingEmail, branded_email, send_safely
+from agentree.core.email_layout import EmailAction, EmailContent, clean_text, plural
 from agentree.core.ids import uuid7
 from agentree.core.tokens import hash_token, new_token
 from agentree.tenancy.context import TenantContext, TenantSource
@@ -282,17 +283,42 @@ async def create_invitation(
         session.add(inv)
         business_name = business.name
     sent = await send_safely(
-        mailer,
-        OutgoingEmail(
-            to=normalized,
-            subject=f"You're invited to {business_name} on Agentree",
-            body="Accept the invitation: "
-            f"{settings.public_base_url}/invitations/accept?token={raw}",
-        ),
+        mailer, _invitation_email(settings, normalized, business_name, role, raw),
         kind="invitation",
-    )
+    )  # fmt: skip
     # If delivery failed the invitation stays pending; re-inviting issues a fresh token.
     return InvitationInfo(inv.id, normalized, role, expires, email_sent=sent)
+
+
+_ROLE_PHRASE = {Role.OWNER: "an owner", Role.ADMIN: "an admin", Role.MEMBER: "a member"}
+
+
+def _invitation_email(
+    settings: Settings, to: str, business_name: str, role: Role, raw_token: str
+) -> OutgoingEmail:
+    # The business name is user-controlled: the layout escapes it for HTML, and clean_text
+    # strips control characters (no header injection in the subject, no fake text lines).
+    name = clean_text(business_name)
+    return branded_email(
+        to,
+        EmailContent(
+            subject=f"You're invited to {name} on Agentree",
+            preheader=f"Join {name} on Agentree as {_ROLE_PHRASE[role]}.",
+            heading=f"You're invited to join {name} on Agentree",
+            paragraphs=[
+                f"You've been invited to join {name} on Agentree as {_ROLE_PHRASE[role]}. "
+                "Accept the invitation to get started. If you don't have an Agentree account "
+                "yet, you can create one with this email address.",
+            ],
+            action=EmailAction(
+                "Accept invitation",
+                f"{settings.public_base_url}/invitations/accept?token={raw_token}",
+            ),
+            footnote=f"This invitation expires in {plural(settings.invitation_ttl_days, 'day')}.",
+            reason="You're receiving this because someone invited this email address to a "
+            "business on Agentree. If you weren't expecting it, you can ignore this email.",
+        ),
+    )
 
 
 async def list_invitations(factory: Factory, ctx: TenantContext) -> list[InvitationInfo]:

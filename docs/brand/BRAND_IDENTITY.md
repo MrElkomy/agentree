@@ -72,8 +72,27 @@ Inter variable (latin subset, committed as `apps/web/src/app/fonts/inter-latin-w
 SIL OFL). No font is fetched from Google at build or run time. Arabic text falls back to the
 system Arabic font.
 
+## Email
+
+Transactional emails (verification, sign-up attempt notice, password reset, invitations) share
+one branded layout: `apps/api/agentree/core/email_layout.py`. Each email is sent as
+`multipart/alternative` with a plain-text part (canonical; the action link sits alone on its own
+line) and a responsive HTML part: table layout, inline styles, max width 560 px, a bulletproof
+`brand` button with the raw link below it, a hidden preheader, and a footer with the reason the
+recipient got the email plus the slogan. Colors mirror the tokens above; the font is the Inter
+system stack with no web font loading.
+
+- **Logo**: `apps/api/agentree/core/assets/email-logo.png` (the wordmark rendered at 2x for
+  160 px, transparent, ~2 KB), attached inline and referenced as `cid:agentree-logo`. Email
+  clients do not render SVG, and hosted images would not load from the staging site (HTTP basic
+  auth) and would act as open tracking. No external resources or tracking pixels.
+- **Safety**: every dynamic value is HTML-escaped by the layout; control characters are stripped
+  from subjects and text; action URLs must be absolute `http(s)`.
+- **Adding an email**: build an `EmailContent` (subject, preheader, heading, paragraphs, optional
+  `EmailAction(label, url)`, footnote, reason) and send `branded_email(to, content)` through
+  `send_safely`. Feature modules never write HTML. Only state an expiry that comes from settings.
+
 ## Not yet applied
 
-- Branded HTML emails (emails are plain text today) — separate change.
 - Marketing website, dashboard information architecture, agent status system and component library
   from the brief — future slices, each validated against the MVP scope.

@@ -13,7 +13,8 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from agentree.core.config import Settings
-from agentree.core.email import EmailSender, OutgoingEmail, send_safely
+from agentree.core.email import EmailSender, OutgoingEmail, branded_email, send_safely
+from agentree.core.email_layout import EmailAction, EmailContent, plural
 from agentree.core.ids import uuid7
 from agentree.core.tokens import hash_token, new_token
 from agentree.identity.models import AuthToken, User, UserSession
@@ -89,6 +90,80 @@ async def _consume_token(session: AsyncSession, raw: str, purpose: TokenPurpose)
     ).scalar_one_or_none()
 
 
+# --- emails -------------------------------------------------------------------------------
+
+
+def _verification_email(settings: Settings, to: str, raw_token: str) -> OutgoingEmail:
+    return branded_email(
+        to,
+        EmailContent(
+            subject="Verify your Agentree email",
+            preheader="Confirm your email address to finish setting up Agentree.",
+            heading="Confirm your email",
+            paragraphs=[
+                "Thanks for signing up for Agentree. Confirm your email address to finish "
+                "setting up your account."
+            ],
+            action=EmailAction(
+                "Confirm email", f"{settings.public_base_url}/verify-email?token={raw_token}"
+            ),
+            footnote="This link expires in "
+            f"{plural(settings.email_verification_ttl_hours, 'hour')}.",
+            reason="You're receiving this because this email address was used to sign up "
+            "for Agentree. If that wasn't you, you can ignore this email.",
+        ),
+    )
+
+
+def _signup_attempt_email(settings: Settings, to: str) -> OutgoingEmail:
+    return branded_email(
+        to,
+        EmailContent(
+            subject="Agentree sign-up attempt",
+            preheader="Someone tried to create an Agentree account with this email.",
+            heading="You already have an account",
+            paragraphs=[
+                "Someone tried to create an Agentree account with this email address, but an "
+                "account already exists.",
+                "If it was you, sign in instead. Forgot your password? You can reset it from "
+                "the sign-in page.",
+            ],
+            action=EmailAction("Sign in", f"{settings.public_base_url}/login"),
+            footnote="If it wasn't you, you can ignore this email. Your account hasn't changed.",
+            reason="You're receiving this because someone tried to sign up for Agentree with "
+            "this email address.",
+        ),
+    )
+
+
+def _password_reset_email(settings: Settings, to: str, raw_token: str) -> OutgoingEmail:
+    return branded_email(
+        to,
+        EmailContent(
+            subject="Reset your Agentree password",
+            preheader="Use this link to choose a new Agentree password.",
+            heading="Reset your password",
+            paragraphs=[
+                "We received a request to reset the password for your Agentree account. "
+                "Choose a new password with the button below.",
+                "If you didn't ask for this, you can ignore this email. Your password won't "
+                "change.",
+            ],
+            action=EmailAction(
+                "Reset password", f"{settings.public_base_url}/reset-password?token={raw_token}"
+            ),
+            footnote="This link expires in "
+            f"{_duration_minutes(settings.password_reset_ttl_minutes)}.",
+            reason="You're receiving this because a password reset was requested for this "
+            "email address on Agentree.",
+        ),
+    )
+
+
+def _duration_minutes(minutes: int) -> str:
+    return plural(minutes // 60, "hour") if minutes % 60 == 0 else plural(minutes, "minute")
+
+
 # --- registration and verification ------------------------------------------------------
 
 
@@ -119,18 +194,9 @@ async def register(
                 session, user.id, TokenPurpose.VERIFY_EMAIL,
                 timedelta(hours=settings.email_verification_ttl_hours),
             )  # fmt: skip
-            message = OutgoingEmail(
-                to=normalized,
-                subject="Verify your Agentree email",
-                body=f"Confirm your email: {settings.public_base_url}/verify-email?token={raw}",
-            )
+            message = _verification_email(settings, normalized, raw)
         else:
-            message = OutgoingEmail(
-                to=normalized,
-                subject="Agentree sign-up attempt",
-                body="Someone tried to create an Agentree account with this email. "
-                f"If it was you, sign in or reset your password: {settings.public_base_url}/login",
-            )
+            message = _signup_attempt_email(settings, normalized)
     await send_safely(mailer, message, kind="registration")
 
 
@@ -148,15 +214,7 @@ async def resend_verification(
             session, user.id, TokenPurpose.VERIFY_EMAIL,
             timedelta(hours=settings.email_verification_ttl_hours),
         )  # fmt: skip
-    await send_safely(
-        mailer,
-        OutgoingEmail(
-            to=normalized,
-            subject="Verify your Agentree email",
-            body=f"Confirm your email: {settings.public_base_url}/verify-email?token={raw}",
-        ),
-        kind="verification",
-    )
+    await send_safely(mailer, _verification_email(settings, normalized, raw), kind="verification")
 
 
 async def verify_email(factory: Factory, raw_token: str) -> bool:
@@ -279,14 +337,7 @@ async def request_password_reset(
             timedelta(minutes=settings.password_reset_ttl_minutes),
         )  # fmt: skip
     await send_safely(
-        mailer,
-        OutgoingEmail(
-            to=normalized,
-            subject="Reset your Agentree password",
-            body=f"Reset your password: {settings.public_base_url}/reset-password?token={raw}\n"
-            "If you did not ask for this, ignore this email.",
-        ),
-        kind="password_reset",
+        mailer, _password_reset_email(settings, normalized, raw), kind="password_reset"
     )
 
 
