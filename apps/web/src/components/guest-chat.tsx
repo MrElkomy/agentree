@@ -35,6 +35,7 @@ export function GuestChat({
     restoring,
     error,
     send,
+    retry,
     reset,
     setHandoff,
     suggestion,
@@ -90,6 +91,7 @@ export function GuestChat({
       <section
         aria-label={`Conversation with ${agentName}`}
         aria-live="polite"
+        aria-busy={busy}
         className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4"
       >
         {restoring ? (
@@ -126,9 +128,22 @@ export function GuestChat({
             </div>
           ) : (
             <div key={i} className="me-auto flex max-w-[85%] flex-col gap-1" data-testid="guest-assistant">
-              <div className="rounded-lg border border-line bg-paper px-4 py-2.5">
+              <div className={`rounded-lg border border-line bg-paper px-4 py-2.5 ${t.failed ? "opacity-70" : ""}`}>
                 <RichText text={t.content} />
               </div>
+              {t.failed ? (
+                <p className="flex flex-wrap items-center gap-2 text-xs text-danger" role="alert" data-testid="guest-interrupted">
+                  The reply was interrupted.
+                  <button
+                    type="button"
+                    onClick={() => void retry()}
+                    disabled={busy}
+                    className="font-semibold underline underline-offset-2"
+                  >
+                    Try again
+                  </button>
+                </p>
+              ) : null}
               <p className="text-xs text-ink-muted">{agentName}</p>
             </div>
           ),
@@ -184,7 +199,7 @@ export function GuestChat({
             You&apos;re now chatting with the {teamName}.
           </p>
         ) : null}
-        {busy && paused ? (
+        {busy && turns[turns.length - 1]?.role !== "user" ? null : busy && paused ? (
           <p className="me-auto text-sm text-ink-muted" role="status">
             Sending…
           </p>

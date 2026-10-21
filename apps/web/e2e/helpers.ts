@@ -30,3 +30,8 @@ export async function logOut(page: Page) {
   await page.getByRole("button", { name: "Log out", exact: true }).click();
   await expect(page).toHaveURL(/\/login$/);
 }
+
+/** Waits until no chat on the page is still streaming a reply (it is saved only at the end). */
+export async function replyDone(page: Page) {
+  await expect(page.locator('[aria-busy="true"]')).toHaveCount(0);
+}

@@ -26,14 +26,17 @@ that changes what it describes. Last updated: 2026-10-21.
   retention, staging, public page + widget + guest sessions), brand identity, Task 10 (audit log
   #27, branded emails #28), Task 11 (leads + Action Gateway #29), Task 11b (follow-up reminders
   #30).
-- **In review:** Task 12 — Human inbox + handoff + email alert (`docs/architecture/INBOX.md`).
-- **Next (needs PO "ابدأ"):** Task 13 — AI reliability (streaming, circuit breaker, monitoring).
+- **Merged:** Task 12 — Human inbox + handoff + email alert (#32, `docs/architecture/INBOX.md`).
+- **In progress:** Task 13 (approved 2026-10-21). 13a (streaming, circuit breaker, recovery,
+  health, metrics; `docs/architecture/RELIABILITY.md`) in review; 13b (Web Push alerts, PO
+  approved adding it) next. Deploying 13b needs VAPID keys made on the server: give the PO the
+  command only when 13b is ready to deploy.
 
 ## Staging (tryagentree.com, behind a basic-auth gate, synthetic data only)
 - Shared Hetzner host with TRACK, IELTS and the Telegram bridge — never disrupt them.
 - Deploy: the PO runs `~/agentree/infra/staging/deploy.sh origin/main` (pre-deploy encrypted
   backup, migrations, automatic rollback). Details: `docs/operations/STAGING_RUNBOOK.md`.
-- **Deployed:** main at `96ea819` (through Task 10). **Merged, not deployed:** Tasks 11, 11b.
+- **Deployed:** main at `96ea819` (through Task 10). **Merged, not deployed:** Tasks 11, 11b, 12.
 - **Deployment batches (PO decision):** don't deploy every PR. Batch 1 = Tasks 11 + 11b + 12 + 13
   → batch 2 = 14–16 → batch 3 = 17–21 → batch 4 = 22. Tell the PO when a batch is ready.
 - AI on staging: Groq (free tier) as the demo provider key. Nightly encrypted backups to Google

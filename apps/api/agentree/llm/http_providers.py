@@ -1,6 +1,7 @@
 """Thin HTTP adapters for supported providers (fixed vendor endpoints, no customer URLs)."""
 
-from collections.abc import Callable
+import json
+from collections.abc import AsyncIterator, Callable
 from typing import Any
 
 import httpx
@@ -11,6 +12,8 @@ from agentree.llm.base import (
     ErrorKind,
     ProviderError,
     ProviderName,
+    StreamItem,
+    TextDelta,
 )
 
 TIMEOUT = httpx.Timeout(60.0, connect=10.0)
@@ -28,6 +31,29 @@ def classify(status: int, body: str) -> ErrorKind:
     if status >= 500:
         return ErrorKind.UNAVAILABLE
     return ErrorKind.BAD_REQUEST
+
+
+async def _sse_data(resp: httpx.Response) -> AsyncIterator[str]:
+    """`data:` payloads of a server-sent event stream (one per event)."""
+    lines: list[str] = []
+    async for line in resp.aiter_lines():
+        if line.startswith("data:"):
+            lines.append(line[5:].removeprefix(" "))
+        elif not line and lines:
+            yield "\n".join(lines)
+            lines = []
+    if lines:
+        yield "\n".join(lines)
+
+
+class _StreamState:
+    """Accumulates one streamed reply across provider-specific events."""
+
+    def __init__(self) -> None:
+        self.parts: list[str] = []
+        self.input_tokens = 0
+        self.output_tokens = 0
+        self.finish_reason: str | None = None
 
 
 class _HttpProvider:
@@ -48,6 +74,49 @@ class _HttpProvider:
 
     def _parse(self, request: ChatRequest, data: dict[str, Any]) -> ChatResult:
         raise NotImplementedError
+
+    def _stream_url(self, request: ChatRequest) -> str:
+        return self._url(request)
+
+    def _stream_payload(self, request: ChatRequest) -> dict[str, Any]:
+        return {**self._payload(request), "stream": True}
+
+    def _stream_event(self, event: dict[str, Any], state: _StreamState) -> str:
+        """Updates `state` from one event; returns the new text (may be empty)."""
+        raise NotImplementedError
+
+    async def stream(self, api_key: str, request: ChatRequest) -> AsyncIterator[StreamItem]:
+        state = _StreamState()
+        try:
+            async with (
+                httpx.AsyncClient(transport=self._transport, timeout=TIMEOUT) as client,
+                client.stream(
+                    "POST", self._stream_url(request), headers=self._headers(api_key),
+                    json=self._stream_payload(request),
+                ) as resp,
+            ):  # fmt: skip
+                if resp.status_code >= 400:
+                    body = (await resp.aread()).decode(errors="replace")
+                    # Never propagate the body: it may echo request content.
+                    raise ProviderError(self.name, classify(resp.status_code, body),
+                                        resp.status_code)  # fmt: skip
+                async for data in _sse_data(resp):
+                    if data == "[DONE]":
+                        break
+                    try:
+                        text = self._stream_event(json.loads(data), state)
+                    except (KeyError, IndexError, TypeError, ValueError):
+                        raise ProviderError(self.name, ErrorKind.UNAVAILABLE) from None
+                    if text:
+                        state.parts.append(text)
+                        yield TextDelta(text)
+        except httpx.HTTPError:
+            raise ProviderError(self.name, ErrorKind.TRANSIENT) from None
+        yield ChatResult(
+            text="".join(state.parts), provider=self.name, model=request.model,
+            input_tokens=state.input_tokens, output_tokens=state.output_tokens,
+            raw_finish_reason=state.finish_reason,
+        )  # fmt: skip
 
     async def chat(self, api_key: str, request: ChatRequest) -> ChatResult:
         try:
@@ -91,6 +160,22 @@ class OpenAIProvider(_HttpProvider):
             raw_finish_reason=choice.get("finish_reason"),
         )  # fmt: skip
 
+    def _stream_payload(self, request: ChatRequest) -> dict[str, Any]:
+        return {**super()._stream_payload(request), "stream_options": {"include_usage": True}}
+
+    def _stream_event(self, event: dict[str, Any], state: _StreamState) -> str:
+        # Usage arrives in a final chunk (OpenAI: `usage`; Groq: `x_groq.usage`).
+        usage = event.get("usage") or (event.get("x_groq") or {}).get("usage") or {}
+        if usage:
+            state.input_tokens = usage.get("prompt_tokens", state.input_tokens)
+            state.output_tokens = usage.get("completion_tokens", state.output_tokens)
+        choices = event.get("choices") or []
+        if not choices:
+            return ""
+        choice = choices[0]
+        state.finish_reason = choice.get("finish_reason") or state.finish_reason
+        return (choice.get("delta") or {}).get("content") or ""
+
 
 class AnthropicProvider(_HttpProvider):
     name = ProviderName.ANTHROPIC
@@ -123,6 +208,19 @@ class AnthropicProvider(_HttpProvider):
             input_tokens=usage.get("input_tokens", 0), output_tokens=usage.get("output_tokens", 0),
             raw_finish_reason=data.get("stop_reason"),
         )  # fmt: skip
+
+    def _stream_event(self, event: dict[str, Any], state: _StreamState) -> str:
+        kind = event["type"]
+        if kind == "error":  # e.g. overloaded_error mid-stream
+            raise ProviderError(self.name, ErrorKind.UNAVAILABLE)
+        if kind == "message_start":
+            state.input_tokens = event["message"].get("usage", {}).get("input_tokens", 0)
+        elif kind == "message_delta":
+            state.output_tokens = event.get("usage", {}).get("output_tokens", state.output_tokens)
+            state.finish_reason = event.get("delta", {}).get("stop_reason") or state.finish_reason
+        elif kind == "content_block_delta" and event["delta"].get("type") == "text_delta":
+            return str(event["delta"]["text"])
+        return ""
 
 
 class GeminiProvider(_HttpProvider):
@@ -166,12 +264,34 @@ class GeminiProvider(_HttpProvider):
             raw_finish_reason=candidate.get("finishReason"),
         )  # fmt: skip
 
+    def _stream_url(self, request: ChatRequest) -> str:
+        return f"{self.url}/{request.model}:streamGenerateContent?alt=sse"
+
+    def _stream_payload(self, request: ChatRequest) -> dict[str, Any]:
+        return self._payload(request)  # the endpoint itself streams
+
+    def _stream_event(self, event: dict[str, Any], state: _StreamState) -> str:
+        usage = event.get("usageMetadata") or {}
+        state.input_tokens = usage.get("promptTokenCount", state.input_tokens)
+        state.output_tokens = usage.get("candidatesTokenCount", state.output_tokens)
+        candidates = event.get("candidates") or []
+        if not candidates:
+            return ""
+        candidate = candidates[0]
+        state.finish_reason = candidate.get("finishReason") or state.finish_reason
+        parts = (candidate.get("content") or {}).get("parts") or []
+        return "".join(p.get("text", "") for p in parts)
+
 
 class GroqProvider(OpenAIProvider):
     """Groq's OpenAI-compatible endpoint (fixed URL); offers a free tier."""
 
     name = ProviderName.GROQ
     url = "https://api.groq.com/openai/v1/chat/completions"
+
+    def _stream_payload(self, request: ChatRequest) -> dict[str, Any]:
+        # Usage comes back in `x_groq`; no `stream_options` needed.
+        return {**self._payload(request), "stream": True}
 
 
 ProviderFactory = Callable[[], _HttpProvider]

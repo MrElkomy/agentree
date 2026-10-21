@@ -1,10 +1,13 @@
 """BYOK provider credential endpoints. Keys are write-only from the client's perspective."""
 
 import logging
+import secrets
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, Header, HTTPException, Request, status
+from fastapi.responses import PlainTextResponse
 
-from agentree.core import ratelimit
+from agentree.core import metrics, ratelimit
 from agentree.core.vault import VaultDecryptError, VaultUnavailableError
 from agentree.llm.base import ErrorKind, LLMProvider, ProviderError, ProviderName
 from agentree.providers import service
@@ -15,6 +18,7 @@ from agentree.tenancy.roles import Role
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/businesses/{business_id}/ai-providers", tags=["ai-providers"])
+metrics_router = APIRouter(prefix="/api/internal", tags=["monitoring"])
 
 
 def _provider(request: Request, name: ProviderName) -> LLMProvider:
@@ -25,7 +29,8 @@ def _out(c: service.CredentialInfo) -> CredentialOut:
     return CredentialOut(
         slot=c.slot, provider=c.provider, model=c.model, key_hint=c.key_hint,
         last_verified_at=c.last_verified_at, last_error_kind=c.last_error_kind,
-        updated_at=c.updated_at,
+        updated_at=c.updated_at, health=c.health, last_failure_at=c.last_failure_at,
+        breaker_open_until=c.breaker_open_until,
     )  # fmt: skip
 
 
@@ -117,3 +122,27 @@ async def test_provider(slot: Slot, member: Member, request: Request) -> CheckOu
         return CheckOut(ok=False, error_kind=exc.kind)
     await service.record_check(factory, member.tenant, slot, None)
     return CheckOut(ok=True)
+
+
+@metrics_router.get("/metrics", response_class=PlainTextResponse, include_in_schema=False)
+async def monitoring_metrics(
+    request: Request,
+    token: Annotated[str | None, Header(alias="X-Agentree-Metrics-Token")] = None,
+) -> str:
+    """Prometheus-format counters for monitoring (token-protected; 404 when disabled)."""
+    expected = request.app.state.settings.metrics_token
+    if (
+        expected is None
+        or token is None
+        or not secrets.compare_digest(token.encode(), expected.get_secret_value().encode())
+    ):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "not_found")
+    counts = await service.health_counts(request.app.state.session_factory)
+    return metrics.render(
+        {
+            "agentree_provider_keys": (
+                "Stored provider keys by circuit breaker state.",
+                [({"state": state}, n) for state, n in sorted(counts.items())],
+            )
+        }
+    )

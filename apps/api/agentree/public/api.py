@@ -13,12 +13,13 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
+from fastapi.responses import StreamingResponse
 from fastapi.security import APIKeyHeader
 
 from agentree.actions import service as gateway
 from agentree.agents import inbox
 from agentree.agents import service as agents
-from agentree.core import ratelimit
+from agentree.core import ratelimit, sse
 from agentree.core.client_ip import client_ip
 from agentree.core.config import Environment
 from agentree.leads import service as leads
@@ -173,10 +174,10 @@ async def _guest(
     return guest
 
 
-@public_router.post("/chat")
-async def guest_chat(
-    slug: str, body: GuestChatIn, creds: GuestToken, request: Request, tasks: BackgroundTasks
-) -> GuestChatOut:
+async def _chat_admission(
+    request: Request, slug: str, creds: GuestToken
+) -> tuple[service.PublicPage, UUID]:
+    """Page and guest session for one chat turn, after every abuse limit (else 429/401/404)."""
     page = await _page(request, slug)
     if not await _within(request, "public-chat:ip", _ip(request),
                          service.CHAT_PER_IP_PER_HOUR, 3600):  # fmt: skip
@@ -194,20 +195,18 @@ async def guest_chat(
     if not await _within(request, "public-chat:business-day", f"{page.tenant.business_id}:{day}",
                          page.daily_reply_budget, 86400):  # fmt: skip
         raise _busy()
-    st = request.app.state
-    try:
-        turn = await agents.public_sales_turn(
-            st.session_factory, st.vault, st.llm_providers, page.tenant,
-            guest_session_id=guest, message=body.message, conversation_id=body.conversation_id,
-            channel=body.channel,
-        )  # fmt: skip
-    except agents.NotFoundError:
-        raise _not_found() from None
-    except agents.AgentUnavailableError:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "agent_unavailable") from None
-    if turn.handoff_requested:  # the agent brought in a person: tell the team (after replying)
-        tasks.add_task(inbox.notify_handoff, st.session_factory, st.settings, st.mailer,
-                       page.tenant, turn.conversation_id, reason="agent")  # fmt: skip
+    return page, guest
+
+
+def _guest_turn_error(exc: Exception) -> HTTPException | None:
+    if isinstance(exc, agents.NotFoundError):
+        return _not_found()
+    if isinstance(exc, agents.AgentUnavailableError):
+        return HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "agent_unavailable")
+    return None
+
+
+def _chat_out(turn: agents.GuestTurnResult) -> GuestChatOut:
     suggestion = turn.lead_suggestion
     return GuestChatOut(
         conversation_id=turn.conversation_id, reply=turn.reply, status=turn.status,
@@ -215,6 +214,79 @@ async def guest_chat(
                                           phone=suggestion.phone, need=suggestion.need)
         if suggestion else None,
     )  # fmt: skip
+
+
+def _notify_if_handoff(
+    request: Request, page: service.PublicPage, turn: agents.GuestTurnResult, tasks: BackgroundTasks
+) -> None:
+    if turn.handoff_requested:  # the agent brought in a person: tell the team (after replying)
+        st = request.app.state
+        tasks.add_task(inbox.notify_handoff, st.session_factory, st.settings, st.mailer,
+                       page.tenant, turn.conversation_id, reason="agent")  # fmt: skip
+
+
+@public_router.post("/chat")
+async def guest_chat(
+    slug: str, body: GuestChatIn, creds: GuestToken, request: Request, tasks: BackgroundTasks
+) -> GuestChatOut:
+    page, guest = await _chat_admission(request, slug, creds)
+    st = request.app.state
+    try:
+        turn = await agents.public_sales_turn(
+            st.session_factory, st.vault, st.llm_providers, page.tenant,
+            guest_session_id=guest, message=body.message, conversation_id=body.conversation_id,
+            channel=body.channel,
+        )  # fmt: skip
+    except Exception as exc:
+        if (err := _guest_turn_error(exc)) is None:
+            raise
+        raise err from None
+    _notify_if_handoff(request, page, turn, tasks)
+    return _chat_out(turn)
+
+
+@public_router.post(
+    "/chat/stream",
+    response_class=StreamingResponse,
+    responses={200: {"content": {"text/event-stream": {}}}},
+)
+async def guest_chat_stream(
+    slug: str, body: GuestChatIn, creds: GuestToken, request: Request
+) -> StreamingResponse:
+    """The chat turn as server-sent events: `delta`*, `restart`, then `done` or `error`.
+
+    `done` carries the same body as POST /chat; its `reply` is final (it replaces the streamed
+    text). After `error` nothing was stored and the visitor can send the message again.
+    """
+    page, guest = await _chat_admission(request, slug, creds)
+    st = request.app.state
+    items = agents.stream_public_sales_turn(
+        st.session_factory, st.vault, st.llm_providers, page.tenant,
+        guest_session_id=guest, message=body.message, conversation_id=body.conversation_id,
+        channel=body.channel,
+    )  # fmt: skip
+    try:
+        first = await anext(items)
+    except Exception as exc:
+        if (err := _guest_turn_error(exc)) is None:
+            raise
+        raise err from None
+    tasks = BackgroundTasks()  # run after the stream ends
+
+    def encode(item: agents.Delta | agents.Restart | agents.GuestTurnResult) -> bytes:
+        if isinstance(item, agents.Delta):
+            return sse.event("delta", {"text": item.text})
+        if isinstance(item, agents.Restart):
+            return sse.event("restart", {})
+        _notify_if_handoff(request, page, item, tasks)
+        return sse.event("done", _chat_out(item).model_dump(mode="json"))
+
+    def on_error(exc: Exception) -> bytes | None:
+        if (err := _guest_turn_error(exc)) is None:
+            return None
+        return sse.event("error", {"code": err.detail})
+
+    return sse.stream_response(first, items, encode, on_error, background=tasks)
 
 
 @public_router.post("/leads")

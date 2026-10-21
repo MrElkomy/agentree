@@ -476,6 +476,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/businesses/{business_id}/agents/sales/console/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sales Console Stream
+         * @description The console turn as server-sent events: `delta`*, `restart`, then `done` or `error`.
+         */
+        post: operations["sales_console_stream_api_businesses__business_id__agents_sales_console_stream_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/businesses/{business_id}/conversations/{conversation_id}/messages": {
         parameters: {
             query?: never;
@@ -573,6 +593,29 @@ export interface paths {
         put?: never;
         /** Guest Chat */
         post: operations["guest_chat_api_public__slug__chat_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/public/{slug}/chat/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Guest Chat Stream
+         * @description The chat turn as server-sent events: `delta`*, `restart`, then `done` or `error`.
+         *
+         *     `done` carries the same body as POST /chat; its `reply` is final (it replaces the streamed
+         *     text). After `error` nothing was stored and the visitor can send the message again.
+         */
+        post: operations["guest_chat_stream_api_public__slug__chat_stream_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1010,6 +1053,11 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+            health: components["schemas"]["Health"];
+            /** Last Failure At */
+            last_failure_at: string | null;
+            /** Breaker Open Until */
+            breaker_open_until: string | null;
         };
         /** EmailIn */
         EmailIn: {
@@ -1221,6 +1269,11 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /**
+         * Health
+         * @enum {string}
+         */
+        Health: "healthy" | "degraded" | "down" | "recovering";
         /** InboxAssignIn */
         InboxAssignIn: {
             /** Assignee User Id */
@@ -2712,6 +2765,41 @@ export interface operations {
             };
         };
     };
+    sales_console_stream_api_businesses__business_id__agents_sales_console_stream_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConsoleMessageIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     conversation_messages_api_businesses__business_id__conversations__conversation_id__messages_get: {
         parameters: {
             query?: never;
@@ -2925,6 +3013,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GuestChatOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guest_chat_stream_api_public__slug__chat_stream_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GuestChatIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": unknown;
                 };
             };
             /** @description Validation Error */

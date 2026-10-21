@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import { expect, test, type Page } from "@playwright/test";
-import { logIn, runId, signUp, verifyFromEmail } from "./helpers";
+import { logIn, replyDone, runId, signUp, verifyFromEmail } from "./helpers";
 
 // Runs against the dev stack with AGENTREE_LLM_DEMO_MODE=true (canned replies, no real key).
 const DEMO_REPLY_START = "This is a demo reply";
@@ -88,6 +88,7 @@ test("owner publishes a public page; visitors chat privately; widget is framable
   await expect(v1.getByTestId("guest-assistant")).toContainText(`${businessName} Sales Agent`);
 
   // The conversation survives a reload (same browser).
+  await replyDone(v1);
   await v1.reload();
   await expect(v1.getByTestId("guest-user")).toHaveText("How much is the Cedar desk?");
   await expect(v1.getByTestId("guest-assistant")).toContainText(DEMO_REPLY_START);

@@ -24,12 +24,17 @@ import {
   type GuestSession,
   type LeadSuggestion,
 } from "./api";
+import { StreamInterruptedError, streamApi, type StreamHandlers } from "./stream";
 
 export const MAX_GUEST_MESSAGE = 1000;
 
 export type GuestChannel = "public" | "widget";
 /** `human` is a team member of the business replying after a handoff. */
-export type GuestTurn = { role: "user" | "assistant" | "human"; content: string };
+export type GuestTurn = {
+  role: "user" | "assistant" | "human";
+  content: string;
+  failed?: boolean; // an assistant reply that broke off mid-way (nothing was saved)
+};
 export type ConversationStatus = GuestConversation["status"];
 
 /** While a person is (or will be) answering, the AI stays quiet and the chat polls for replies. */
@@ -112,17 +117,22 @@ function fetchConversation(slug: string, token: string, conversationId: string) 
   );
 }
 
-async function chatOnce(slug: string, message: string, channel: GuestChannel): Promise<GuestChatReply> {
+async function chatOnce(
+  slug: string,
+  message: string,
+  channel: GuestChannel,
+  handlers: StreamHandlers,
+): Promise<GuestChatReply> {
   let token = read(tokenKey(slug)) ?? (await newToken(slug));
   let conversationId = read(convKey(slug));
   let renewed = false;
   let restarted = false;
   for (;;) {
     try {
-      const reply = await api<GuestChatReply>(
-        `${base(slug)}/chat`,
-        "POST",
+      const reply = await streamApi<GuestChatReply>(
+        `${base(slug)}/chat/stream`,
         { message, conversation_id: conversationId, channel },
+        handlers,
         opts(token),
       );
       write(convKey(slug), reply.conversation_id);
@@ -200,14 +210,34 @@ export function useGuestChat(slug: string, channel: GuestChannel) {
       setBusy(true);
       setError(null);
       setTurns((t) => [...t, { role: "user", content: text }]);
+      // The reply streams into an assistant turn after the visitor's message.
+      const setReply = (fn: (current: string) => string | null) =>
+        setTurns((t) => {
+          const last = t[t.length - 1];
+          const current = last?.role === "assistant" ? last.content : null;
+          const next = fn(current ?? "");
+          const base = current === null ? t : t.slice(0, -1);
+          return next === null ? base : [...base, { role: "assistant", content: next }];
+        });
       try {
-        const reply = await chatOnce(slug, text, channel);
-        // An empty reply: a person is answering this conversation, the AI stayed quiet.
-        if (reply.reply) setTurns((t) => [...t, { role: "assistant", content: reply.reply }]);
+        const reply = await chatOnce(slug, text, channel, {
+          onDelta: (d) => setReply((c) => c + d),
+          onRestart: () => setReply(() => null), // the backup provider answers instead
+        });
+        // Final text replaces the streamed one. Empty: a person is answering, the AI stayed quiet.
+        setReply(() => reply.reply || null);
         setStatus(reply.status);
         if (reply.lead_suggestion) setSuggestion(reply.lead_suggestion);
         return true;
       } catch (err) {
+        if (err instanceof StreamInterruptedError) {
+          // Keep what arrived, marked as interrupted; the visitor can send the message again.
+          setTurns((t) => {
+            const last = t[t.length - 1];
+            return last?.role === "assistant" ? [...t.slice(0, -1), { ...last, failed: true }] : t;
+          });
+          return true;
+        }
         setTurns((t) => t.slice(0, -1)); // not answered: give the text back to the visitor
         setError(guestErrorMessage(err));
         return false;
@@ -266,6 +296,14 @@ export function useGuestChat(slug: string, channel: GuestChannel) {
     [slug],
   );
 
+  /** Sends an interrupted message again (it was not saved). */
+  const retry = useCallback(async (): Promise<void> => {
+    const user = turns[turns.length - 2];
+    if (busy || turns[turns.length - 1]?.failed !== true || user?.role !== "user") return;
+    setTurns((t) => t.slice(0, -2));
+    await send(user.content);
+  }, [busy, send, turns]);
+
   const reset = useCallback(() => {
     write(convKey(slug), null);
     setStatus("open");
@@ -307,6 +345,7 @@ export function useGuestChat(slug: string, channel: GuestChannel) {
     restoring,
     error,
     send,
+    retry,
     reset,
     setHandoff,
     suggestion,

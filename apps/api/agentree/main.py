@@ -23,6 +23,7 @@ from agentree.leads.api import tasks_router as follow_ups_router
 from agentree.llm.base import LLMProvider, ProviderName
 from agentree.llm.fake import DemoProvider
 from agentree.llm.http_providers import PROVIDERS
+from agentree.providers.api import metrics_router
 from agentree.providers.api import router as providers_router
 from agentree.providers.service import build_vault
 from agentree.public.api import owner_router as public_owner_router
@@ -85,4 +86,5 @@ def create_app(
     app.include_router(leads_router)
     app.include_router(follow_ups_router)
     app.include_router(inbox_router)
+    app.include_router(metrics_router)
     return app

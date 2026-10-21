@@ -73,7 +73,7 @@ until then the item remains an open MVP requirement and blocks the final pilot g
 | Custom agent display name (2.4, PO request 2026-10-20) | Proposed: add to Task 14 (per-business agent config) | Needs PO approval of placement |
 | Alert when a business hits its daily reply budget (4.3) | Proposed: add to Task 13 (monitoring) | Needs PO approval of placement |
 | Daily aggregated operational metrics job (approved with 5.4) | Proposed: add to Task 18 | Needs PO approval of placement |
-| **New (PO request 2026-10-21):** free Web Push notifications to Owners/Admins (new lead, handoff request, provider outage) via the standard Push API + VAPID, opt-in per device, email stays the fallback; iOS needs 16.4+ and Add to Home Screen | Proposed: add to Task 12 (handoff alerts), extended by Task 13 for provider alerts | Needs PO approval of placement |
+| **New (PO request 2026-10-21):** free Web Push notifications to Owners/Admins (new lead, handoff request, provider outage) via the standard Push API + VAPID, opt-in per device, email stays the fallback; iOS needs 16.4+ and Add to Home Screen | **Approved 2026-10-21:** Task 13b (lead, handoff and provider-down alerts) | Task 13b |
 | Onboarding, privacy notice, production readiness, pilot checks (7.1, 7.2, 7.5) | Final acceptance gates of Task 22 (below) | In plan |
 
 ### Task 10 — Audit log + branded emails
@@ -109,7 +109,7 @@ until then the item remains an open MVP requirement and blocks the final pilot g
 - **Out of scope:** SLA timers, canned replies, mobile push. Webhook handoff (approved, 4.5): see
   "Approved requirements outside Tasks 10–22" (proposed deferral, pending PO approval).
 
-### Task 13 — AI reliability
+### Task 13 — AI reliability — 🟡 13a implemented (pending PO approval), see `RELIABILITY.md`; 13b (Web Push alerts) next
 - **Scope:** streamed replies (SSE) for console, public page and widget; per-business circuit
   breaker (closed / open with cooldown / half-open probe) over primary → backup; automatic return to
   primary; provider-health status visible to Owners; structured health logs + counters for
@@ -118,6 +118,9 @@ until then the item remains an open MVP requirement and blocks the final pilot g
   primary; streaming works through the Next.js proxy and the staging Caddy gate; partial stream
   failure ends cleanly with a retry option; no keys or message content in logs.
 - **Out of scope:** external alerting service (paid), token-level cost dashboards.
+- **Split (2026-10-21):** 13a = streaming, circuit breaker, recovery, health, metrics. 13b = Web
+  Push (PO approved adding it to Task 13 on 2026-10-21): opt-in per device for Owners/Admins,
+  alerts for new lead, handoff request and a provider key going down; email stays the fallback.
 
 ### Task 14 — Agent framework, routing, shared context
 - **Scope:** versioned per-business agent definitions (role, enabled, tools/permissions, public vs
@@ -223,9 +226,9 @@ Partially delivered slices stay open until every item below is implemented and t
 
 | Requirement | Slice | Status |
 |---|---|---|
-| Streaming agent replies (SSE) | 2.4 | ❌ Not started. Console returns complete JSON replies. |
-| Circuit breaker with cooldown / half-open probes | 2.5 | ❌ Not started. Only per-turn primary→backup failover exists. |
-| Automatic recovery to primary after an outage (health probes) | 2.5 | ❌ Not started. Each turn simply tries primary first again. |
+| Streaming agent replies (SSE) | 2.4 | 🟡 Task 13a (pending PO approval): console, public page and widget stream over SSE; retry after an interrupted reply. |
+| Circuit breaker with cooldown / half-open probes | 2.5 | 🟡 Task 13a (pending PO approval): per-key breaker shared by all API processes, one probe at a time. |
+| Automatic recovery to primary after an outage (health probes) | 2.5 | 🟡 Task 13a (pending PO approval): the first request after the cooldown probes the primary; success returns traffic to it. |
 | 30-day raw conversation retention (deletion job, legal hold) | 4.6 | 🟡 Deletion job implemented (Task 08, pending Product Owner approval): worker loop (`python -m agentree.worker`, every `AGENTREE_RETENTION_INTERVAL_SECONDS`, default 3600) hard-deletes conversations idle longer than `AGENTREE_RETENTION_DAYS` (default 30, max 30) via `agentree_purge_expired_conversations`, batched, one worker at a time. `conversations.legal_hold` exempts a conversation. ❌ Still open: Owner-only audited legal-hold API, persisted deletion audit record (`deletion_job`; counts are only logged today), worker deployment in the dev stack (staging: `worker` service in `infra/staging`), backup-window policy. |
 | Knowledge file uploads (PDF/DOCX/TXT/MD) | 2.3 | ❌ Not started. Manual entries only. |
 | Custom agent display name (e.g. "Sara from Track") set by the owner in settings | 2.4 | ❌ Not started (PO request 2026-10-20). Chat shows "Sales Agent · <business>" until then. |
@@ -299,11 +302,11 @@ Partially delivered slices stay open until every item below is implemented and t
 - **Acceptance:** only published versions are retrievable; business A never retrieves B's chunks.
 - **Security checks:** size/type limits; private object storage; parsing timeouts.
 
-### 2.4 Sales Agent text conversation (dashboard test console) — ✅ implemented (Task 06, JSON replies; streaming pending)
+### 2.4 Sales Agent text conversation (dashboard test console) — ✅ implemented (Task 06; streaming in Task 13a)
 - **Objective:** agent definition, turn loop, retrieval, streaming reply (SSE), messages persisted with retention fields.
 - **Acceptance (phase gate):** the Sales Agent answers using the customer's key and the correct business's knowledge; injected instructions inside a knowledge document do not change behavior (test case).
 
-### 2.5 Fallback, circuit breaker, recovery **[changed]** — partial (Task 06: per-turn primary→backup failover on availability errors; circuit breaker/recovery pending)
+### 2.5 Fallback, circuit breaker, recovery **[changed]** — 🟡 Task 06 failover + Task 13a circuit breaker and recovery (pending PO approval)
 - **Objective:** capability profiles, error classification, primary→backup failover between turns, half-open probes, automatic return, dashboard banner + in-app notice.
 - **Acceptance:** with the fake provider: primary outage → backup serves; unsupported task on backup fails safe; primary recovers → returns after cooldown; no flapping under intermittent failure.
 

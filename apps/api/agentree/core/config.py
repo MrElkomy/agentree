@@ -69,6 +69,10 @@ class Settings(BaseSettings):
     # How often the worker looks for overdue follow-up tasks to remind the team about.
     follow_up_interval_seconds: int = Field(default=300, ge=30)
 
+    # Monitoring: GET /api/internal/metrics answers only with this token in the
+    # X-Agentree-Metrics-Token header; unset disables the endpoint (404).
+    metrics_token: SecretStr | None = None
+
     # BYOK vault master key: base64 of 32 random bytes. Required to store/read provider keys.
     master_key: SecretStr | None = None
     master_key_id: str = "k1"
