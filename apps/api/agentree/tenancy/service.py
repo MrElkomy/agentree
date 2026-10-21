@@ -8,6 +8,7 @@ from uuid import UUID
 from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from agentree.audit.service import AuditAction, record
 from agentree.core.config import Settings
 from agentree.core.email import EmailSender, OutgoingEmail, send_safely
 from agentree.core.ids import uuid7
@@ -104,11 +105,13 @@ async def create_business(
     ctx = TenantContext(uuid7(), TenantSource.PROVISIONING)
     async with tenant_session(factory, ctx) as session:
         session.add(Business(id=ctx.business_id, name=name.strip(), slug=slug))
+        await session.flush()  # the business row must exist before rows that reference it
         if owner_user_id is not None:
-            await session.flush()
             session.add(
                 Membership(business_id=ctx.business_id, user_id=owner_user_id, role=Role.OWNER)
             )
+        await record(session, ctx, action=AuditAction.BUSINESS_CREATED, actor_user_id=owner_user_id,
+                     target_type="business", target_id=ctx.business_id)  # fmt: skip
     return ctx
 
 
@@ -235,6 +238,10 @@ async def change_member_role(
         if current is Role.OWNER and new_role is not Role.OWNER:
             await _ensure_other_owner(session, ctx, target_user_id)
         target.role = new_role
+        if current is not new_role:
+            await record(session, ctx, action=AuditAction.MEMBER_ROLE_CHANGED,
+                         actor_user_id=actor_id, target_type="user", target_id=target_user_id,
+                         details={"from_role": current, "to_role": new_role})  # fmt: skip
 
 
 async def remove_member(
@@ -249,6 +256,11 @@ async def remove_member(
         if current is Role.OWNER:
             await _ensure_other_owner(session, ctx, target_user_id)
         await session.delete(target)
+        action = (
+            AuditAction.MEMBER_LEFT if target_user_id == actor_id else AuditAction.MEMBER_REMOVED
+        )
+        await record(session, ctx, action=action, actor_user_id=actor_id, target_type="user",
+                     target_id=target_user_id, details={"role": current})  # fmt: skip
 
 
 # --- invitations ------------------------------------------------------------------------
@@ -280,6 +292,9 @@ async def create_invitation(
             token_hash=digest, invited_by_user_id=actor_id, expires_at=expires,
         )  # fmt: skip
         session.add(inv)
+        await record(session, ctx, action=AuditAction.INVITATION_CREATED, actor_user_id=actor_id,
+                     target_type="invitation", target_id=inv.id,
+                     details={"email": normalized, "role": role})  # fmt: skip
         business_name = business.name
     sent = await send_safely(
         mailer,
@@ -309,7 +324,9 @@ async def list_invitations(factory: Factory, ctx: TenantContext) -> list[Invitat
     return [InvitationInfo(i.id, i.email_normalized, Role(i.role), i.expires_at) for i in rows]
 
 
-async def revoke_invitation(factory: Factory, ctx: TenantContext, invitation_id: UUID) -> None:
+async def revoke_invitation(
+    factory: Factory, ctx: TenantContext, invitation_id: UUID, *, actor_id: UUID
+) -> None:
     async with tenant_session(factory, ctx) as session:
         result = await session.execute(
             update(Invitation)
@@ -319,12 +336,15 @@ async def revoke_invitation(factory: Factory, ctx: TenantContext, invitation_id:
         )  # fmt: skip
         if result.rowcount == 0:  # type: ignore[attr-defined]
             raise NotFoundError
+        await record(session, ctx, action=AuditAction.INVITATION_REVOKED, actor_user_id=actor_id,
+                     target_type="invitation", target_id=invitation_id)  # fmt: skip
 
 
 async def accept_invitation(factory: Factory, *, raw_token: str, user_id: UUID) -> UUID | None:
     """Atomically claim a valid invitation addressed to this user's verified email.
 
-    The database function checks the user's stored, verified email itself.
+    The database function checks the user's stored, verified email itself. The join is audited
+    in the same transaction, under the tenant context of the business that was joined.
     """
     async with factory() as session, session.begin():
         business_id: UUID | None = (
@@ -333,4 +353,13 @@ async def accept_invitation(factory: Factory, *, raw_token: str, user_id: UUID) 
                 {"t": hash_token(raw_token), "u": user_id},
             )
         ).scalar()
+        if business_id is not None:
+            ctx = TenantContext(business_id, TenantSource.MEMBERSHIP)
+            await session.execute(
+                text("SELECT set_config('agentree.business_id', :bid, true)"),
+                {"bid": str(business_id)},
+            )
+            role = (await _membership(session, ctx, user_id)).role
+            await record(session, ctx, action=AuditAction.MEMBER_JOINED, actor_user_id=user_id,
+                         target_type="user", target_id=user_id, details={"role": role})  # fmt: skip
     return business_id

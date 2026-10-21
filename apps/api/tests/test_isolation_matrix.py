@@ -57,6 +57,7 @@ async def _snapshot(client: AsyncClient, business_id: str) -> tuple[object, ...]
         (await client.get(f"{base}/ai-providers")).json(),
         (await client.get(f"{base}/knowledge")).json(),
         (await client.get(f"{base}/public-profile")).json(),
+        (await client.get(f"{base}/audit-events")).json(),
     )
 
 

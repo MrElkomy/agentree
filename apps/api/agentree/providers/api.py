@@ -87,7 +87,9 @@ async def save_provider(
 async def delete_provider(slot: Slot, member: Member, request: Request) -> None:
     member.require(Role.ADMIN)
     try:
-        await service.delete_credential(request.app.state.session_factory, member.tenant, slot)
+        await service.delete_credential(
+            request.app.state.session_factory, member.tenant, slot, actor_id=member.user.id
+        )
     except service.NotFoundError:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "not_found") from None
 

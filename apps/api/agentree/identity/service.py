@@ -319,3 +319,12 @@ async def change_password(
         user.password_changed_at = _now()
         await revoke_all_sessions(session, user.id, except_session_id=current.session_id)
     return True
+
+
+async def emails_for(factory: Factory, user_ids: set[UUID]) -> dict[UUID, str]:
+    """Display emails for user ids (e.g. audit trail actors). Unknown ids are left out."""
+    if not user_ids:
+        return {}
+    async with factory() as session:
+        rows = await session.execute(select(User.id, User.email).where(User.id.in_(user_ids)))
+        return {uid: email for uid, email in rows.all()}
