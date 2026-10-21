@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api/businesses/{business_id}/knowledge", tags=["know
 def _out(e: service.EntryInfo) -> EntryOut:
     return EntryOut(id=e.id, title=e.title, body=e.body, status=e.status,
                     published_at=e.published_at, updated_at=e.updated_at,
-                    agent_roles=list(e.agent_roles))  # fmt: skip
+                    agent_roles=list(e.agent_roles), source_file_id=e.source_file_id)  # fmt: skip
 
 
 def _404() -> HTTPException:

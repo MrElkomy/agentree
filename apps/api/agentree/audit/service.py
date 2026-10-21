@@ -54,6 +54,8 @@ class AuditAction(StrEnum):
     CUSTOMER_DELETED = "customer.deleted"
     CUSTOMER_MEMORY_UPDATED = "customer.memory_updated"
     CUSTOMER_MEMORY_DELETED = "customer.memory_deleted"
+    KNOWLEDGE_FILE_UPLOADED = "knowledge_file.uploaded"
+    KNOWLEDGE_FILE_DELETED = "knowledge_file.deleted"
 
 
 # Detail keys that may be stored. Anything else is dropped, so a careless caller cannot leak a

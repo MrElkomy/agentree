@@ -46,6 +46,7 @@ class EntryInfo:
     published_at: datetime | None
     updated_at: datetime
     agent_roles: tuple[str, ...] = ()  # empty: every agent
+    source_file_id: UUID | None = None  # extracted from this uploaded file (Task 17)
 
 
 @dataclass(frozen=True)
@@ -57,7 +58,7 @@ class RetrievedEntry:
 
 def _info(e: KnowledgeEntry) -> EntryInfo:
     return EntryInfo(e.id, e.title, e.body, Status(e.status), e.published_at, e.updated_at,
-                     tuple(e.agent_roles or ()))  # fmt: skip
+                     tuple(e.agent_roles or ()), e.source_file_id)  # fmt: skip
 
 
 def _roles(roles: Sequence[str]) -> list[str]:

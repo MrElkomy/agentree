@@ -27,3 +27,16 @@ class EntryOut(BaseModel):
     published_at: datetime | None
     updated_at: datetime
     agent_roles: list[str]
+    source_file_id: UUID | None = None
+
+
+class KnowledgeFileOut(BaseModel):
+    id: UUID
+    filename: str
+    kind: str  # detected from the content: pdf, docx, txt, md, csv, xlsx
+    size_bytes: int
+    status: str  # processing | ready (drafts created) | stored (kept for data analysis) | failed
+    error: str | None
+    entry_count: int
+    created_at: datetime
+    processed_at: datetime | None

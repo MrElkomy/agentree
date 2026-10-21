@@ -128,10 +128,11 @@ function Sidebar({ businessId, current }: { businessId: string; current: Busines
       </div>
       <div
         id="business-nav"
-        className={`${open ? "flex" : "hidden"} flex-col gap-6 px-4 pb-5 lg:flex lg:flex-1 lg:px-5`}
+        className={`${open ? "flex" : "hidden"} flex-col gap-6 px-4 pb-5 lg:flex lg:min-h-0 lg:flex-1 lg:px-5`}
       >
         <BusinessSwitcher current={current} />
-        <nav aria-label="Business" className="flex flex-col gap-6">
+        {/* On short screens the links scroll; the account stays pinned at the bottom. */}
+        <nav aria-label="Business" className="flex flex-col gap-6 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
           <ul className="flex flex-col gap-0.5">
             <NavItem href={`/b/${businessId}`} label="Overview" />
             <NavItem href={`/b/${businessId}/agents`} label="AI team" />
@@ -151,7 +152,7 @@ function Sidebar({ businessId, current }: { businessId: string; current: Busines
             ) : null}
           </ul>
         </nav>
-        <div className="mt-auto hidden items-center gap-3 border-t border-line pt-4 lg:flex">
+        <div className="mt-auto hidden shrink-0 items-center gap-3 border-t border-line pt-4 lg:flex">
           <AccountMenu align="start" side="top" />
           <AccountEmail />
         </div>
