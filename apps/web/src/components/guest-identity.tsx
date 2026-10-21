@@ -81,7 +81,7 @@ export function GuestIdentity({ slug, displayName, retentionDays }: {
               ? "We'll email you a code. Once you enter it, the assistants can use what you told us before."
               : `We sent a 6-digit code to ${email.trim()}. It expires in 10 minutes.`}
           </p>
-          <div className="flex items-end gap-2">
+          <div className="flex flex-wrap items-end gap-2">
             {step === "email" ? (
               <input
                 id={`${id}-input`}
@@ -91,7 +91,7 @@ export function GuestIdentity({ slug, displayName, retentionDays }: {
                 maxLength={254}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="min-h-11 flex-1 rounded-md border border-line-strong bg-surface px-3 text-base text-ink focus-visible:border-brand"
+                className="min-h-11 min-w-0 flex-1 basis-48 rounded-md border border-line-strong bg-surface px-3 text-base text-ink focus-visible:border-brand"
               />
             ) : (
               <input
