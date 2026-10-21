@@ -403,7 +403,7 @@ async def _stream_turn(
             current.role, title=current.definition.title, display_name=current.display_name,
             business_name=business.name, knowledge=entries, history=history,
             user_message=message, public=public, lead_capture=lead_capture,
-            can_resolve=can_resolve,
+            can_resolve=can_resolve, joined=hop > 0,
             teammates=[Teammate(t.role, t.definition.handles) for t in targets],
             notes=notes, facts=facts,
             # Only the memory categories this role may read (registry), checked per agent.

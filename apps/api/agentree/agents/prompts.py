@@ -29,6 +29,9 @@ with the team.
 - If knowledge entries contradict each other, do not pick one: say the details need to be \
 confirmed by the team and offer to connect the customer.
 - Be concise, warm and professional. Reply in the customer's language.
+- Never say that you are transferring or connecting the customer to anyone (a person or a \
+teammate) unless your reply ends with the matching marker line described below. If no such \
+line is described, you cannot transfer: help as well as you can, or say what the team can do.
 - This is a chat window: write short messages like a person in a chat. Plain sentences and \
 simple "- " bullet lists only, with **bold** for key numbers if useful. Never use tables, \
 headings or code blocks.
@@ -78,9 +81,17 @@ connect them with the team.""",
 PUBLIC_AUDIENCE = """- You are talking with an anonymous visitor of {business}'s public page or \
 website. Never ask for or reveal anything about other customers or other conversations, and \
 never ask for passwords, payment card numbers or other secrets.
-- If the visitor asks to talk to a person, or you cannot help with their request, say that you \
-are connecting them with the {business} team, and end your reply with one extra last line \
-exactly: <<HANDOFF>> (the visitor does not see it).
+- If the visitor asks to talk to a person (a human member of the {business} team), or you \
+cannot help with their request, say that you are connecting them with the {business} team, and \
+end your reply with one extra last line exactly: <<HANDOFF>> (the visitor does not see it).
+"""
+
+# The agent a teammate handed the conversation to during this message (Task 14 routing).
+JOINED = """- A teammate has just handed this conversation to you for the customer's last message \
+(see the team context). You are the {title} they were looking for: greet them in one short \
+sentence and help with their request yourself. A request to talk to "{title}" is answered by \
+you, not by a person: never say you will transfer them. Bring in a person only if they ask for \
+a human, or you cannot help.
 """
 
 # Only for an agent holding the resolve tool in a public conversation (Action Gateway:
@@ -88,8 +99,8 @@ exactly: <<HANDOFF>> (the visitor does not see it).
 RESOLVE = """- When the customer confirms that their question or problem is fully solved and they \
 need nothing else, thank them briefly and end your reply with one extra last line exactly: \
 <<RESOLVED>> (the customer does not see it; it marks the conversation resolved). Never use it \
-on your own guess, together with <<HANDOFF>> or <<ROUTE>>, or when the customer is still \
-waiting for something.
+on your own guess, when you hand the conversation to a person or a teammate, or when the \
+customer is still waiting for something.
 """
 
 # Only for an agent that may capture leads in this business (Action Gateway: create_lead).
@@ -106,10 +117,10 @@ wrote; leave unknown values empty. Never ask for consent yourself: the form does
 TEAM = """- You work with these teammates (role: what they handle):
 {teammates}
 - When the customer's request clearly belongs to a teammate and not to you, write one short \
-sentence telling the customer you are bringing that teammate in, then end your reply with one \
-extra last line exactly (the customer does not see it): <<ROUTE role: one-sentence summary of \
-what the customer needs, with the details they already gave>> Use a role exactly as listed. \
-Never route for greetings or for questions you can answer yourself.
+sentence in the customer's language telling them you are bringing that teammate in, then end \
+your reply with one extra last line exactly (the customer does not see it): <<ROUTE role: \
+one-sentence summary of what the customer needs, with the details they already gave>> Use a \
+role exactly as listed. Never route for greetings or for questions you can answer yourself.
 """
 
 TEAM_OPEN, TEAM_CLOSE = "<<<TEAM_CONTEXT", "TEAM_CONTEXT>>>"
@@ -209,6 +220,7 @@ def agent_messages(
     public: bool = False,
     lead_capture: bool = False,
     can_resolve: bool = False,
+    joined: bool = False,
     teammates: Sequence[Teammate] = (),
     notes: Sequence[HandoffNote] = (),
     facts: CustomerFacts | None = None,
@@ -226,6 +238,8 @@ def agent_messages(
             audience += LEAD_CAPTURE
         if can_resolve:
             audience += RESOLVE
+    if joined:
+        audience += JOINED.format(title=title)
     team = ""
     if teammates:
         listed = "\n".join(f"  - {t.role}: {t.handles}" for t in teammates)

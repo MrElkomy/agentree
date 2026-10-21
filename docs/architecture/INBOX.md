@@ -15,7 +15,7 @@ never appear in the inbox):
 | `open` | Normal chat | The AI |
 | `needs_human` | Handoff requested, nobody has taken over | Nobody: visitor messages are stored, the AI is paused |
 | `human_active` | A member took over (`assignee_user_id`) | The team (members reply) |
-| `resolved` | Closed by a member, or (Customer Service conversations, Task 15) by the visitor or the agent | The AI again if the visitor writes (back to `open`) |
+| `resolved` | Closed by a member, or (Customer Service and Technical Support conversations) by the visitor or the agent | The AI again if the visitor writes (back to `open`) |
 
 Transitions (all in `agentree/agents/inbox.py`, row-locked, audited):
 
@@ -30,8 +30,9 @@ Transitions (all in `agentree/agents/inbox.py`, row-locked, audited):
   from a teammate).
 - `needs_human`/`human_active` → `open`: **Hand back to AI** (clears the assignee).
 - any → `resolved`: **Resolve** by a member (every conversation, Sales included).
-- Task 15, only while the conversation's active agent is Customer Service (a role with shared
-  resolution in `agents/registry.py`; Sales conversations stay team-only):
+- Task 15 (Technical Support added 2026-10-22), only while the conversation's active agent is
+  Customer Service or Technical Support (roles with shared resolution in `agents/registry.py`;
+  Sales conversations stay team-only):
   - `open`/`needs_human` → `resolved`: the visitor presses **My issue is resolved**
     (`POST /api/public/{slug}/conversations/{id}/resolve`; 403 `resolve_not_allowed` for other
     agents' conversations, 409 `conversation_state` while a member is handling it).

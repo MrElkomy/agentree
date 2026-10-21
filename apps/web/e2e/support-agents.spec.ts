@@ -84,8 +84,8 @@ test("support agents: routing, scoped knowledge, who may resolve; a visitor conf
   await expect(v.getByTestId("guest-joined").last()).toHaveText("Technical Support joined the conversation");
   await expect(v.getByTestId("guest-assistant").last()).toContainText("Technical Support here.");
   await replyDone(v);
-  // Only Customer Service conversations can be closed by the visitor.
-  await expect(v.getByRole("button", { name: "My issue is resolved" })).toHaveCount(0);
+  // Technical Support conversations can be closed by the visitor too (PO decision 2026-10-22).
+  await expect(v.getByRole("button", { name: "My issue is resolved" })).toBeVisible();
 
   await input.fill("It still wobbles. I want a refund");
   await input.press("Enter");
