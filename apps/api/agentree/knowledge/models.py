@@ -3,8 +3,8 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import Computed, DateTime, ForeignKey, Index, String, Text, func
-from sqlalchemy.dialects.postgresql import TSVECTOR
+from sqlalchemy import Computed, DateTime, ForeignKey, Index, String, Text, func, text
+from sqlalchemy.dialects.postgresql import ARRAY, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column
 
 from agentree.core.models import Base
@@ -23,6 +23,10 @@ class KnowledgeEntry(Base):
     title: Mapped[str] = mapped_column(String(200))
     body: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(16), default="draft")  # draft | published
+    # Agent roles that may use this entry; empty means every agent (Task 15 knowledge scoping).
+    agent_roles: Mapped[list[str]] = mapped_column(
+        ARRAY(String(32)), server_default=text("'{}'"), default=list
+    )
     search_vector: Mapped[str] = mapped_column(
         TSVECTOR,
         Computed(

@@ -160,6 +160,7 @@ class GuestChatOut(BaseModel):
     agent: str | None = None  # the agent now handling the conversation
     agent_name: str | None = None
     replies: list[GuestReplyOut] = []  # every agent reply of this turn (handoffs), in order
+    can_resolve: bool = False  # the visitor may mark this conversation resolved (Customer Service)
 
 
 class GuestConversationOut(BaseModel):
@@ -167,6 +168,7 @@ class GuestConversationOut(BaseModel):
 
     status: ConversationStatus
     messages: list["GuestMessageOut"]
+    can_resolve: bool = False
 
 
 class GuestLeadIn(BaseModel):

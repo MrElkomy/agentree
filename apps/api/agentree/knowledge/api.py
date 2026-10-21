@@ -4,6 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request, status
 
+from agentree.agents.registry import ROLES
 from agentree.knowledge import service
 from agentree.knowledge.schemas import EntryCreateIn, EntryOut, EntryUpdateIn
 from agentree.knowledge.service import Status
@@ -15,11 +16,17 @@ router = APIRouter(prefix="/api/businesses/{business_id}/knowledge", tags=["know
 
 def _out(e: service.EntryInfo) -> EntryOut:
     return EntryOut(id=e.id, title=e.title, body=e.body, status=e.status,
-                    published_at=e.published_at, updated_at=e.updated_at)  # fmt: skip
+                    published_at=e.published_at, updated_at=e.updated_at,
+                    agent_roles=list(e.agent_roles))  # fmt: skip
 
 
 def _404() -> HTTPException:
     return HTTPException(status.HTTP_404_NOT_FOUND, "not_found")
+
+
+def _check_roles(roles: list[str] | None) -> None:
+    if roles is not None and any(r not in ROLES for r in roles):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "invalid_agent_roles")
 
 
 @router.get("")
@@ -32,9 +39,10 @@ async def list_entries(member: Member, request: Request) -> list[EntryOut]:
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_entry(body: EntryCreateIn, member: Member, request: Request) -> EntryOut:
+    _check_roles(body.agent_roles)
     e = await service.create_entry(
         request.app.state.session_factory, member.tenant, title=body.title, body=body.body,
-        actor_id=member.user.id,
+        actor_id=member.user.id, agent_roles=body.agent_roles,
     )  # fmt: skip
     return _out(e)
 
@@ -53,6 +61,7 @@ async def get_entry(entry_id: UUID, member: Member, request: Request) -> EntryOu
 async def update_entry(
     entry_id: UUID, body: EntryUpdateIn, member: Member, request: Request
 ) -> EntryOut:
+    _check_roles(body.agent_roles)
     try:
         e = await service.update_entry(
             request.app.state.session_factory,
@@ -60,6 +69,7 @@ async def update_entry(
             entry_id,
             title=body.title,
             body=body.body,
+            agent_roles=body.agent_roles,
         )
     except service.NotFoundError:
         raise _404() from None

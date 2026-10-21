@@ -405,7 +405,7 @@ async def test_guest_chat_happy_path_returns_only_conversation_and_reply(
     # No provider, model, slot or sources; a lead suggestion only when the visitor shared contact
     # details (tests/test_leads.py).
     assert set(body) == {"conversation_id", "reply", "lead_suggestion", "status", "agent",
-                         "agent_name", "replies"}  # fmt: skip
+                         "agent_name", "replies", "can_resolve"}  # fmt: skip
     assert body["status"] == "open"
     assert body["agent"] == "sales" and body["agent_name"] == "Sales Agent"
     assert body["replies"] == [{"agent": "sales", "agent_name": "Sales Agent",
