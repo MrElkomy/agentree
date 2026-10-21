@@ -251,7 +251,8 @@ async def test_public_page_shows_only_safe_fields(harness: AppHarness) -> None:
     assert r.json() == {
         "slug": biz.slug, "display_name": "Acme Chairs", "bio": "Comfortable chairs.",
         "links": [{"label": "Shop", "url": "https://acme.example.com", "description": "Our store"}],
-        "chat_enabled": True,
+        "chat_enabled": True, "agents": [{"role": "sales", "name": "Sales Agent"}],
+        "lead_capture": True,
     }  # fmt: skip
     r = await c.get(f"{biz.pub}/widget-config")
     assert r.status_code == 200
@@ -403,8 +404,12 @@ async def test_guest_chat_happy_path_returns_only_conversation_and_reply(
     body = r.json()
     # No provider, model, slot or sources; a lead suggestion only when the visitor shared contact
     # details (tests/test_leads.py).
-    assert set(body) == {"conversation_id", "reply", "lead_suggestion", "status"}
+    assert set(body) == {"conversation_id", "reply", "lead_suggestion", "status", "agent",
+                         "agent_name", "replies"}  # fmt: skip
     assert body["status"] == "open"
+    assert body["agent"] == "sales" and body["agent_name"] == "Sales Agent"
+    assert body["replies"] == [{"agent": "sales", "agent_name": "Sales Agent",
+                                "content": "The Ergo chair is $299."}]  # fmt: skip
     assert body["lead_suggestion"] is None
     assert body["reply"] == "The Ergo chair is $299."
     cid = body["conversation_id"]
@@ -421,7 +426,8 @@ async def test_guest_chat_happy_path_returns_only_conversation_and_reply(
     r = await c.get(f"{biz.pub}/conversations/{cid}/messages", headers=_auth(token))
     assert r.status_code == 200
     msgs = r.json()
-    assert [set(m) for m in msgs] == [{"role", "content", "created_at"}] * 4
+    assert [set(m) for m in msgs] == [{"role", "content", "created_at", "agent", "agent_name"}] * 4
+    assert [m["agent"] for m in msgs] == [None, "sales", None, "sales"]
     assert [m["role"] for m in msgs] == ["user", "assistant", "user", "assistant"]
     assert msgs[3]["content"] == "Yes, we deliver."
 

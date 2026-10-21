@@ -18,7 +18,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from agentree.actions import service as gateway
+from agentree.agents import configs as agent_configs
 from agentree.agents import service as agents
+from agentree.agents.registry import AgentRole
 from agentree.audit.service import AuditAction, record
 from agentree.core.config import Settings
 from agentree.core.email import EmailSender, OutgoingEmail, branded_email, send_safely
@@ -63,6 +65,10 @@ class InvalidLeadError(ValueError):
 
 class NotFoundError(Exception):
     pass
+
+
+class LeadCaptureOffError(Exception):
+    """The business turned off lead capture (Sales Agent disabled or its create_lead tool)."""
 
 
 @dataclass(frozen=True)
@@ -138,7 +144,7 @@ async def _by_id(session: AsyncSession, ctx: TenantContext, lead_id: UUID) -> Le
 
 async def _submit(
     factory: Factory, ctx: TenantContext, *, conversation_id: UUID, channel: str,
-    fields: LeadFields, idempotency_key: str,
+    fields: LeadFields, idempotency_key: str, granted: frozenset[gateway.Action],
 ) -> tuple[LeadInfo, bool]:  # fmt: skip
     params = {"conversation_id": str(conversation_id), "name": fields.name,
               "email": fields.email, "phone": fields.phone, "need": fields.need}  # fmt: skip
@@ -152,7 +158,8 @@ async def _submit(
         ).scalar_one_or_none()  # fmt: skip
         action = gateway.Action.UPDATE_LEAD if existing else gateway.Action.CREATE_LEAD
         prior = await gateway.claim(session, ctx, agent=SOURCE_AGENT, action=action,
-                                    idempotency_key=idempotency_key, params=params)  # fmt: skip
+                                    idempotency_key=idempotency_key, params=params,
+                                    granted=granted)  # fmt: skip
         if prior is not None:  # a retry of a request that already succeeded
             return _info(await _by_id(session, ctx, prior)), False
         if existing is None:
@@ -165,7 +172,8 @@ async def _submit(
             session.add(lead)
             await session.flush()
             audit_action = AuditAction.LEAD_CREATED
-            await follow_ups.create_first_contact_task(session, ctx, lead)
+            if gateway.Action.CREATE_FOLLOW_UP_TASK in granted:
+                await follow_ups.create_first_contact_task(session, ctx, lead, granted)
         else:
             lead = existing
             lead.name, lead.email, lead.phone = fields.name, fields.email, fields.phone
@@ -192,15 +200,21 @@ async def submit_guest_lead(
     channel = await agents.guest_conversation_channel(
         factory, ctx, guest_session_id=guest_session_id, conversation_id=conversation_id
     )
+    # Leads belong to the Sales Agent: its tools in this business decide (Action Gateway).
+    granted = await agent_configs.agent_tools(factory, ctx, AgentRole.SALES)
+    if gateway.Action.CREATE_LEAD not in granted:
+        raise LeadCaptureOffError
     try:
         info, created = await _submit(factory, ctx, conversation_id=conversation_id,
                                       channel=channel, fields=fields,
-                                      idempotency_key=idempotency_key)  # fmt: skip
+                                      idempotency_key=idempotency_key,
+                                      granted=granted)  # fmt: skip
     except IntegrityError:
         # A concurrent first submission (different key) created the lead: update it instead.
         info, created = await _submit(factory, ctx, conversation_id=conversation_id,
                                       channel=channel, fields=fields,
-                                      idempotency_key=idempotency_key)  # fmt: skip
+                                      idempotency_key=idempotency_key,
+                                      granted=granted)  # fmt: skip
     if created:
         await _notify_new_lead(factory, settings, mailer, push, ctx, info)
     return info
@@ -250,6 +264,20 @@ def _new_lead_email(
 
 
 # --- dashboard (members) ------------------------------------------------------------------
+
+
+async def lead_for_conversation(
+    factory: Factory, ctx: TenantContext, conversation_id: UUID
+) -> LeadInfo | None:
+    """The lead the visitor confirmed in this conversation, if any (for team context)."""
+    async with tenant_session(factory, ctx) as session:
+        lead = (
+            await session.execute(
+                select(Lead).where(Lead.business_id == ctx.business_id,
+                                   Lead.conversation_id == conversation_id)
+            )
+        ).scalar_one_or_none()  # fmt: skip
+    return _info(lead) if lead else None
 
 
 async def list_leads(

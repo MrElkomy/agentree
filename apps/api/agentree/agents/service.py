@@ -1,27 +1,38 @@
-"""Sales Agent runtime (dashboard test console, public page and website widget).
+"""Agent runtime (dashboard test console, public page and website widget).
 
-Turn: load history -> retrieve published knowledge -> build prompt -> call the customer's
-primary provider, falling back to the backup slot on availability errors -> persist both
-messages. Message content is never logged.
+Turn: pick the agent (the conversation's active agent if still allowed, else the entry agent)
+-> load history and team context -> retrieve published knowledge -> stream the reply from the
+customer's primary provider, falling back to the backup key -> if the agent hands the
+conversation to an allowed teammate, that teammate answers the same message -> persist the
+messages, handoffs and the new active agent. Which agents exist, who may reach them and what
+tools they hold come from `configs` (never from model output). Message content is never logged.
 """
 
 import logging
 from collections.abc import AsyncIterator, Callable
-from dataclasses import dataclass, replace
-from datetime import UTC, datetime
+from dataclasses import dataclass, field, replace
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from agentree.actions.service import Action
+from agentree.agents import configs
 from agentree.agents.inbox import mark_handoff_requested
-from agentree.agents.models import Conversation, Message
+from agentree.agents.models import AgentHandoff, Conversation, Message
 from agentree.agents.prompts import (
+    CustomerFacts,
+    HandoffNote,
     LeadSuggestion,
-    sales_messages,
+    Teammate,
+    agent_messages,
     split_lead_marker,
     take_handoff_marker,
+    take_route_marker,
 )
+from agentree.agents.registry import DEFINITIONS, AgentRole
+from agentree.audit.service import AuditAction, record
 from agentree.core.ids import uuid7
 from agentree.core.vault import Vault, VaultDecryptError, VaultUnavailableError
 from agentree.knowledge import service as knowledge
@@ -45,7 +56,9 @@ Factory = async_sessionmaker[AsyncSession]
 ProviderFactories = dict[ProviderName, Callable[[], LLMProvider]]
 
 HISTORY_TURNS = 20
-SALES = "sales"
+SALES = AgentRole.SALES
+MAX_ROUTES_PER_TURN = 1  # one handoff per visitor message: no ping-pong between agents
+MAX_NOTES = 3  # latest handoff notes shown to the answering agent
 PUBLIC_CHANNELS = frozenset({"public", "widget"})
 PAUSED_STATUSES = frozenset({"needs_human", "human_active"})  # the AI does not answer
 
@@ -68,15 +81,40 @@ class AgentUnavailableError(Exception):
     """Public channels: the agent cannot answer right now. Deliberately carries no detail."""
 
 
+class NoAgentEnabledError(Exception):
+    """Console: no agent of this business may answer (all disabled)."""
+
+
+class AgentNotAllowedError(Exception):
+    """The requested entry agent is unknown, disabled or not reachable by this caller."""
+
+
+@dataclass(frozen=True)
+class AgentReply:
+    agent: str  # role
+    name: str  # display name (cosmetic)
+    content: str
+
+
+@dataclass(frozen=True)
+class HandoffInfo:
+    from_agent: str
+    to_agent: str
+
+
 @dataclass(frozen=True)
 class TurnResult:
     conversation_id: UUID
-    reply: str
+    reply: str  # the last agent's reply
     sources: list[tuple[UUID, str]]
     provider: str
     model: str
     slot: str
     fallback_used: bool
+    agent: str = SALES  # the agent that answered last (now active)
+    agent_name: str = "Sales Agent"
+    replies: list[AgentReply] = field(default_factory=list)
+    handoffs: list[HandoffInfo] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -86,6 +124,9 @@ class GuestTurnResult:
     lead_suggestion: LeadSuggestion | None = None
     status: str = "open"  # conversation status after this turn
     handoff_requested: bool = False  # this turn moved the conversation to needs_human
+    agent: str | None = None  # the agent that answered last (None: the AI did not answer)
+    agent_name: str | None = None
+    replies: list[AgentReply] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -94,6 +135,7 @@ class MessageInfo:
     role: str
     content: str
     created_at: datetime
+    agent: str | None = None
 
 
 async def _existing(
@@ -112,12 +154,13 @@ async def _existing(
 
 
 async def _conversation(
-    session: AsyncSession, ctx: TenantContext, conversation_id: UUID | None, user_id: UUID
-) -> Conversation:
+    session: AsyncSession, ctx: TenantContext, conversation_id: UUID | None, user_id: UUID,
+    entry: AgentRole,
+) -> Conversation:  # fmt: skip
     if conversation_id is not None:
         return await _existing(session, ctx, conversation_id)
     conv = Conversation(id=uuid7(), business_id=ctx.business_id, channel="console",
-                        active_agent=SALES, created_by_user_id=user_id)  # fmt: skip
+                        active_agent=entry, created_by_user_id=user_id)  # fmt: skip
     session.add(conv)
     await session.flush()
     return conv
@@ -166,13 +209,36 @@ class _Answered:
 
 
 @dataclass(frozen=True)
+class AgentStart:
+    """The text that follows comes from this agent (a new reply in the chat)."""
+
+    agent: str
+    name: str
+
+
+@dataclass(frozen=True)
+class Handoff:
+    """The previous agent handed the conversation to `to_agent`, which now answers."""
+
+    from_agent: str
+    to_agent: str
+    to_name: str
+
+
+StreamEvent = AgentStart | Delta | Restart | Handoff
+
+
+@dataclass(frozen=True)
 class _TurnDone:
-    result: ChatResult
+    agent: configs.AgentConfigInfo  # answered last; now the conversation's active agent
+    result: ChatResult  # the last provider call
+    replies: list[AgentReply]
+    handoffs: list[HandoffInfo]
     sources: list[tuple[UUID, str]]
     slot: str
     fallback: bool
     suggestion: LeadSuggestion | None
-    handoff: bool
+    handoff: bool  # the agent asked for a person (public conversations)
 
 
 class _MarkerGuard:
@@ -261,77 +327,173 @@ async def _stream_with_fallback(
     raise ProvidersUnavailableError(failures)
 
 
+async def _notes(session: AsyncSession, ctx: TenantContext, conv_id: UUID) -> list[HandoffNote]:
+    rows = (
+        await session.execute(
+            select(AgentHandoff.from_agent, AgentHandoff.note)
+            .where(AgentHandoff.business_id == ctx.business_id,
+                   AgentHandoff.conversation_id == conv_id)
+            .order_by(AgentHandoff.created_at.desc(), AgentHandoff.id.desc())
+            .limit(MAX_NOTES)
+        )
+    ).all()  # fmt: skip
+    return [
+        HandoffNote(DEFINITIONS[AgentRole(r.from_agent)].title, r.note)
+        for r in reversed(rows) if r.note
+    ]  # fmt: skip
+
+
+def _active(roster: configs.Roster, current: str, *, guest: bool) -> configs.AgentConfigInfo | None:
+    """The conversation's active agent if it may still answer, else the default entry agent."""
+    if roster.allowed(current, guest=guest):
+        return roster.config(current)
+    return roster.entry(None, guest=guest)
+
+
 async def _stream_turn(
     factory: Factory, vault: Vault | None, provider_factories: ProviderFactories,
-    ctx: TenantContext, *, conv_id: UUID, history: list[ChatMessage], message: str, public: bool,
-) -> AsyncIterator[Delta | Restart | _TurnDone]:  # fmt: skip
-    """Retrieve published knowledge, stream the reply, persist both messages at the end.
+    ctx: TenantContext, *, conv_id: UUID, channel: str, history: list[ChatMessage],
+    message: str, roster: configs.Roster, agent: configs.AgentConfigInfo, guest: bool,
+    public: bool, notes: list[HandoffNote], facts: CustomerFacts | None,
+) -> AsyncIterator[StreamEvent | _TurnDone]:  # fmt: skip
+    """Stream one turn, routing at most once to an allowed teammate; persist at the end.
 
-    Lead and handoff markers are stripped before the reply is stored or returned; in public
-    conversations a vetted lead suggestion is returned so the visitor can confirm it. A turn
-    that fails stores nothing, so the visitor can simply send the message again.
+    The model can only propose a teammate by role name: `take_route_marker` accepts it only
+    if it is in the roster's list of enabled agents this caller may reach (guests: public
+    agents only). Lead and handoff markers are stripped; a lead suggestion is kept only from
+    an agent holding the create_lead tool. A turn that fails stores nothing (no messages, no
+    handoff, active agent unchanged), so the visitor can simply send the message again.
     """
     business = await tenancy.get_business(factory, ctx)
     entries = await knowledge.retrieve(factory, ctx, message)
-    prompt = sales_messages(business.name, entries, history, message, public=public)
-    guard = _MarkerGuard()
-    answered: _Answered | None = None
-    async for item in _stream_with_fallback(factory, vault, ctx, provider_factories, prompt):
-        if isinstance(item, TextDelta):
-            visible = guard.feed(item.text)
-            if visible:
-                yield Delta(visible)
-        elif isinstance(item, Restart):
-            guard = _MarkerGuard()
-            yield item
-        else:
-            answered = item
-    if answered is None:  # _stream_with_fallback ends with _Answered or raises
-        raise AssertionError("stream ended without an answer")
     visitor = [m.content for m in history if m.role == "user"] + [message]
-    reply, suggestion = split_lead_marker(answered.result.text, visitor)
-    reply, handoff = take_handoff_marker(reply)
-    result = replace(answered.result, text=reply)
+    current = agent
+    calls: list[tuple[configs.AgentConfigInfo, _Answered, str]] = []
+    handoffs: list[tuple[configs.AgentConfigInfo, configs.AgentConfigInfo, str]] = []
+    suggestion: LeadSuggestion | None = None
+    wants_person = False
+    for hop in range(MAX_ROUTES_PER_TURN + 1):
+        targets = roster.targets(current.role, guest=guest) if hop < MAX_ROUTES_PER_TURN else []
+        lead_capture = public and Action.CREATE_LEAD in current.effective_tools
+        prompt = agent_messages(
+            current.role, title=current.definition.title, display_name=current.display_name,
+            business_name=business.name, knowledge=entries, history=history,
+            user_message=message, public=public, lead_capture=lead_capture,
+            teammates=[Teammate(t.role, t.definition.handles) for t in targets],
+            notes=notes, facts=facts,
+        )  # fmt: skip
+        # Announced with its first text: errors before any text stay plain HTTP errors, and
+        # an agent that only hands over shows no empty reply.
+        start: AgentStart | None = AgentStart(current.role, current.name)
+        guard = _MarkerGuard()
+        answered: _Answered | None = None
+        async for item in _stream_with_fallback(factory, vault, ctx, provider_factories, prompt):
+            if isinstance(item, TextDelta):
+                visible = guard.feed(item.text)
+                if visible:
+                    if start is not None:
+                        yield start
+                        start = None
+                    yield Delta(visible)
+            elif isinstance(item, Restart):
+                guard = _MarkerGuard()
+                yield item
+            else:
+                answered = item
+        if answered is None:  # _stream_with_fallback ends with _Answered or raises
+            raise AssertionError("stream ended without an answer")
+        text, target, note = take_route_marker(answered.result.text, [t.role for t in targets])
+        text, lead = split_lead_marker(text, visitor)
+        if lead_capture and lead is not None:
+            suggestion = lead
+        text, person = take_handoff_marker(text)
+        wants_person = wants_person or (public and person and target is None)
+        calls.append((current, answered, text))
+        nxt = roster.config(target) if target is not None else None
+        if nxt is None:
+            break
+        handoffs.append((current, nxt, note))
+        yield Handoff(current.role, nxt.role, nxt.name)
+        notes = [*notes, HandoffNote(current.definition.title, note)][-MAX_NOTES:]
+        current = nxt
 
     now = datetime.now(UTC)
     async with tenant_session(factory, ctx) as session:
         session.add(Message(id=uuid7(), business_id=ctx.business_id, conversation_id=conv_id,
                             role="user", content=message, created_at=now))  # fmt: skip
-        session.add(
-            Message(
-                id=uuid7(), business_id=ctx.business_id, conversation_id=conv_id, role="assistant",
-                agent=SALES, content=result.text, provider=result.provider, model=result.model,
-                provider_slot=answered.slot, input_tokens=result.input_tokens,
-                output_tokens=result.output_tokens, created_at=datetime.now(UTC),
-            )
-        )  # fmt: skip
+        for i, (cfg, ans, text) in enumerate(calls, start=1):
+            if not text:  # an agent that only handed over says nothing
+                continue
+            session.add(
+                Message(
+                    id=uuid7(), business_id=ctx.business_id, conversation_id=conv_id,
+                    role="assistant", agent=cfg.role, content=text,
+                    provider=ans.result.provider, model=ans.result.model,
+                    provider_slot=ans.slot, input_tokens=ans.result.input_tokens,
+                    output_tokens=ans.result.output_tokens,
+                    created_at=now + timedelta(microseconds=i),  # keeps the order stable
+                )
+            )  # fmt: skip
+        for src, dst, note in handoffs:
+            session.add(AgentHandoff(id=uuid7(), business_id=ctx.business_id,
+                                     conversation_id=conv_id, from_agent=src.role,
+                                     to_agent=dst.role, note=note, created_at=now))  # fmt: skip
+            # Roles and channel only: the note may quote the customer and stays with the
+            # conversation (deleted by retention), never in the audit trail.
+            await record(session, ctx, action=AuditAction.AGENT_HANDOFF, actor_user_id=None,
+                         target_type="conversation", target_id=conv_id,
+                         details={"from_agent": src.role, "to_agent": dst.role,
+                                  "channel": channel})  # fmt: skip
         conv_row = await session.get(Conversation, conv_id)
         if conv_row is not None:
             conv_row.last_message_at = now
+            conv_row.active_agent = current.role
+    last_cfg, last, last_text = calls[-1]
     yield _TurnDone(
-        result=result,
+        agent=last_cfg,
+        result=replace(last.result, text=last_text),
+        replies=[AgentReply(c.role, c.name, t) for c, _a, t in calls if t],
+        handoffs=[HandoffInfo(a.role, b.role) for a, b, _n in handoffs],
         sources=[(e.id, e.title) for e in entries],
-        slot=answered.slot,
-        fallback=answered.fallback,
-        suggestion=suggestion if public else None,
-        handoff=handoff and public,
+        slot=last.slot,
+        fallback=last.fallback,
+        suggestion=suggestion,
+        handoff=wants_person,
     )
 
 
 async def stream_sales_console_turn(
     factory: Factory, vault: Vault | None, provider_factories: ProviderFactories,
     ctx: TenantContext, *, user_id: UUID, message: str, conversation_id: UUID | None,
-) -> AsyncIterator[Delta | Restart | TurnResult]:  # fmt: skip
-    """Console turn as a stream: Delta/Restart items, then the TurnResult."""
+    agent: str | None = None,
+) -> AsyncIterator[StreamEvent | TurnResult]:  # fmt: skip
+    """Console turn (a member testing their agents) as a stream ending in TurnResult.
+
+    Members may reach every enabled agent, including ones not open to visitors. `agent`
+    picks the entry agent of a new conversation.
+    """
+    roster = await configs.roster(factory, ctx)
+    entry = roster.entry(agent, guest=False)
+    if entry is None:
+        raise AgentNotAllowedError if agent is not None else NoAgentEnabledError
     async with tenant_session(factory, ctx) as session:
-        conv = await _conversation(session, ctx, conversation_id, user_id)
+        conv = await _conversation(session, ctx, conversation_id, user_id, entry.role)
+        current = _active(roster, conv.active_agent, guest=False)
+        if current is None:
+            raise NoAgentEnabledError
         history = await _history(session, ctx, conv.id)
-        conv_id = conv.id
+        notes = await _notes(session, ctx, conv.id)
+        conv_id, channel = conv.id, conv.channel
     async for item in _stream_turn(factory, vault, provider_factories, ctx, conv_id=conv_id,
-                                   history=history, message=message, public=False):  # fmt: skip
+                                   channel=channel, history=history, message=message,
+                                   roster=roster, agent=current, guest=False, public=False,
+                                   notes=notes, facts=None):  # fmt: skip
         if isinstance(item, _TurnDone):
-            yield TurnResult(conv_id, item.result.text, item.sources, item.result.provider,
-                             item.result.model, item.slot, item.fallback)  # fmt: skip
+            yield TurnResult(
+                conv_id, item.result.text, item.sources, item.result.provider,
+                item.result.model, item.slot, item.fallback, agent=item.agent.role,
+                agent_name=item.agent.name, replies=item.replies, handoffs=item.handoffs,
+            )  # fmt: skip
         else:
             yield item
 
@@ -339,10 +501,11 @@ async def stream_sales_console_turn(
 async def sales_console_turn(
     factory: Factory, vault: Vault | None, provider_factories: ProviderFactories,
     ctx: TenantContext, *, user_id: UUID, message: str, conversation_id: UUID | None,
+    agent: str | None = None,
 ) -> TurnResult:  # fmt: skip
     async for item in stream_sales_console_turn(
         factory, vault, provider_factories, ctx, user_id=user_id, message=message,
-        conversation_id=conversation_id,
+        conversation_id=conversation_id, agent=agent,
     ):  # fmt: skip
         if isinstance(item, TurnResult):
             return item
@@ -365,23 +528,32 @@ async def _guest_conversation(
 async def stream_public_sales_turn(
     factory: Factory, vault: Vault | None, provider_factories: ProviderFactories,
     ctx: TenantContext, *, guest_session_id: UUID, message: str, conversation_id: UUID | None,
-    channel: str,
-) -> AsyncIterator[Delta | Restart | GuestTurnResult]:  # fmt: skip
-    """One Sales Agent turn for an anonymous visitor, as a stream ending in GuestTurnResult.
+    channel: str, agent: str | None = None, facts: CustomerFacts | None = None,
+) -> AsyncIterator[StreamEvent | GuestTurnResult]:  # fmt: skip
+    """One agent turn for an anonymous visitor, as a stream ending in GuestTurnResult.
 
     The caller must have authenticated `guest_session_id` within `ctx`'s business. A
     conversation id that does not belong to that guest session is treated as not found.
-    Only the reply is returned: provider, model, slot and sources stay internal. Any failure to
-    answer surfaces as AgentUnavailableError, before or during the stream.
+    Guests only ever reach enabled public agents: `agent` (entry choice for a new
+    conversation) is refused otherwise. `facts` are details this visitor confirmed in this
+    conversation. Only replies and agent names are returned: provider, model, slot and sources
+    stay internal. Any failure to answer surfaces as AgentUnavailableError.
     """
     if channel not in PUBLIC_CHANNELS:
         raise ValueError("invalid public channel")
+    roster = await configs.roster(factory, ctx)
+    entry = roster.entry(agent, guest=True)
+    if entry is None and agent is not None:
+        raise AgentNotAllowedError
     async with tenant_session(factory, ctx) as session:
         if conversation_id is not None:
             conv = await _guest_conversation(session, ctx, conversation_id, guest_session_id)
         else:
+            if entry is None:
+                raise AgentUnavailableError  # no agent open to visitors
             conv = Conversation(id=uuid7(), business_id=ctx.business_id, channel=channel,
-                                active_agent=SALES, guest_session_id=guest_session_id)  # fmt: skip
+                                active_agent=entry.role,
+                                guest_session_id=guest_session_id)  # fmt: skip
             session.add(conv)
             await session.flush()
         paused = conv.status in PAUSED_STATUSES
@@ -393,15 +565,21 @@ async def stream_public_sales_turn(
             conv.last_message_at = now
         elif conv.status == "resolved":
             conv.status = "open"  # the visitor came back: the AI answers again
-        status, conv_id = conv.status, conv.id
+        status, conv_id, conv_channel = conv.status, conv.id, conv.channel
+        current = None if paused else _active(roster, conv.active_agent, guest=True)
         history = [] if paused else await _history(session, ctx, conv.id)
+        notes = [] if paused else await _notes(session, ctx, conv.id)
     if paused:
         yield GuestTurnResult(conv_id, "", status=status)
         return
+    if current is None:
+        raise AgentUnavailableError  # every public agent was disabled
     done: _TurnDone | None = None
     try:
         async for item in _stream_turn(factory, vault, provider_factories, ctx, conv_id=conv_id,
-                                       history=history, message=message, public=True):  # fmt: skip
+                                       channel=conv_channel, history=history, message=message,
+                                       roster=roster, agent=current, guest=True, public=True,
+                                       notes=notes, facts=facts):  # fmt: skip
             if isinstance(item, _TurnDone):
                 done = item
             else:
@@ -415,22 +593,25 @@ async def stream_public_sales_turn(
         raise AgentUnavailableError from None
     if done is None:
         raise AssertionError("turn ended without a result")
+    requested = False
     if done.handoff:
         requested = await mark_handoff_requested(factory, ctx, conv_id, reason="agent")
-        yield GuestTurnResult(conv_id, done.result.text, done.suggestion, status="needs_human",
-                              handoff_requested=requested)  # fmt: skip
-        return
-    yield GuestTurnResult(conv_id, done.result.text, done.suggestion)
+    yield GuestTurnResult(
+        conv_id, done.result.text, done.suggestion,
+        status="needs_human" if done.handoff else "open", handoff_requested=requested,
+        agent=done.agent.role, agent_name=done.agent.name, replies=done.replies,
+    )  # fmt: skip
 
 
 async def public_sales_turn(
     factory: Factory, vault: Vault | None, provider_factories: ProviderFactories,
     ctx: TenantContext, *, guest_session_id: UUID, message: str, conversation_id: UUID | None,
-    channel: str,
+    channel: str, agent: str | None = None, facts: CustomerFacts | None = None,
 ) -> GuestTurnResult:  # fmt: skip
     async for item in stream_public_sales_turn(
         factory, vault, provider_factories, ctx, guest_session_id=guest_session_id,
-        message=message, conversation_id=conversation_id, channel=channel,
+        message=message, conversation_id=conversation_id, channel=channel, agent=agent,
+        facts=facts,
     ):  # fmt: skip
         if isinstance(item, GuestTurnResult):
             return item
@@ -467,7 +648,7 @@ async def _messages(
             .order_by(Message.created_at, Message.id)
         )
     ).scalars().all()  # fmt: skip
-    return [MessageInfo(m.id, m.role, m.content, m.created_at) for m in rows]
+    return [MessageInfo(m.id, m.role, m.content, m.created_at, m.agent) for m in rows]
 
 
 async def list_messages(

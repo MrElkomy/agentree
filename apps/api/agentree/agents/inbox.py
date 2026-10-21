@@ -70,6 +70,7 @@ class InboxMessage:
     author_user_id: UUID | None
     content: str
     created_at: datetime
+    agent: str | None = None  # assistant messages: the agent's role
 
 
 def _now() -> datetime:
@@ -237,7 +238,8 @@ async def get_conversation(
             c.id, c.channel, c.status, c.assignee_user_id, c.handoff_reason,
             c.handoff_requested_at, c.last_message_at, c.created_at, "", "",
         )  # fmt: skip
-        return item, [InboxMessage(m.id, m.role, m.author_user_id, m.content, m.created_at)
+        return item, [InboxMessage(m.id, m.role, m.author_user_id, m.content, m.created_at,
+                                           m.agent)
                       for m in rows]  # fmt: skip
 
 

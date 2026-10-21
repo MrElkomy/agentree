@@ -107,7 +107,10 @@ async def _open_count(session: AsyncSession, ctx: TenantContext, lead_id: UUID,
 # --- agent (inside the lead transaction) ---------------------------------------------------
 
 
-async def create_first_contact_task(session: AsyncSession, ctx: TenantContext, lead: Lead) -> None:
+async def create_first_contact_task(
+    session: AsyncSession, ctx: TenantContext, lead: Lead,
+    granted: frozenset[gateway.Action] | None = None,
+) -> None:  # fmt: skip
     """The Sales Agent's follow-up for a new lead, through the gateway (idempotent per lead)."""
     agent = lead.source_agent
     due = _now() + FIRST_CONTACT_DELAY
@@ -116,7 +119,8 @@ async def create_first_contact_task(session: AsyncSession, ctx: TenantContext, l
     params = {"lead_id": str(lead.id), "kind": "first_contact"}
     prior = await gateway.claim(session, ctx, agent=agent,
                                 action=gateway.Action.CREATE_FOLLOW_UP_TASK,
-                                idempotency_key=key, params=params)  # fmt: skip
+                                idempotency_key=key, params=params,
+                                granted=granted)  # fmt: skip
     if prior is not None:
         return
     if not AGENT_MIN_DUE <= due - _now() <= AGENT_MAX_DUE:
