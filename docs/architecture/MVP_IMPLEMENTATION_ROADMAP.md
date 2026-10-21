@@ -134,7 +134,7 @@ until then the item remains an open MVP requirement and blocks the final pilot g
 - **Out of scope:** owner-built custom agents. Custom display name: proposed for this task, pending
   PO approval (see the tracking table).
 
-### Task 15 — Customer Service + Technical Support agents — 🟡 implemented (pending PO approval), see `AGENTS.md`
+### Task 15 — Customer Service + Technical Support agents — ✅ merged (#37), see `AGENTS.md`
 - **Scope:** two public agents on the Task 14 framework, with role prompts, knowledge scoping and
   escalation rules; entry points on the public page and widget. Resolution by the Customer
   Service agent and the visitor as well as the team (PO decision 2026-10-21); Sales stays
@@ -143,7 +143,7 @@ until then the item remains an open MVP requirement and blocks the final pilot g
   Task 12; routing E2E across all three public agents.
 - **Out of scope:** ticketing integrations.
 
-### Task 16 — Customer identity + customer memory
+### Task 16 — Customer identity + customer memory — 🟡 implemented (pending PO approval), see `CUSTOMERS.md`
 - **Scope:** guest → provisional profile; email OTP verification (rate-limited) links a guest to a
   verified customer profile; structured memory items (fact, source conversation, created/updated,
   review date) separate from raw messages; owner review/edit/delete UI;

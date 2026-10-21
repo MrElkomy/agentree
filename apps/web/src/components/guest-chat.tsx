@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { RichText, textDirection } from "@/components/rich-text";
+import { GuestIdentity } from "@/components/guest-identity";
 import { Button } from "@/components/ui";
 import { agentLabel } from "@/lib/agents";
 import type { LeadSuggestion } from "@/lib/api";
@@ -25,6 +26,7 @@ export function GuestChat({
   className = "",
   entryAgent,
   leadCapture = true,
+  retentionDays = 30,
 }: {
   slug: string;
   displayName: string;
@@ -34,6 +36,8 @@ export function GuestChat({
   entryAgent?: string;
   /** The business accepts contact details (its Sales Agent may capture leads). */
   leadCapture?: boolean;
+  /** Days chats and customer memory are kept (told to the visitor). */
+  retentionDays?: number;
 }) {
   const {
     turns,
@@ -333,6 +337,9 @@ export function GuestChat({
           </div>
         </div>
       </form>
+      <div className="border-t border-line bg-surface px-3 py-2">
+        <GuestIdentity slug={slug} displayName={displayName} retentionDays={retentionDays} />
+      </div>
     </div>
   );
 }

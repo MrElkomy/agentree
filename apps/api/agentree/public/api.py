@@ -22,11 +22,14 @@ from agentree.agents import configs as agent_configs
 from agentree.agents import events as agent_events
 from agentree.agents import inbox
 from agentree.agents import service as agents
-from agentree.agents.prompts import CustomerFacts
+from agentree.agents.prompts import CustomerFacts, RememberedFact
 from agentree.agents.registry import AgentRole
 from agentree.core import ratelimit, sse
 from agentree.core.client_ip import client_ip
 from agentree.core.config import Environment
+from agentree.core.email import EmailSender, OutgoingEmail, branded_email, send_safely
+from agentree.core.email_layout import EmailContent
+from agentree.customers import service as customers
 from agentree.leads import service as leads
 from agentree.public import service
 from agentree.public.schemas import (
@@ -38,6 +41,10 @@ from agentree.public.schemas import (
     GuestMessageOut,
     GuestReplyOut,
     GuestSessionOut,
+    IdentityConfirmIn,
+    IdentityOut,
+    IdentityStartIn,
+    IdentityStartOut,
     LeadSuggestionOut,
     LinkOut,
     PublicAgentOut,
@@ -154,6 +161,7 @@ async def public_page(slug: str, request: Request) -> PublicPageOut:
         chat_enabled=bool(reachable),
         agents=[PublicAgentOut(role=c.role, name=c.name) for c in reachable],
         lead_capture=sales is not None and Action.CREATE_LEAD in sales.effective_tools,
+        retention_days=request.app.state.settings.retention_days,
     )  # fmt: skip
 
 
@@ -249,6 +257,16 @@ async def _facts(
     return CustomerFacts(name=lead.name, need=lead.need, has_contact=bool(lead.email or lead.phone))
 
 
+async def _remembered(
+    request: Request, page: service.PublicPage, guest: UUID
+) -> list[RememberedFact]:
+    """Memory of the verified customer behind this guest session (empty for anyone else);
+    each agent then sees only the categories its role may read."""
+    facts = await customers.memory_for_guest(request.app.state.session_factory, page.tenant,
+                                             guest)  # fmt: skip
+    return [RememberedFact(f.category, f.value) for f in facts]
+
+
 def _notify_if_handoff(
     request: Request, page: service.PublicPage, turn: agents.GuestTurnResult, tasks: BackgroundTasks
 ) -> None:
@@ -270,6 +288,7 @@ async def guest_chat(
             guest_session_id=guest, message=body.message, conversation_id=body.conversation_id,
             channel=body.channel, agent=body.agent,
             facts=await _facts(request, page, body.conversation_id),
+            remembered=await _remembered(request, page, guest),
         )  # fmt: skip
     except Exception as exc:
         if (err := _guest_turn_error(exc)) is None:
@@ -299,6 +318,7 @@ async def guest_chat_stream(
         guest_session_id=guest, message=body.message, conversation_id=body.conversation_id,
         channel=body.channel, agent=body.agent,
         facts=await _facts(request, page, body.conversation_id),
+        remembered=await _remembered(request, page, guest),
     )  # fmt: skip
     try:
         first = await anext(items)
@@ -472,3 +492,100 @@ async def guest_resolve(
     except inbox.InvalidStateError:
         raise HTTPException(status.HTTP_409_CONFLICT, "conversation_state") from None
     return await guest_conversation(slug, conversation_id, creds, request)
+
+
+# --- customer identity (Task 16): email one-time code ------------------------------------------
+
+CODE_STARTS_PER_SESSION_PER_HOUR = 3
+CODE_STARTS_PER_IP_PER_HOUR = 10
+CODE_STARTS_PER_EMAIL_PER_DAY = 5
+CODE_CHECKS_PER_SESSION_PER_10_MIN = 10
+
+
+def _identity_out(identity: customers.Identity) -> IdentityOut:
+    return IdentityOut(verified=identity.verified, email_hint=identity.email_hint)
+
+
+@public_router.get("/identity")
+async def guest_identity(slug: str, creds: GuestToken, request: Request) -> IdentityOut:
+    page = await _page(request, slug)
+    guest = await _guest(request, page, creds, touch=False)
+    return _identity_out(
+        await customers.identity(request.app.state.session_factory, page.tenant, guest)
+    )
+
+
+def _code_email(to: str, business: str, code: str) -> OutgoingEmail:
+    return branded_email(to, EmailContent(
+        subject=f"Your {business} verification code",
+        preheader=f"Your code is {code}. It expires in 10 minutes.",
+        heading="Confirm your email",
+        paragraphs=[
+            f"Enter this code in the {business} chat so its assistants can remember you next "
+            "time:",
+            code,
+            "It expires in 10 minutes. If you didn't ask for it, ignore this email: nothing "
+            "happens without the code.",
+        ],
+        reason=f"You're receiving this because someone entered this address in the {business} "
+        "chat on Agentree.",
+    ))  # fmt: skip
+
+
+@public_router.post("/identity/start", status_code=status.HTTP_202_ACCEPTED)
+async def guest_identity_start(
+    slug: str, body: IdentityStartIn, creds: GuestToken, request: Request, tasks: BackgroundTasks
+) -> IdentityStartOut:
+    """Email a one-time code. Entering an email unlocks nothing until the code is confirmed."""
+    page = await _page(request, slug)
+    guest = await _guest(request, page, creds, touch=True)
+    try:
+        email = customers.normalize_email(body.email)
+    except customers.InvalidEmailError:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "invalid_email") from None
+    bid = str(page.tenant.business_id)
+    if not (
+        await _within(request, "identity-start:ip", _ip(request),
+                      CODE_STARTS_PER_IP_PER_HOUR, 3600)
+        and await _within(request, "identity-start:session", str(guest),
+                          CODE_STARTS_PER_SESSION_PER_HOUR, 3600)
+        and await _within(request, "identity-start:email", f"{bid}:{email}",
+                          CODE_STARTS_PER_EMAIL_PER_DAY, 86400)
+    ):  # fmt: skip
+        raise _busy()
+    st = request.app.state
+    address, code = await customers.start_verification(
+        st.session_factory, page.tenant, guest_session_id=guest, email=email
+    )
+    mailer: EmailSender = st.mailer
+    tasks.add_task(send_safely, mailer, _code_email(address, page.display_name, code),
+                   kind="customer_code")  # fmt: skip
+    return IdentityStartOut(sent=True)
+
+
+@public_router.post("/identity/confirm")
+async def guest_identity_confirm(
+    slug: str, body: IdentityConfirmIn, creds: GuestToken, request: Request
+) -> IdentityOut:
+    """422 `invalid_code` for a wrong, expired, used or exhausted code (indistinguishable)."""
+    page = await _page(request, slug)
+    guest = await _guest(request, page, creds, touch=True)
+    if not await _within(request, "identity-confirm:session", str(guest),
+                         CODE_CHECKS_PER_SESSION_PER_10_MIN, 600):  # fmt: skip
+        raise _busy()
+    try:
+        identity = await customers.confirm_verification(
+            request.app.state.session_factory, page.tenant, guest_session_id=guest, code=body.code
+        )
+    except customers.InvalidCodeError:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "invalid_code") from None
+    return _identity_out(identity)
+
+
+@public_router.delete("/identity")
+async def guest_identity_forget(slug: str, creds: GuestToken, request: Request) -> IdentityOut:
+    """ "Not you?": this browser stops being the verified customer."""
+    page = await _page(request, slug)
+    guest = await _guest(request, page, creds, touch=True)
+    await customers.forget_identity(request.app.state.session_factory, page.tenant, guest)
+    return IdentityOut(verified=False)

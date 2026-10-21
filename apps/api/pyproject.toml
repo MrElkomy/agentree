@@ -113,7 +113,8 @@ type = "forbidden"
 source_modules = ["agentree.public"]
 forbidden_modules = [
     "agentree.agents.models", "agentree.agents.api", "agentree.knowledge", "agentree.leads.models",
-    "agentree.leads.api", "agentree.actions.models",
+    "agentree.leads.api", "agentree.actions.models", "agentree.customers.models",
+    "agentree.customers.api", "agentree.customers.extraction",
     "agentree.providers", "agentree.llm", "agentree.tenancy.models", "agentree.identity.models",
     "agentree.identity.service", "agentree.retention", "agentree.main", "agentree.worker",
 ]
@@ -171,6 +172,26 @@ allow_indirect_imports = true
 name = "leads domain code does not depend on the HTTP layer"
 type = "forbidden"
 source_modules = ["agentree.leads.models", "agentree.leads.service"]
+forbidden_modules = ["fastapi", "agentree.main", "agentree.health"]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "customers use other modules only through their service layer"
+type = "forbidden"
+source_modules = ["agentree.customers"]
+forbidden_modules = [
+    "agentree.agents.models", "agentree.agents.api", "agentree.agents.inbox_api",
+    "agentree.actions", "agentree.leads", "agentree.public", "agentree.knowledge",
+    "agentree.identity", "agentree.tenancy.models", "agentree.tenancy.api", "agentree.providers.models",
+    "agentree.llm.http_providers", "agentree.retention", "agentree.main", "agentree.worker",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "customers domain code does not depend on the HTTP layer"
+type = "forbidden"
+source_modules = ["agentree.customers.models", "agentree.customers.service",
+                  "agentree.customers.extraction"]
 forbidden_modules = ["fastapi", "agentree.main", "agentree.health"]
 allow_indirect_imports = true
 

@@ -17,6 +17,7 @@ from agentree.core.db_roles import UnsafeDatabaseRoleError, assert_safe_app_role
 from agentree.core.email import EmailSender, SmtpEmailSender
 from agentree.core.logging import configure_logging
 from agentree.core.webpush import PushSender, build_push_sender
+from agentree.customers.api import router as customers_router
 from agentree.health.api import router as health_router
 from agentree.identity.api import router as auth_router
 from agentree.knowledge.api import router as knowledge_router
@@ -98,4 +99,5 @@ def create_app(
     app.include_router(agent_configs_router)
     app.include_router(metrics_router)
     app.include_router(notifications_router)
+    app.include_router(customers_router)
     return app

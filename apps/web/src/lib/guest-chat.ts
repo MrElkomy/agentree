@@ -20,6 +20,7 @@ import {
   isApiError,
   type GuestChatReply,
   type GuestConversation,
+  type GuestIdentity,
   type GuestLeadIn,
   type GuestSession,
   type LeadSuggestion,
@@ -89,6 +90,7 @@ const GUEST_MESSAGES: Record<string, string> = {
   idempotency_conflict: "Please send the form again.",
   resolve_not_allowed: "Only the team can close this conversation.",
   conversation_state: "The team is handling this conversation right now.",
+  invalid_code: "That code didn't work. Check it, or ask for a new one.",
 };
 
 function toTurns(conversation: GuestConversation): GuestTurn[] {
@@ -430,4 +432,72 @@ export function useGuestChat(slug: string, channel: GuestChannel, entryAgent?: s
     submitLead,
     newIdempotencyKey,
   };
+}
+
+/**
+ * "Remember me" (Task 16): the visitor proves their email with a one-time code so the agents
+ * can use what they told the business before. Typing an email alone unlocks nothing; the
+ * backend links this browser's guest session only after the right code.
+ */
+export function useGuestIdentity(slug: string) {
+  const [identity, setIdentity] = useState<GuestIdentity>({ verified: false, email_hint: null });
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const token = read(tokenKey(slug));
+    if (!token) return;
+    api<GuestIdentity>(`${base(slug)}/identity`, "GET", undefined, opts(token)).then(
+      (i) => !cancelled && setIdentity(i),
+      () => {
+        // unknown or expired session: anonymous
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [slug]);
+
+  const run = useCallback(
+    async <T,>(fn: (token: string) => Promise<T>): Promise<T | null> => {
+      setBusy(true);
+      setError(null);
+      try {
+        const token = read(tokenKey(slug)) ?? (await newToken(slug));
+        return await fn(token);
+      } catch (err) {
+        setError(guestErrorMessage(err));
+        return null;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [slug],
+  );
+
+  /** Emails a code; resolves true when the visitor should now enter it. */
+  const start = useCallback(
+    async (email: string): Promise<boolean> =>
+      (await run((token) => api(`${base(slug)}/identity/start`, "POST", { email }, opts(token)))) !== null,
+    [run, slug],
+  );
+
+  const confirm = useCallback(
+    async (code: string): Promise<boolean> => {
+      const next = await run((token) =>
+        api<GuestIdentity>(`${base(slug)}/identity/confirm`, "POST", { code }, opts(token)),
+      );
+      if (next) setIdentity(next);
+      return next?.verified ?? false;
+    },
+    [run, slug],
+  );
+
+  const forget = useCallback(async () => {
+    const next = await run((token) => api<GuestIdentity>(`${base(slug)}/identity`, "DELETE", undefined, opts(token)));
+    if (next) setIdentity(next);
+  }, [run, slug]);
+
+  return { identity, busy, error, start, confirm, forget, clearError: () => setError(null) };
 }

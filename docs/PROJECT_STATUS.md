@@ -41,6 +41,8 @@ that changes what it describes. Last updated: 2026-10-21.
   migration 0015); the PO started its deploy on 2026-10-21 — result not yet confirmed here.
 - **Deployment batches (PO decision):** don't deploy every PR. Batch 1 = Tasks 11 + 11b + 12 + 13
   → batch 2 = 14–16 → batch 3 = 17–21 → batch 4 = 22. Tell the PO when a batch is ready.
+- **Task 16 in review:** customer identity (email code) and customer memory
+  (`docs/architecture/CUSTOMERS.md`, migration 0017); last task of batch 2.
 - AI on staging: Groq (free tier) as the demo provider key. Nightly encrypted backups to Google
   Drive at 03:00 America/New_York.
 

@@ -75,8 +75,9 @@ The answering agent's prompt gets a delimited `TEAM_CONTEXT` block (data, not in
   whether contact details were given — never the email address or phone number.
 
 Notes live in `agent_handoffs`, which is tenant-scoped (RLS) and deleted with its conversation
-by the 30-day retention job (composite FK `ON DELETE CASCADE`). There is no cross-conversation
-customer memory here; that is Task 16.
+by the 30-day retention job (composite FK `ON DELETE CASCADE`). Since Task 16 the block also
+holds the verified customer's memory, filtered to the categories the answering role may read
+(`CUSTOMERS.md`).
 
 ## Customer Service and Technical Support (Task 15)
 

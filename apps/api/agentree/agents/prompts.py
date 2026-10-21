@@ -157,6 +157,15 @@ class CustomerFacts:
 
 
 @dataclass(frozen=True)
+class RememberedFact:
+    """Customer memory (Task 16) of the verified customer, already filtered to what this role
+    may read. Model-derived: untrusted data."""
+
+    category: str
+    value: str
+
+
+@dataclass(frozen=True)
 class HandoffNote:
     from_title: str
     note: str  # model-written summary: untrusted
@@ -166,8 +175,18 @@ def _one_line(text: str, limit: int) -> str:
     return " ".join(_clean(text).replace("<<", "").replace(">>", "").split())[:limit]
 
 
-def _context_lines(notes: Sequence[HandoffNote], facts: CustomerFacts | None) -> list[str]:
+def _context_lines(
+    notes: Sequence[HandoffNote], facts: CustomerFacts | None,
+    remembered: Sequence[RememberedFact] = (),
+) -> list[str]:  # fmt: skip
     lines = [f"- From {_one_line(n.from_title, 40)}: {_one_line(n.note, 300)}" for n in notes]
+    if remembered:
+        lines.append(
+            "- Remembered from this customer's earlier conversations (they verified "
+            "their email; it may be out of date, so confirm before relying on it):"
+        )
+        lines += [f"  - {_one_line(r.category, 20)}: {_one_line(r.value, 200)}"
+                  for r in remembered]  # fmt: skip
     if facts is not None:
         parts = [f"name: {_one_line(facts.name, 100)}" if facts.name else "",
                  f"needs: {_one_line(facts.need, 300)}" if facts.need else "",
@@ -193,6 +212,7 @@ def agent_messages(
     teammates: Sequence[Teammate] = (),
     notes: Sequence[HandoffNote] = (),
     facts: CustomerFacts | None = None,
+    remembered: Sequence[RememberedFact] = (),
 ) -> list[ChatMessage]:
     """System prompt for one role. Capabilities (lead capture, teammates) come from the backend's
     configuration; the display name is cosmetic and validated (`configs.validate_display_name`)."""
@@ -211,7 +231,7 @@ def agent_messages(
         listed = "\n".join(f"  - {t.role}: {t.handles}" for t in teammates)
         team = TEAM.format(teammates=listed)
     context = ""
-    lines = _context_lines(notes, facts)
+    lines = _context_lines(notes, facts, remembered)
     if lines:
         context = CONTEXT.format(team_open=TEAM_OPEN, team_close=TEAM_CLOSE, lines="\n".join(lines))
     system = SYSTEM.format(

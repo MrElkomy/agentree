@@ -9,7 +9,7 @@ tools they hold come from `configs` (never from model output). Message content i
 """
 
 import logging
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
@@ -26,6 +26,7 @@ from agentree.agents.prompts import (
     CustomerFacts,
     HandoffNote,
     LeadSuggestion,
+    RememberedFact,
     Teammate,
     agent_messages,
     split_lead_marker,
@@ -370,6 +371,7 @@ async def _stream_turn(
     ctx: TenantContext, *, conv_id: UUID, channel: str, history: list[ChatMessage],
     message: str, roster: configs.Roster, agent: configs.AgentConfigInfo, guest: bool,
     public: bool, notes: list[HandoffNote], facts: CustomerFacts | None,
+    remembered: Sequence[RememberedFact] = (),
 ) -> AsyncIterator[StreamEvent | _TurnDone]:  # fmt: skip
     """Stream one turn, routing at most once to an allowed teammate; persist at the end.
 
@@ -404,6 +406,8 @@ async def _stream_turn(
             can_resolve=can_resolve,
             teammates=[Teammate(t.role, t.definition.handles) for t in targets],
             notes=notes, facts=facts,
+            # Only the memory categories this role may read (registry), checked per agent.
+            remembered=[r for r in remembered if r.category in current.definition.memory],
         )  # fmt: skip
         # Announced with its first text: errors before any text stay plain HTTP errors, and
         # an agent that only hands over shows no empty reply.
@@ -555,6 +559,7 @@ async def stream_public_sales_turn(
     factory: Factory, vault: Vault | None, provider_factories: ProviderFactories,
     ctx: TenantContext, *, guest_session_id: UUID, message: str, conversation_id: UUID | None,
     channel: str, agent: str | None = None, facts: CustomerFacts | None = None,
+    remembered: Sequence[RememberedFact] = (),
 ) -> AsyncIterator[StreamEvent | GuestTurnResult]:  # fmt: skip
     """One agent turn for an anonymous visitor, as a stream ending in GuestTurnResult.
 
@@ -562,8 +567,10 @@ async def stream_public_sales_turn(
     conversation id that does not belong to that guest session is treated as not found.
     Guests only ever reach enabled public agents: `agent` (entry choice for a new
     conversation) is refused otherwise. `facts` are details this visitor confirmed in this
-    conversation. Only replies and agent names are returned: provider, model, slot and sources
-    stay internal. Any failure to answer surfaces as AgentUnavailableError.
+    conversation; `remembered` is the memory of the verified customer behind this guest
+    session (the caller passes nothing for anyone else). Only replies and agent names are
+    returned: provider, model, slot and sources stay internal. Any failure to answer surfaces
+    as AgentUnavailableError.
     """
     if channel not in PUBLIC_CHANNELS:
         raise ValueError("invalid public channel")
@@ -607,7 +614,8 @@ async def stream_public_sales_turn(
         async for item in _stream_turn(factory, vault, provider_factories, ctx, conv_id=conv_id,
                                        channel=conv_channel, history=history, message=message,
                                        roster=roster, agent=current, guest=True, public=True,
-                                       notes=notes, facts=facts):  # fmt: skip
+                                       notes=notes, facts=facts,
+                                       remembered=remembered):  # fmt: skip
             if isinstance(item, _TurnDone):
                 done = item
             else:
@@ -643,11 +651,12 @@ async def public_sales_turn(
     factory: Factory, vault: Vault | None, provider_factories: ProviderFactories,
     ctx: TenantContext, *, guest_session_id: UUID, message: str, conversation_id: UUID | None,
     channel: str, agent: str | None = None, facts: CustomerFacts | None = None,
+    remembered: Sequence[RememberedFact] = (),
 ) -> GuestTurnResult:  # fmt: skip
     async for item in stream_public_sales_turn(
         factory, vault, provider_factories, ctx, guest_session_id=guest_session_id,
         message=message, conversation_id=conversation_id, channel=channel, agent=agent,
-        facts=facts,
+        facts=facts, remembered=remembered,
     ):  # fmt: skip
         if isinstance(item, GuestTurnResult):
             return item
@@ -693,3 +702,45 @@ async def list_messages(
     async with tenant_session(factory, ctx) as session:
         await _existing(session, ctx, conversation_id)
         return await _messages(session, ctx, conversation_id)
+
+
+# --- background jobs (customer memory, Task 16) ------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Transcript:
+    guest_session_id: UUID
+    last_message_at: datetime
+    messages: list[tuple[str, str]]  # (role, content), oldest first
+
+
+async def public_transcript(
+    factory: Factory, ctx: TenantContext, conversation_id: UUID, *, limit: int = 40
+) -> Transcript | None:
+    """The latest messages of a public conversation for trusted jobs (None if not public)."""
+    async with tenant_session(factory, ctx) as session:
+        conv = await _existing(session, ctx, conversation_id)
+        if conv.guest_session_id is None:
+            return None
+        rows = (
+            await session.execute(
+                select(Message.role, Message.content)
+                .where(Message.business_id == ctx.business_id,
+                       Message.conversation_id == conversation_id)
+                .order_by(Message.created_at.desc(), Message.id.desc())
+                .limit(limit)
+            )
+        ).all()  # fmt: skip
+        return Transcript(conv.guest_session_id, conv.last_message_at,
+                          [(r.role, r.content) for r in reversed(rows)])  # fmt: skip
+
+
+async def complete(
+    factory: Factory, vault: Vault | None, ctx: TenantContext,
+    provider_factories: ProviderFactories, messages: list[ChatMessage],
+) -> ChatResult:  # fmt: skip
+    """One non-streamed call with the business's keys (primary, else backup), for jobs."""
+    async for item in _stream_with_fallback(factory, vault, ctx, provider_factories, messages):
+        if isinstance(item, _Answered):
+            return item.result
+    raise AssertionError("stream ended without an answer")

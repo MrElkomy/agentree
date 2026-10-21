@@ -15,10 +15,12 @@ export function WidgetChat({
   slug,
   displayName,
   leadCapture,
+  retentionDays,
 }: {
   slug: string;
   displayName: string;
   leadCapture: boolean;
+  retentionDays: number;
 }) {
   const framed = useClientValue(() => window.parent !== window, false);
 
@@ -54,7 +56,14 @@ export function WidgetChat({
           </button>
         ) : null}
       </header>
-      <GuestChat slug={slug} displayName={displayName} channel="widget" leadCapture={leadCapture} className="flex-1" />
+      <GuestChat
+        slug={slug}
+        displayName={displayName}
+        channel="widget"
+        leadCapture={leadCapture}
+        retentionDays={retentionDays}
+        className="flex-1"
+      />
     </div>
   );
 }
