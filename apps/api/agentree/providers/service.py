@@ -269,6 +269,7 @@ def _close(c: ProviderCredential, now: datetime) -> Transition | None:
     was_open = c.breaker_open_until is not None
     c.last_verified_at, c.last_error_kind = now, None
     c.failure_count, c.breaker_open_until, c.probe_until = 0, None, None
+    c.outage_alerted_at = None  # the next outage alerts again
     return Transition.CLOSED if was_open else None
 
 

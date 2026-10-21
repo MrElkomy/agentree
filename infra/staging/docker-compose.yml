@@ -40,6 +40,10 @@ x-app-env: &app-env
   AGENTREE_SMTP_USERNAME: ${AGENTREE_SMTP_USERNAME:?set in the secrets file}
   AGENTREE_SMTP_PASSWORD: ${AGENTREE_SMTP_PASSWORD:?set in the secrets file}
   AGENTREE_LOG_LEVEL: INFO
+  # Optional (empty = off): Web Push alerts (Task 13b) and the monitoring endpoint (Task 13a).
+  AGENTREE_VAPID_PRIVATE_KEY: ${AGENTREE_VAPID_PRIVATE_KEY:-}
+  AGENTREE_VAPID_SUBJECT: ${AGENTREE_VAPID_SUBJECT:-}
+  AGENTREE_METRICS_TOKEN: ${AGENTREE_METRICS_TOKEN:-}
 
 services:
   postgres:

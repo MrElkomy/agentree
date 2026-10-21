@@ -388,3 +388,14 @@ async def test_metrics_count_calls_and_breaker_transitions(
                                  headers={"X-Agentree-Metrics-Token": METRICS_TOKEN})  # fmt: skip
     assert 'agentree_breaker_transitions_total{transition="opened"}' in r.text
     assert biz.id not in r.text  # counts only, never business ids
+
+
+async def test_an_empty_metrics_token_disables_the_endpoint(
+    settings: Any, mailer: FakeMailer
+) -> None:
+    fakes = {name: FakeProvider(name=name) for name in ProviderName}
+    app = create_app(settings.model_copy(update={"metrics_token": SecretStr("")}), mailer=mailer,
+                     llm_providers={n: _returning(f) for n, f in fakes.items()})  # fmt: skip
+    async with app.router.lifespan_context(app), _client(app) as c:
+        r = await c.get("/api/internal/metrics", headers={"X-Agentree-Metrics-Token": ""})
+        assert r.status_code == 404

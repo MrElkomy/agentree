@@ -133,6 +133,7 @@ async def monitoring_metrics(
     expected = request.app.state.settings.metrics_token
     if (
         expected is None
+        or not expected.get_secret_value()  # empty in the env file means off
         or token is None
         or not secrets.compare_digest(token.encode(), expected.get_secret_value().encode())
     ):

@@ -73,6 +73,13 @@ class Settings(BaseSettings):
     # X-Agentree-Metrics-Token header; unset disables the endpoint (404).
     metrics_token: SecretStr | None = None
 
+    # Web Push (VAPID): P-256 private key as base64 DER or PEM. Unset disables push alerts.
+    vapid_private_key: SecretStr | None = None
+    # VAPID contact (mailto: or https URL); defaults to public_base_url.
+    vapid_subject: str | None = None
+    # How often the worker looks for AI keys that went down, to alert Owners and Admins.
+    outage_alert_interval_seconds: int = Field(default=60, ge=15)
+
     # BYOK vault master key: base64 of 32 random bytes. Required to store/read provider keys.
     master_key: SecretStr | None = None
     master_key_id: str = "k1"

@@ -20,6 +20,8 @@ from agentree.core.config import Settings
 from agentree.core.email import EmailSender, OutgoingEmail, branded_email, send_safely
 from agentree.core.email_layout import EmailAction, EmailContent
 from agentree.core.ids import uuid7
+from agentree.core.webpush import PushMessage, PushSender
+from agentree.notifications import service as notifications
 from agentree.tenancy import service as tenancy
 from agentree.tenancy.context import TenantContext
 from agentree.tenancy.db import tenant_session
@@ -128,10 +130,10 @@ async def conversation_status(factory: Factory, ctx: TenantContext, conversation
 
 
 async def notify_handoff(
-    factory: Factory, settings: Settings, mailer: EmailSender, ctx: TenantContext,
-    conversation_id: UUID, *, reason: str,
+    factory: Factory, settings: Settings, mailer: EmailSender, push: PushSender,
+    ctx: TenantContext, conversation_id: UUID, *, reason: str,
 ) -> None:  # fmt: skip
-    """Email Owners and Admins that a visitor is waiting for a person."""
+    """Email (and push to) Owners and Admins that a visitor is waiting for a person."""
     business = await tenancy.get_business(factory, ctx)
     members = await tenancy.list_members(factory, ctx)
     url = f"{settings.public_base_url}/b/{ctx.business_id}/inbox/{conversation_id}"
@@ -139,6 +141,11 @@ async def notify_handoff(
         if m.role in (Role.OWNER, Role.ADMIN):
             await send_safely(mailer, _handoff_email(m.email, business.name, reason, url),
                               kind="handoff_request")  # fmt: skip
+    await notifications.push_to_admins(factory, push, ctx, PushMessage(
+        title=f"A visitor is waiting for {business.name}",
+        body="They want to talk to your team. Tap to take over the conversation.",
+        url=f"/b/{ctx.business_id}/inbox/{conversation_id}", tag=f"handoff-{conversation_id}",
+    ))  # fmt: skip
 
 
 def _handoff_email(to: str, business: str, reason: str, url: str) -> OutgoingEmail:

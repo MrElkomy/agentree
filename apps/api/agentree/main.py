@@ -15,6 +15,7 @@ from agentree.core.db import create_app_engine, create_session_factory
 from agentree.core.db_roles import UnsafeDatabaseRoleError, assert_safe_app_role
 from agentree.core.email import EmailSender, SmtpEmailSender
 from agentree.core.logging import configure_logging
+from agentree.core.webpush import PushSender, build_push_sender
 from agentree.health.api import router as health_router
 from agentree.identity.api import router as auth_router
 from agentree.knowledge.api import router as knowledge_router
@@ -23,6 +24,7 @@ from agentree.leads.api import tasks_router as follow_ups_router
 from agentree.llm.base import LLMProvider, ProviderName
 from agentree.llm.fake import DemoProvider
 from agentree.llm.http_providers import PROVIDERS
+from agentree.notifications.api import router as notifications_router
 from agentree.providers.api import metrics_router
 from agentree.providers.api import router as providers_router
 from agentree.providers.service import build_vault
@@ -41,6 +43,7 @@ def create_app(
     settings: Settings | None = None,
     mailer: EmailSender | None = None,
     llm_providers: dict[ProviderName, Callable[[], LLMProvider]] | None = None,
+    push: PushSender | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
     mailer = mailer or SmtpEmailSender(settings)
@@ -49,6 +52,10 @@ def create_app(
         logger.warning("LLM demo mode is on: AI providers are replaced by canned replies")
         providers = {n: _demo_factory(n) for n in ProviderName}
     configure_logging(settings.log_level)
+    if push is None:
+        key = settings.vapid_private_key
+        push = build_push_sender(key.get_secret_value() if key else None,
+                                 settings.vapid_subject or settings.public_base_url)  # fmt: skip
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -63,6 +70,7 @@ def create_app(
             logger.warning("startup role check skipped", extra={"error_type": type(exc).__name__})
         app.state.settings = settings
         app.state.mailer = mailer
+        app.state.push = push
         app.state.vault = build_vault(settings)
         app.state.llm_providers = providers
         app.state.engine = engine
@@ -87,4 +95,5 @@ def create_app(
     app.include_router(follow_ups_router)
     app.include_router(inbox_router)
     app.include_router(metrics_router)
+    app.include_router(notifications_router)
     return app

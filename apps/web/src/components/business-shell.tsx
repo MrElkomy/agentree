@@ -142,7 +142,10 @@ function Sidebar({ businessId, current }: { businessId: string; current: Busines
             <NavItem href={`/b/${businessId}/ai-providers`} label="AI Providers" />
             <NavItem href={`/b/${businessId}/members`} label="Members" />
             {current && atLeast(current.role, "admin") ? (
-              <NavItem href={`/b/${businessId}/activity`} label="Activity log" />
+              <>
+                <NavItem href={`/b/${businessId}/notifications`} label="Notifications" />
+                <NavItem href={`/b/${businessId}/activity`} label="Activity log" />
+              </>
             ) : null}
           </ul>
           <div className="flex flex-col gap-2">

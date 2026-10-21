@@ -24,8 +24,10 @@ from agentree.core.config import Settings
 from agentree.core.email import EmailSender, OutgoingEmail, branded_email, send_safely
 from agentree.core.email_layout import EmailAction, EmailContent, clean_text
 from agentree.core.ids import uuid7
+from agentree.core.webpush import PushMessage, PushSender
 from agentree.leads import follow_ups
 from agentree.leads.models import Lead
+from agentree.notifications import service as notifications
 from agentree.tenancy import service as tenancy
 from agentree.tenancy.context import TenantContext
 from agentree.tenancy.db import tenant_session
@@ -178,8 +180,9 @@ async def _submit(
 
 
 async def submit_guest_lead(
-    factory: Factory, settings: Settings, mailer: EmailSender, ctx: TenantContext, *,
-    guest_session_id: UUID, conversation_id: UUID, fields: LeadFields, idempotency_key: str,
+    factory: Factory, settings: Settings, mailer: EmailSender, push: PushSender,
+    ctx: TenantContext, *, guest_session_id: UUID, conversation_id: UUID, fields: LeadFields,
+    idempotency_key: str,
 ) -> LeadInfo:  # fmt: skip
     """Record the details a visitor confirmed (with consent) in their own conversation.
 
@@ -199,19 +202,26 @@ async def submit_guest_lead(
                                       channel=channel, fields=fields,
                                       idempotency_key=idempotency_key)  # fmt: skip
     if created:
-        await _notify_new_lead(factory, settings, mailer, ctx, info)
+        await _notify_new_lead(factory, settings, mailer, push, ctx, info)
     return info
 
 
 async def _notify_new_lead(
-    factory: Factory, settings: Settings, mailer: EmailSender, ctx: TenantContext, lead: LeadInfo
-) -> None:
+    factory: Factory, settings: Settings, mailer: EmailSender, push: PushSender,
+    ctx: TenantContext, lead: LeadInfo,
+) -> None:  # fmt: skip
     business = await tenancy.get_business(factory, ctx)
     members = await tenancy.list_members(factory, ctx)
     recipients = [m.email for m in members if m.role in (Role.OWNER, Role.ADMIN)]
     for to in recipients:
         await send_safely(mailer, _new_lead_email(settings, business.name, ctx, lead, to),
                           kind="new_lead")  # fmt: skip
+    # Lock screens are public: the push names the business, never the visitor or their need.
+    await notifications.push_to_admins(factory, push, ctx, PushMessage(
+        title=f"New lead for {business.name}",
+        body="A visitor shared their contact details. Tap to follow up.",
+        url=f"/b/{ctx.business_id}/leads/{lead.id}", tag=f"lead-{lead.id}",
+    ))  # fmt: skip
 
 
 def _new_lead_email(

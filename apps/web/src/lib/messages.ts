@@ -42,6 +42,8 @@ const MESSAGES: Record<string, string> = {
   conversation_state: "This conversation changed in the meantime. Reload to see its current state.",
   invalid_assignee: "Pick a member of this business.",
   invalid_content: "Write a message first (up to 4,000 characters).",
+  push_unavailable: "Push notifications aren't set up on this server yet.",
+  invalid_push_subscription: "This browser's push service isn't supported. Try Chrome, Edge, Firefox or Safari.",
   busy: "We're getting a lot of messages — please try again in a moment.",
   agent_unavailable: "The assistant is unavailable right now.",
   guest_session_invalid: "Your chat session has ended. Send your message again to start a new one.",
