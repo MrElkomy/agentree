@@ -15,6 +15,7 @@ export type Credential = Schemas["CredentialOut"];
 export type ProviderName = Schemas["ProviderName"];
 export type Slot = Schemas["Slot"];
 export type KnowledgeEntry = Schemas["EntryOut"];
+export type KnowledgeFile = Schemas["KnowledgeFileOut"];
 export type ConsoleReply = Schemas["ConsoleReplyOut"];
 export type ChatMessage = Schemas["MessageOut"];
 export type PublicProfile = Schemas["PublicProfileOut"];
@@ -132,4 +133,24 @@ export function safeNext(next: string | null | undefined): string | null {
     return null;
   }
   return next;
+}
+
+/** Multipart upload of one file (same-origin cookie; the Origin header satisfies CSRF). */
+export async function uploadFile<T>(path: string, file: File): Promise<T> {
+  const form = new FormData();
+  form.append("file", file);
+  let res: Response;
+  try {
+    res = await fetch(path, { method: "POST", credentials: "same-origin", cache: "no-store", body: form });
+  } catch {
+    throw new ApiError(0, "network_error");
+  }
+  let parsed: unknown = null;
+  try {
+    parsed = JSON.parse(await res.text());
+  } catch {
+    parsed = null;
+  }
+  if (!res.ok) throw new ApiError(res.status, codeFrom(parsed));
+  return parsed as T;
 }

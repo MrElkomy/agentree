@@ -293,3 +293,12 @@ async def test_files_are_tenant_isolated(harness: AppHarness) -> None:
         r = await a.owner.client.request(method, f"{a.base}/knowledge-files/{fid}{path}")
         assert r.status_code == 404, (method, path)
     assert (await a.owner.client.get(f"{a.base}/knowledge-files")).json() == []
+
+
+async def test_extraction_child_gets_no_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A parser exploit in the child could read its environment: it holds no secrets."""
+    monkeypatch.setenv("AGENTREE_MASTER_KEY", "secret-master-key")
+    assert "AGENTREE_MASTER_KEY" not in files.CHILD_ENV
+    assert all(not k.startswith("AGENTREE_") for k in files.CHILD_ENV)
+    sections, error = await files.run_extractor("txt", "نص عربي".encode(), "t")
+    assert error is None and sections[0].text == "نص عربي"

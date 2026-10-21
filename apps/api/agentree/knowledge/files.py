@@ -45,6 +45,10 @@ CHILD_MEMORY_BYTES = 256 * 1024 * 1024
 CHILD_CPU_SECONDS = 30
 STALE_AFTER = timedelta(minutes=10)  # "processing" this long: the server restarted mid-way
 
+# The child gets no secrets (vault key, database URLs): only what Python needs. It may not
+# write files, so it must not try to write bytecode caches either.
+CHILD_ENV = {"PYTHONDONTWRITEBYTECODE": "1", "PYTHONIOENCODING": "utf-8", "LANG": "C.UTF-8"}
+
 # One extraction at a time per server process: bounded memory next to the API.
 _slot = asyncio.Semaphore(1)
 _UNSAFE_NAME = re.compile(r"[\x00-\x1f\x7f/\\<>:\"|?*​-‏‪-‮⁦-⁩]")
@@ -152,7 +156,7 @@ async def run_extractor(kind: str, data: bytes, title: str) -> tuple[list[Sectio
         proc = await asyncio.create_subprocess_exec(
             sys.executable, "-m", "agentree.knowledge.extract", kind, title,
             stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.DEVNULL, preexec_fn=_limits,
+            stderr=asyncio.subprocess.DEVNULL, preexec_fn=_limits, env=CHILD_ENV,
         )  # fmt: skip
         try:
             out, _ = await asyncio.wait_for(proc.communicate(data), EXTRACT_TIMEOUT_SECONDS)

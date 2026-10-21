@@ -5,6 +5,16 @@ import { ApiError } from "./api";
  * matching the backend's no-enumeration behaviour.
  */
 const MESSAGES: Record<string, string> = {
+  // Knowledge file uploads (Task 17)
+  file_too_large: "That file is over 10 MB. Split it or upload a smaller file.",
+  unsupported_type: "That file type isn't supported. Upload PDF, Word (.docx), TXT, Markdown, CSV or Excel (.xlsx).",
+  type_mismatch: "The file's content doesn't match its name (for example a renamed file). Upload the original file.",
+  not_utf8: "That text file isn't UTF-8. Save it as UTF-8 and upload it again.",
+  empty_file: "That file is empty.",
+  unsafe_archive: "That file looks unsafe (it expands to far more than its size) and was refused.",
+  damaged_file: "That file couldn't be read. It may be damaged.",
+  quota_exceeded: "You've reached the file limit for this business (100 files or 200 MB). Delete some files first.",
+  file_state: "This file can't be retried right now.",
   invalid_credentials: "That email and password don't match. Check them and try again.",
   email_not_verified:
     "Verify your email before signing in. Use the link we sent, or send a new one below.",

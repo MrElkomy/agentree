@@ -143,7 +143,7 @@ until then the item remains an open MVP requirement and blocks the final pilot g
   Task 12; routing E2E across all three public agents.
 - **Out of scope:** ticketing integrations.
 
-### Task 16 — Customer identity + customer memory — 🟡 implemented (pending PO approval), see `CUSTOMERS.md`
+### Task 16 — Customer identity + customer memory — ✅ merged (#39, #40), see `CUSTOMERS.md`
 - **Scope:** guest → provisional profile; email OTP verification (rate-limited) links a guest to a
   verified customer profile; structured memory items (fact, source conversation, created/updated,
   review date) separate from raw messages; owner review/edit/delete UI;
@@ -157,7 +157,7 @@ until then the item remains an open MVP requirement and blocks the final pilot g
   conversation and what the agents remember about them are kept.
 - **Out of scope:** SMS/phone verification, customer self-service portal.
 
-### Task 17 — Knowledge file uploads
+### Task 17 — Knowledge file uploads — 🟡 implemented (pending PO approval), see `KNOWLEDGE_FILES.md`
 - **Scope:** upload PDF/DOCX/TXT/MD (and CSV/XLSX storage for Task 18) with size/type limits,
   content sniffing, text extraction into draft knowledge entries, processing status; files stored
   tenant-scoped, never executed or served back as HTML.

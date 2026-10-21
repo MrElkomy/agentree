@@ -46,6 +46,26 @@ test("owner connects a key, publishes knowledge and chats with the Sales Agent",
   await entry.getByRole("button", { name: "Publish" }).click();
   await expect(entry.getByText("Published")).toBeVisible();
 
+  // 2b. Upload a file (Task 17): its sections become drafts; a disguised file is refused.
+  await page.locator("#knowledge-upload").setInputFiles({
+    name: "store-guide.md",
+    mimeType: "text/markdown",
+    buffer: Buffer.from("# Delivery\nWe deliver in 5 days.\n\n# Warranty\nTwo years on every chair."),
+  });
+  const uploaded = page.getByTestId("knowledge-file").filter({ hasText: "store-guide.md" });
+  await expect(uploaded.getByTestId("knowledge-file-status")).toHaveText("2 drafts created");
+  for (const title of ["Delivery", "Warranty"]) {
+    const draft = page.getByTestId("knowledge-entry").filter({ hasText: title });
+    await expect(draft.getByText("Draft")).toBeVisible(); // reviewed and published by a person
+  }
+  await page.locator("#knowledge-upload").setInputFiles({
+    name: "invoice.pdf",
+    mimeType: "application/pdf",
+    buffer: Buffer.from("this is not really a PDF"),
+  });
+  await expect(page.getByText("invoice.pdf: The file's content doesn't match its name")).toBeVisible();
+  await expect(page.getByTestId("knowledge-file")).toHaveCount(1);
+
   // 3. Chat with the Sales Agent.
   await page.getByRole("link", { name: "Test chat" }).first().click();
   await page.getByLabel("Message", { exact: true }).fill("How much is the Ergo chair?");
