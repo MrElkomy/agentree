@@ -50,6 +50,26 @@ reason to skip security or tests. **Implementation starts only after PO approval
 
 Parallel lanes once Task 10 lands: {11 → 12}, {13}, {17}. Then 14 → {15, 16}; 18 → 19 → 20; 21.
 
+### Approved requirements outside Tasks 10–22 (nothing removed)
+
+Every previously approved requirement stays in scope. Items below are not covered by a Task 10–22
+scope yet. **"Proposed deferral" means a proposal only: it requires explicit Product Owner approval;
+until then the item remains an open MVP requirement and blocks the final pilot gate (Task 22).**
+
+| Requirement (phase ref) | Proposed handling | Status |
+|---|---|---|
+| Follow-up actions: `create_follow_up_task` via the gateway (3.3) | Proposed: add to Task 11 scope | Needs PO approval of placement |
+| External handoff by signed webhook with context summary (4.5) | Proposed deferral to after Task 22 (email handoff ships in Task 12); needs the SSRF guard (5.2) | Needs PO approval |
+| Integration connections + SSRF-guarded HTTP client (5.2) | Proposed deferral to after Task 22 | Needs PO approval |
+| First external connector, `unknown`-outcome handling (5.3) | Proposed deferral to after Task 22 | Needs PO approval |
+| Connected data source, e.g. Google Sheets (5.6) | Proposed deferral to after Task 22 | Needs PO approval |
+| Telegram linking and delivery (6.3) | Proposed deferral to after Task 22 (email alerts ship in Tasks 11, 12, 20) | Needs PO approval |
+| In-app notification center (6.3) | Proposed deferral to after Task 22 | Needs PO approval |
+| Custom agent display name (2.4, PO request 2026-10-20) | Proposed: add to Task 14 (per-business agent config) | Needs PO approval of placement |
+| Alert when a business hits its daily reply budget (4.3) | Proposed: add to Task 13 (monitoring) | Needs PO approval of placement |
+| Daily aggregated operational metrics job (approved with 5.4) | Proposed: add to Task 18 | Needs PO approval of placement |
+| Onboarding, privacy notice, production readiness, pilot checks (7.1, 7.2, 7.5) | Final acceptance gates of Task 22 (below) | In plan |
+
 ### Task 10 — Audit log + branded emails
 - **Scope:** append-only `audit_events` (tenant-scoped, RLS; actor, action, target, time, minimal
   metadata, never message content or secrets); Owner/Admin read API + simple list page. HTML +
@@ -69,7 +89,8 @@ Parallel lanes once Task 10 lands: {11 → 12}, {13}, {17}. Then 14 → {15, 16}
 - **Acceptance:** a guest chat creates exactly one lead under retries; an agent without the
   permission is refused by the backend; guests never read leads; cross-tenant isolation; audit row
   per lead change; E2E: visitor leaves details → lead visible in the dashboard.
-- **Out of scope:** CRM sync, lead scoring models, follow-up task automation (later via gateway).
+- **Out of scope:** CRM sync, lead scoring models. Follow-up actions: see "Approved requirements
+  outside Tasks 10–22" (proposed for this task, pending PO approval).
 
 ### Task 12 — Human inbox + handoff
 - **Scope:** inbox of conversations (dashboard + public + widget) with status open / needs human /
@@ -79,7 +100,8 @@ Parallel lanes once Task 10 lands: {11 → 12}, {13}, {17}. Then 14 → {15, 16}
 - **Acceptance:** while a human is active the AI does not reply; context preserved across take-over
   and release; only members of that business see its inbox; guest sees human replies without
   reload (polling acceptable); audit rows for take-over/assign/release; E2E covers the full path.
-- **Out of scope:** webhook handoff, SLA timers, canned replies, mobile push.
+- **Out of scope:** SLA timers, canned replies, mobile push. Webhook handoff (approved, 4.5): see
+  "Approved requirements outside Tasks 10–22" (proposed deferral, pending PO approval).
 
 ### Task 13 — AI reliability
 - **Scope:** streamed replies (SSE) for console, public page and widget; per-business circuit
@@ -98,7 +120,8 @@ Parallel lanes once Task 10 lands: {11 → 12}, {13}, {17}. Then 14 → {15, 16}
 - **Acceptance:** Sales → Technical Support → Sales without the customer repeating information;
   handoff events recorded; public agents cannot transfer to internal agents (Data Analyst,
   Executive); tool rights follow the receiving agent; isolation tests.
-- **Out of scope:** owner-built custom agents; custom display name (tracked separately).
+- **Out of scope:** owner-built custom agents. Custom display name: proposed for this task, pending
+  PO approval (see the tracking table).
 
 ### Task 15 — Customer Service + Technical Support agents
 - **Scope:** two public agents on the Task 14 framework, with role prompts, knowledge scoping and
@@ -110,12 +133,17 @@ Parallel lanes once Task 10 lands: {11 → 12}, {13}, {17}. Then 14 → {15, 16}
 ### Task 16 — Customer identity + customer memory
 - **Scope:** guest → provisional profile; email OTP verification (rate-limited) links a guest to a
   verified customer profile; structured memory items (fact, source conversation, created/updated,
-  `review_at` default 180 days per U-13) separate from raw messages; owner review/edit/delete UI;
+  review date) separate from raw messages; owner review/edit/delete UI;
   agents read memory only for the verified customer and only fields their role permits.
 - **Acceptance:** entering an email alone unlocks nothing; unverified sessions cannot read verified
-  memory or history; memory survives the 30-day raw-message purge only as structured facts, never as
-  verbatim message text (U-12 stays unresolved: no conversation summaries beyond 30 days); deleting
-  a customer deletes their memory; cross-tenant isolation.
+  memory or history; memory items never contain verbatim message text; no memory item outlives the
+  retention the PO approves; deleting a customer deletes their memory; cross-tenant isolation.
+- **Open PO decisions (must be decided before Task 16 starts; nothing here is an approved default):**
+  U-12 (whether anything derived from a conversation may be kept beyond the 30-day raw window, and
+  under which data-minimization, access and deletion policy) and U-13 (memory review timing; the
+  180-day figure in ARCHITECTURE_DECISIONS.md is a proposal, not approved). Until decided, memory
+  retention and review timing are configuration with the conservative behaviour: memory items are
+  deleted within the same 30-day window as raw messages.
 - **Out of scope:** SMS/phone verification, customer self-service portal.
 
 ### Task 17 — Knowledge file uploads
@@ -149,8 +177,9 @@ Parallel lanes once Task 10 lands: {11 → 12}, {13}, {17}. Then 14 → {15, 16}
   sensitive, and audited.
 - **Acceptance:** reports match underlying data; an action without approval does not execute; the
   agent cannot act outside its permissions or on external systems; audit trail complete.
-- **Out of scope (post-launch growth, PO 2026-10-21):** full "manage everything" coverage, Telegram
-  delivery (6.3), external-system actions.
+- **Out of scope (post-launch growth, PO 2026-10-21):** full "manage everything" coverage,
+  external-system actions. Telegram delivery (6.3, approved): see the tracking table (proposed
+  deferral, pending PO approval).
 
 ### Task 21 — Analytics + legal hold
 - **Scope:** owner dashboard of measured metrics only (conversations, leads, handoffs, agent
@@ -165,8 +194,20 @@ Parallel lanes once Task 10 lands: {11 → 12}, {13}, {17}. Then 14 → {15, 16}
   agents; lead → human; provider outage → backup → recovery; analyst numbers checked; executive
   report checked; two-tenant isolation; retention); desktop + mobile; shared-host security review
   with mitigations; bot challenge (U-16); failover matrix with real low-budget test keys.
-- **Acceptance:** results documented with evidence; open defects triaged; PO go/no-go before any
-  real customer data or production keys.
+- **Acceptance:** results documented with evidence; open defects triaged.
+- **Final acceptance gates (all required before the first real customer):**
+  1. **Onboarding:** a new business completes signup → business setup → AI provider key → knowledge
+     → agents → public page/widget using the in-product flow, plus the assisted-setup runbook and the
+     customer key-setup guide (7.5).
+  2. **Privacy notice and terms** published and linked from signup, public page and widget (AI
+     disclosure, retention, BYOK cost responsibility), PO-approved text.
+  3. **Production readiness (7.1, 7.2):** hosting decision U-11 made; production deployment
+     separate from staging data; TLS, secrets outside the repo, monitoring and alerting on; encrypted
+     off-server backups with a timed restore drill on production; shared-host risks closed or
+     mitigated per the security review.
+  4. **First-customer pilot checks:** pilot checklist with evidence (isolation, retention, failover,
+     handoff, lead flow, analyst/executive accuracy), every approved requirement either delivered or
+     deferred with explicit PO approval (tracking table), operator runbooks, and the PO go/no-go.
 
 ---
 
