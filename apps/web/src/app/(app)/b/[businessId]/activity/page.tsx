@@ -90,6 +90,10 @@ function describe(e: AuditEvent): string {
       if (d.resolved_by === "agent") return `${agentTitle(d.agent)} marked a conversation resolved`;
       if (d.resolved_by === "visitor") return "A visitor marked their conversation resolved";
       return `${who} resolved a conversation`;
+    case "knowledge_file.uploaded":
+      return `${who} uploaded a knowledge file (${String(d.kind ?? "").toUpperCase()})`;
+    case "knowledge_file.deleted":
+      return `${who} deleted a knowledge file`;
     case "customer.verified":
       return "A visitor confirmed their email in the chat";
     case "customer.memory_updated":

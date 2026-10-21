@@ -65,6 +65,7 @@ async def _snapshot(client: AsyncClient, business_id: str) -> tuple[object, ...]
         (await client.get(f"{base}/inbox")).json(),
         (await client.get(f"{base}/agents")).json(),
         (await client.get(f"{base}/customers")).json(),
+        (await client.get(f"{base}/knowledge-files")).json(),
     )
 
 
@@ -126,6 +127,9 @@ async def test_owner_of_a_cannot_touch_b(harness: AppHarness, method: str, path:
     item_id = (await bob.client.get(f"/api/businesses/{b['id']}/customers/{customer_id}")).json()[
         "memory"
     ][0]["id"]
+    upload = await bob.client.post(f"/api/businesses/{b['id']}/knowledge-files",
+                                   files={"file": ("b.txt", b"B only file")})  # fmt: skip
+    assert upload.status_code == 202, upload.text
     before = await _snapshot(bob.client, b["id"])
     url = path.format(
         business_id=b["id"],
@@ -142,6 +146,7 @@ async def test_owner_of_a_cannot_touch_b(harness: AppHarness, method: str, path:
         role="sales",  # B's Sales Agent
         customer_id=customer_id,  # a real customer profile in B
         item_id=item_id,  # a real memory item in B
+        file_id=upload.json()["id"],  # a real knowledge file in B
     )
     r = await alice.client.request(method, url, json=PLACEHOLDER_BODIES.get(method))
     assert r.status_code == 404, (method, url, r.status_code, r.text)
@@ -150,7 +155,7 @@ async def test_owner_of_a_cannot_touch_b(harness: AppHarness, method: str, path:
     assert after[0] == before[0] and after[1] == before[1]
     assert after[3] == before[3] and after[4] == before[4] and after[5] == before[5]
     assert after[6] == before[6] and after[7] == before[7] and after[8] == before[8]
-    assert after[9] == before[9] and after[10] == before[10]
+    assert after[9] == before[9] and after[10] == before[10] and after[11] == before[11]
 
 
 @pytest.mark.parametrize(("method", "path"), BUSINESS_ROUTES)
@@ -168,6 +173,7 @@ async def test_unknown_business_is_404_not_403(harness: AppHarness, method: str,
         role="sales",
         customer_id=uuid.uuid4(),
         item_id=uuid.uuid4(),
+        file_id=uuid.uuid4(),
     )
     r = await alice.client.request(method, url, json=PLACEHOLDER_BODIES.get(method))
     assert r.status_code == 404
@@ -188,6 +194,7 @@ async def test_anonymous_is_rejected(harness: AppHarness, method: str, path: str
         role="sales",
         customer_id=uuid.uuid4(),
         item_id=uuid.uuid4(),
+        file_id=uuid.uuid4(),
     )
     r = await c.request(method, url, json=PLACEHOLDER_BODIES.get(method))
     assert r.status_code == 401

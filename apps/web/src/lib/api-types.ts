@@ -1170,6 +1170,82 @@ export interface paths {
         patch: operations["update_memory_item_api_businesses__business_id__customers__customer_id__memory__item_id__patch"];
         trace?: never;
     };
+    "/api/businesses/{business_id}/knowledge-files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Files */
+        get: operations["list_files_api_businesses__business_id__knowledge_files_get"];
+        put?: never;
+        /**
+         * Upload File
+         * @description Store a file; PDF/DOCX/TXT/MD are then turned into draft entries in the background.
+         *
+         *     413 `file_too_large`; 422 `unsupported_type`, `type_mismatch`, `not_utf8`, `empty_file`,
+         *     `unsafe_archive`, `damaged_file`; 409 `quota_exceeded`; 429 `busy`.
+         */
+        post: operations["upload_file_api_businesses__business_id__knowledge_files_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/businesses/{business_id}/knowledge-files/{file_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get File */
+        get: operations["get_file_api_businesses__business_id__knowledge_files__file_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete File */
+        delete: operations["delete_file_api_businesses__business_id__knowledge_files__file_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/businesses/{business_id}/knowledge-files/{file_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Retry File */
+        post: operations["retry_file_api_businesses__business_id__knowledge_files__file_id__retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/businesses/{business_id}/knowledge-files/{file_id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download File */
+        get: operations["download_file_api_businesses__business_id__knowledge_files__file_id__download_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1281,6 +1357,14 @@ export interface components {
             events: components["schemas"]["AuditEventOut"][];
             /** Next Before */
             next_before: string | null;
+        };
+        /** Body_upload_file_api_businesses__business_id__knowledge_files_post */
+        Body_upload_file_api_businesses__business_id__knowledge_files_post: {
+            /**
+             * File
+             * @description PDF, DOCX, TXT, MD, CSV or XLSX, up to 10 MB
+             */
+            file: string;
         };
         /** BusinessCreateIn */
         BusinessCreateIn: {
@@ -1457,6 +1541,8 @@ export interface components {
             updated_at: string;
             /** Agent Roles */
             agent_roles: string[];
+            /** Source File Id */
+            source_file_id?: string | null;
         };
         /** EntryUpdateIn */
         EntryUpdateIn: {
@@ -1816,6 +1902,33 @@ export interface components {
             expires_at: string;
             /** Email Sent */
             email_sent?: boolean | null;
+        };
+        /** KnowledgeFileOut */
+        KnowledgeFileOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Filename */
+            filename: string;
+            /** Kind */
+            kind: string;
+            /** Size Bytes */
+            size_bytes: number;
+            /** Status */
+            status: string;
+            /** Error */
+            error: string | null;
+            /** Entry Count */
+            entry_count: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Processed At */
+            processed_at: string | null;
         };
         /** LeadDetailOut */
         LeadDetailOut: {
@@ -4800,6 +4913,198 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MemoryItemOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_files_api_businesses__business_id__knowledge_files_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeFileOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_file_api_businesses__business_id__knowledge_files_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_file_api_businesses__business_id__knowledge_files_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeFileOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_file_api_businesses__business_id__knowledge_files__file_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                file_id: string;
+                business_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeFileOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_file_api_businesses__business_id__knowledge_files__file_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                file_id: string;
+                business_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retry_file_api_businesses__business_id__knowledge_files__file_id__retry_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                file_id: string;
+                business_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeFileOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    download_file_api_businesses__business_id__knowledge_files__file_id__download_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                file_id: string;
+                business_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": unknown;
                 };
             };
             /** @description Validation Error */

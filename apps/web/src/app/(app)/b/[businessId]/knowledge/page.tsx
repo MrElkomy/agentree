@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useBusiness } from "@/components/business-shell";
+import { KnowledgeFiles } from "@/components/knowledge-files";
 import { useSession } from "@/components/session";
 import { Alert, Button, Spinner, TextField } from "@/components/ui";
 import { PUBLIC_ROLES } from "@/lib/agents";
@@ -54,6 +55,8 @@ export default function KnowledgePage() {
         </p>
       </header>
       {error ? <Alert tone="error">{error}</Alert> : null}
+
+      <KnowledgeFiles base={base} canDelete={canPublish} onDraftsChanged={load} />
 
       <section aria-labelledby="new-entry-heading" className="rounded-lg border border-line bg-surface p-6">
         <h2 id="new-entry-heading" className="mb-4 text-lg font-semibold">
