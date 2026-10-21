@@ -274,7 +274,8 @@ def _close(c: ProviderCredential, now: datetime) -> Transition | None:
 def _cooldown(kind: ErrorKind, failures: int) -> timedelta:
     if kind in (ErrorKind.AUTH, ErrorKind.QUOTA):
         return KEY_COOLDOWN
-    return min(BASE_COOLDOWN * 2 ** max(0, failures - FAILURE_THRESHOLD), MAX_COOLDOWN)
+    doublings = min(max(0, failures - FAILURE_THRESHOLD), 10)
+    return min(BASE_COOLDOWN * (1 << doublings), MAX_COOLDOWN)
 
 
 async def admit(factory: Factory, ctx: TenantContext, slot: Slot) -> Admission:
