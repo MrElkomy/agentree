@@ -11,7 +11,15 @@ function close() {
 }
 
 /** Compact chat-only layout that fills the widget iframe. */
-export function WidgetChat({ slug, displayName }: { slug: string; displayName: string }) {
+export function WidgetChat({
+  slug,
+  displayName,
+  leadCapture,
+}: {
+  slug: string;
+  displayName: string;
+  leadCapture: boolean;
+}) {
   const framed = useClientValue(() => window.parent !== window, false);
 
   useEffect(() => {
@@ -31,7 +39,7 @@ export function WidgetChat({ slug, displayName }: { slug: string; displayName: s
           <h1 dir="auto" className="truncate text-base font-semibold" data-testid="widget-name">
             {displayName}
           </h1>
-          <p className="text-xs opacity-85">Sales Agent</p>
+          <p className="text-xs opacity-85">AI assistant</p>
         </div>
         {framed ? (
           <button
@@ -46,7 +54,7 @@ export function WidgetChat({ slug, displayName }: { slug: string; displayName: s
           </button>
         ) : null}
       </header>
-      <GuestChat slug={slug} displayName={displayName} channel="widget" className="flex-1" />
+      <GuestChat slug={slug} displayName={displayName} channel="widget" leadCapture={leadCapture} className="flex-1" />
     </div>
   );
 }

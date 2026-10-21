@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { RichText, textDirection } from "@/components/rich-text";
 import { Button } from "@/components/ui";
+import { agentLabel } from "@/lib/agents";
 import type { LeadSuggestion } from "@/lib/api";
 import {
   MAX_GUEST_MESSAGE,
@@ -22,11 +23,17 @@ export function GuestChat({
   displayName,
   channel,
   className = "",
+  entryAgent,
+  leadCapture = true,
 }: {
   slug: string;
   displayName: string;
   channel: GuestChannel;
   className?: string;
+  /** Agent the visitor chose to start with (role); the backend may route to a teammate. */
+  entryAgent?: string;
+  /** The business accepts contact details (its Sales Agent may capture leads). */
+  leadCapture?: boolean;
 }) {
   const {
     turns,
@@ -41,7 +48,7 @@ export function GuestChat({
     suggestion,
     submitLead,
     newIdempotencyKey,
-  } = useGuestChat(slug, channel);
+  } = useGuestChat(slug, channel, entryAgent);
   const paused = isPaused(status);
   const teamName = `${displayName} team`;
   const [draft, setDraft] = useState("");
@@ -58,7 +65,7 @@ export function GuestChat({
   const keyRef = useRef("");
   const inputId = useId();
   const counterId = `${inputId}-counter`;
-  const agentName = `${displayName} Sales Agent`;
+  const agentName = `${displayName} AI team`;
 
   // Keep the newest message in view by scrolling the conversation box only: scrolling the page
   // (scrollIntoView) would push the message box out of sight on the public page and widget.
@@ -130,10 +137,22 @@ export function GuestChat({
               </div>
               <p className="text-xs font-semibold text-brand-deep">{teamName}</p>
             </div>
+          ) : t.role === "joined" ? (
+            <p key={i} className="mx-auto text-center text-xs font-semibold text-ink-muted" data-testid="guest-joined">
+              {t.content}
+            </p>
           ) : (
             <div key={i} className="me-auto flex max-w-[85%] flex-col gap-1" data-testid="guest-assistant">
               <div className={`rounded-lg border border-line bg-paper px-4 py-2.5 ${t.failed ? "opacity-70" : ""}`}>
-                <RichText text={t.content} />
+                {t.content ? (
+                  <RichText text={t.content} />
+                ) : (
+                  <span aria-label="Typing" className="flex gap-1 py-1.5 text-ink-muted">
+                    <span className="size-1.5 animate-bounce rounded-full bg-current" />
+                    <span className="size-1.5 animate-bounce rounded-full bg-current [animation-delay:150ms]" />
+                    <span className="size-1.5 animate-bounce rounded-full bg-current [animation-delay:300ms]" />
+                  </span>
+                )}
               </div>
               {t.failed ? (
                 <p className="flex flex-wrap items-center gap-2 text-xs text-danger" role="alert" data-testid="guest-interrupted">
@@ -148,7 +167,9 @@ export function GuestChat({
                   </button>
                 </p>
               ) : null}
-              <p className="text-xs text-ink-muted">{agentName}</p>
+              <p className="text-xs text-ink-muted" data-testid="guest-agent-name">
+                {agentLabel(displayName, t.agentName)}
+              </p>
             </div>
           ),
         )}
@@ -214,7 +235,7 @@ export function GuestChat({
               <span className="size-1.5 animate-bounce rounded-full bg-current [animation-delay:150ms]" />
               <span className="size-1.5 animate-bounce rounded-full bg-current [animation-delay:300ms]" />
             </span>
-            {agentName} is typing…
+            Typing…
           </p>
         ) : null}
       </section>
@@ -265,7 +286,7 @@ export function GuestChat({
                 Talk to a person
               </button>
             ) : null}
-            {turns.length && !busy && !showForm && !leadSent ? (
+            {leadCapture && turns.length && !busy && !showForm && !leadSent ? (
               <button
                 type="button"
                 onClick={() => setManualOpen(true)}

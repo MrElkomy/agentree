@@ -8,7 +8,7 @@ import { InboxStatusBadge } from "@/components/inbox-status-badge";
 import { RichText, textDirection } from "@/components/rich-text";
 import { useSession } from "@/components/session";
 import { Alert, Button, SelectField, Spinner } from "@/components/ui";
-import { api, isApiError, type InboxConversation, type InboxMessage, type Member } from "@/lib/api";
+import { api, isApiError, type AgentConfig, type InboxConversation, type InboxMessage, type Member } from "@/lib/api";
 import { INBOX_POLL_MS } from "@/lib/inbox";
 import { CHANNEL_LABEL, dateTime } from "@/lib/leads";
 
@@ -26,6 +26,7 @@ export default function InboxConversationPage() {
 
   const [data, setData] = useState<InboxConversation | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
+  const [agentNames, setAgentNames] = useState<Record<string, string>>({});
   const [missing, setMissing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<Action | null>(null);
@@ -54,6 +55,19 @@ export default function InboxConversationPage() {
       clearInterval(timer);
     };
   }, [load]);
+
+  useEffect(() => {
+    let cancelled = false;
+    api<AgentConfig[]>(`${base}/agents`).then(
+      (a) => !cancelled && setAgentNames(Object.fromEntries(a.map((x) => [x.role, x.name]))),
+      () => {
+        // replies are labelled "AI agent" without the list
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [base]);
 
   useEffect(() => {
     let cancelled = false;
@@ -235,7 +249,7 @@ export default function InboxConversationPage() {
                 <RichText text={m.content} />
               </div>
               <p className="text-xs text-ink-muted">
-                AI agent · <time dateTime={m.created_at}>{dateTime.format(new Date(m.created_at))}</time>
+                {(m.agent && agentNames[m.agent]) || "AI agent"} (AI) · <time dateTime={m.created_at}>{dateTime.format(new Date(m.created_at))}</time>
               </p>
             </div>
           ),

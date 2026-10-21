@@ -88,9 +88,25 @@ function describe(e: AuditEvent): string {
       return `${who} handed a conversation back to the AI`;
     case "conversation.resolved":
       return `${who} resolved a conversation`;
+    case "agent.handoff":
+      return `${agentTitle(d.from_agent)} handed a conversation to ${agentTitle(d.to_agent)}`;
+    case "agent.config_updated":
+      return `${who} updated the ${agentTitle(d.agent)} settings${d.enabled === false ? " (turned off)" : ""}`;
     default:
       return `${who}: ${e.action}`;
   }
+}
+
+const AGENT_TITLE: Record<string, string> = {
+  sales: "Sales Agent",
+  customer_service: "Customer Service",
+  technical_support: "Technical Support",
+  data_analyst: "Data Analyst",
+  executive: "Executive Assistant",
+};
+
+function agentTitle(role: unknown): string {
+  return AGENT_TITLE[String(role)] ?? "An agent";
 }
 
 function detail(e: AuditEvent): string | null {

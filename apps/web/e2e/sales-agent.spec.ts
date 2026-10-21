@@ -19,7 +19,7 @@ test("owner connects a key, publishes knowledge and chats with the Sales Agent",
   await expect(page.getByRole("heading", { level: 1, name: businessName })).toBeVisible();
 
   // Chat before setup: the agent explains a provider is needed.
-  await page.getByRole("link", { name: "Sales Agent" }).first().click();
+  await page.getByRole("link", { name: "Test chat" }).first().click();
   await page.getByLabel("Message", { exact: true }).fill("Hello");
   await page.getByRole("button", { name: "Send" }).click();
   await expect(page.getByRole("alert").filter({ hasText: "Connect an AI provider key first" })).toBeVisible();
@@ -47,7 +47,7 @@ test("owner connects a key, publishes knowledge and chats with the Sales Agent",
   await expect(entry.getByText("Published")).toBeVisible();
 
   // 3. Chat with the Sales Agent.
-  await page.getByRole("link", { name: "Sales Agent" }).first().click();
+  await page.getByRole("link", { name: "Test chat" }).first().click();
   await page.getByLabel("Message", { exact: true }).fill("How much is the Ergo chair?");
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("chat-user")).toHaveText("How much is the Ergo chair?");
