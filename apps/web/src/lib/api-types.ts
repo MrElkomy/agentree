@@ -759,6 +759,7 @@ export interface paths {
         /**
          * Guest Identity Start
          * @description Email a one-time code. Entering an email unlocks nothing until the code is confirmed.
+         *     409 `customer_memory_off` when the business does not remember customers.
          */
         post: operations["guest_identity_start_api_public__slug__identity_start_post"];
         delete?: never;
@@ -2084,6 +2085,11 @@ export interface components {
              * @default 30
              */
             retention_days: number;
+            /**
+             * Customer Memory
+             * @default true
+             */
+            customer_memory: boolean;
         };
         /**
          * PublicProfileIn
@@ -2108,6 +2114,11 @@ export interface components {
              * @default 200
              */
             daily_reply_budget: number;
+            /**
+             * Customer Memory
+             * @default true
+             */
+            customer_memory: boolean;
         };
         /** PublicProfileOut */
         PublicProfileOut: {
@@ -2125,6 +2136,8 @@ export interface components {
             widget_origins: string[];
             /** Daily Reply Budget */
             daily_reply_budget: number;
+            /** Customer Memory */
+            customer_memory: boolean;
             /** Updated At */
             updated_at: string | null;
         };

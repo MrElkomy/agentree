@@ -100,8 +100,20 @@ the 30-day DB check; the worker process resolves every foreign key. Isolation ma
 `/customers/{customer_id}` and `/memory/{item_id}`. E2E: the last part of `e2e/support-agents.spec.ts` (email code, "Remember
 me", Customers page; one test so the suite stays under the sign-up rate limit).
 
+## Controls and cost (PO decision 2026-10-21, migration 0018)
+
+- **Remember customers** (`public_profiles.customer_memory`, default on; Public page &
+  widget settings). Off: the claim function skips the business (no extraction calls), the email
+  code endpoints answer 409 `customer_memory_off`, agents read no memory, and the chat shows
+  only "Chats are deleted after N days". Existing notes still expire on schedule.
+- **Daily AI budget:** each extraction call counts toward the business's `daily_reply_budget`,
+  the same counter as visitor chat replies (`core.ratelimit.daily_ai_budget_key`). The budget is
+  checked only for conversations worth processing (≥2 visitor messages); when it is used up
+  the claim is released and the conversation is processed on a later pass (next UTC day).
+
 ## Limits
 
 - Email OTP only (no SMS); no customer self-service portal (out of scope).
-- Extraction costs one small call per finished conversation on the business's own key.
+- Extraction costs one small call per finished conversation on the business's own key
+  (bounded by the daily AI budget; can be turned off).
 - Extraction is not retried if the business's key fails at that moment.

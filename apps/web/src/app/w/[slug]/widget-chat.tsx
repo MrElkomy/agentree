@@ -16,11 +16,13 @@ export function WidgetChat({
   displayName,
   leadCapture,
   retentionDays,
+  customerMemory,
 }: {
   slug: string;
   displayName: string;
   leadCapture: boolean;
   retentionDays: number;
+  customerMemory: boolean;
 }) {
   const framed = useClientValue(() => window.parent !== window, false);
 
@@ -62,6 +64,7 @@ export function WidgetChat({
         channel="widget"
         leadCapture={leadCapture}
         retentionDays={retentionDays}
+        customerMemory={customerMemory}
         className="flex-1"
       />
     </div>

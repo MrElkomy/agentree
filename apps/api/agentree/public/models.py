@@ -47,6 +47,8 @@ class PublicProfile(Base):
     links: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))
     widget_origins: Mapped[list[str]] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))
     daily_reply_budget: Mapped[int] = mapped_column(Integer, server_default="200")
+    # "Remember customers" (Task 16): memory extraction, the email code and agents reading memory.
+    customer_memory: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
