@@ -1,6 +1,6 @@
 # Agentree — Engineering Instructions
 
-Read before changing code. Product source of truth: `docs/product/AGENTREE_MASTER_PROJECT_CONTEXT_V2.md`. Approved architecture and open decisions: `docs/architecture/ARCHITECTURE_DECISIONS.md`. Never silently change an approved product decision; record proposals as proposals.
+Read before changing code. Current status and the working agreement with the Product Owner: `docs/PROJECT_STATUS.md`. Product source of truth: `docs/product/AGENTREE_MASTER_PROJECT_CONTEXT_V2.md`. Approved architecture and open decisions: `docs/architecture/ARCHITECTURE_DECISIONS.md`. Never silently change an approved product decision; record proposals as proposals.
 
 ## Working rules
 - Product Owner communicates in Egyptian Arabic. Code, docs, commits and comments are English.
