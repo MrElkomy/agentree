@@ -41,10 +41,11 @@ export default function SalesAgentPage() {
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<{ text: string; needsProvider: boolean } | null>(null);
-  const endRef = useRef<HTMLDivElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView?.({ behavior: "smooth", block: "end" });
+    // Bring the newest reply into view without pushing the message box below the screen.
+    formRef.current?.scrollIntoView?.({ block: "nearest" });
   }, [turns, busy]);
 
   useEffect(() => {
@@ -222,7 +223,6 @@ export default function SalesAgentPage() {
             </div>
           ),
         )}
-        <div ref={endRef} />
       </section>
 
       {error ? (
@@ -236,7 +236,7 @@ export default function SalesAgentPage() {
         </Alert>
       ) : null}
 
-      <form onSubmit={onSubmit} className="flex flex-col gap-2" aria-label="Send a message">
+      <form ref={formRef} onSubmit={onSubmit} className="flex flex-col gap-2" aria-label="Send a message">
         <label htmlFor="chat-input" className="sr-only">
           Message
         </label>

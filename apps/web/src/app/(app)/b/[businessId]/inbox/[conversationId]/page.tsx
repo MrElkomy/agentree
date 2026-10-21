@@ -70,7 +70,7 @@ export default function InboxConversationPage() {
 
   const count = data?.messages.length ?? 0;
   useEffect(() => {
-    if (count > lastCount.current) endRef.current?.scrollIntoView?.({ block: "end" });
+    if (count > lastCount.current) endRef.current?.scrollIntoView?.({ block: "nearest" });
     lastCount.current = count;
   }, [count]);
 

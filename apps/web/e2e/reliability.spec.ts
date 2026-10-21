@@ -69,5 +69,7 @@ test("replies stream in; an interrupted reply can be retried; key health is show
   await expect(cut).toHaveCount(0);
   await expect(v.getByTestId("guest-assistant")).toHaveCount(1);
   await expect(v.getByTestId("guest-assistant")).toContainText("local demo mode");
+  // New messages scroll the chat box, never the message field out of the screen.
+  await expect(v.getByLabel("Message", { exact: true })).toBeInViewport();
   await visitorContext.close();
 });
