@@ -35,6 +35,9 @@ class AgentDefinition:
     handles: str  # what the role is for: shown to owners and to teammates when routing
     available: bool  # implemented enough to be enabled (later tasks complete the others)
     enabled_by_default: bool
+    # Approved PO decision (Task 15): conversations this agent leads may be marked resolved by
+    # the visitor and (with the resolve tool) by the agent, not only by the team.
+    shared_resolution: bool = False
 
     @property
     def tools(self) -> frozenset[Action]:
@@ -50,14 +53,14 @@ DEFINITIONS: Mapping[AgentRole, AgentDefinition] = {
             "products, services, prices, quotes and buying", available=True,
             enabled_by_default=True,
         ),
-        # Baseline prompts only: Task 15 adds their tools, escalations and full behaviour.
+        # Task 15: complete agents. Off until the business turns them on.
         AgentDefinition(
-            AgentRole.CUSTOMER_SERVICE, 1, "Customer Service", Audience.PUBLIC,
-            "orders, accounts, policies, complaints and general help", available=True,
-            enabled_by_default=False,
+            AgentRole.CUSTOMER_SERVICE, 2, "Customer Service", Audience.PUBLIC,
+            "general questions, company policies, service information, orders, accounts and "
+            "complaints", available=True, enabled_by_default=False, shared_resolution=True,
         ),
         AgentDefinition(
-            AgentRole.TECHNICAL_SUPPORT, 1, "Technical Support", Audience.PUBLIC,
+            AgentRole.TECHNICAL_SUPPORT, 2, "Technical Support", Audience.PUBLIC,
             "setup, troubleshooting, errors and how-to questions", available=True,
             enabled_by_default=False,
         ),

@@ -25,6 +25,7 @@ Origins: exact `https://host[:port]`, DNS names only, lowercased, `:443` dropped
 | POST | `/api/public/{slug}/sessions` | — (same-origin POST) | 201 `{token, expires_at}` | 404, 429 `busy`, 403 `origin_not_allowed` |
 | POST | `/api/public/{slug}/chat` | `X-Agentree-Guest: <token>` | 200 `{conversation_id, reply}` | 404, 401 `guest_session_invalid`, 422, 429 `busy`, 503 `agent_unavailable`, 403 `origin_not_allowed` |
 | GET | `/api/public/{slug}/conversations/{conversation_id}/messages` | `X-Agentree-Guest` | 200 `[{role, content, created_at}]` | 404, 401 |
+| POST | `/api/public/{slug}/conversations/{conversation_id}/resolve` | `X-Agentree-Guest` | 200 `{status, messages, can_resolve}` — Customer Service conversations only (Task 15, `INBOX.md`) | 403 `resolve_not_allowed`, 409 `conversation_state`, 404, 401, 429 |
 
 Chat body: `{message: 1..1000 chars (not blank), conversation_id?: uuid, channel?: "public" | "widget" (default "public")}`; unknown fields rejected. Omit `conversation_id` to start a conversation; the channel is fixed when the conversation is created.
 

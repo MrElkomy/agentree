@@ -703,6 +703,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/public/{slug}/conversations/{conversation_id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Guest Resolve
+         * @description The visitor marks their own Customer Service conversation resolved (Task 15).
+         *
+         *     403 `resolve_not_allowed` for conversations only the team may resolve (Sales);
+         *     409 `conversation_state` while a team member is handling it.
+         */
+        post: operations["guest_resolve_api_public__slug__conversations__conversation_id__resolve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/businesses/{business_id}/audit-events": {
         parameters: {
             query?: never;
@@ -1265,6 +1288,8 @@ export interface components {
             title: string;
             /** Body */
             body: string;
+            /** Agent Roles */
+            agent_roles?: string[];
         };
         /** EntryOut */
         EntryOut: {
@@ -1285,6 +1310,8 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+            /** Agent Roles */
+            agent_roles: string[];
         };
         /** EntryUpdateIn */
         EntryUpdateIn: {
@@ -1292,6 +1319,8 @@ export interface components {
             title?: string | null;
             /** Body */
             body?: string | null;
+            /** Agent Roles */
+            agent_roles?: string[] | null;
         };
         /** FollowUpCreateIn */
         FollowUpCreateIn: {
@@ -1394,6 +1423,11 @@ export interface components {
              * @default []
              */
             replies: components["schemas"]["GuestReplyOut"][];
+            /**
+             * Can Resolve
+             * @default false
+             */
+            can_resolve: boolean;
         };
         /**
          * GuestConversationOut
@@ -1407,6 +1441,11 @@ export interface components {
             status: "open" | "needs_human" | "human_active" | "resolved";
             /** Messages */
             messages: components["schemas"]["GuestMessageOut"][];
+            /**
+             * Can Resolve
+             * @default false
+             */
+            can_resolve: boolean;
         };
         /**
          * GuestLeadIn
@@ -3471,6 +3510,38 @@ export interface operations {
         };
     };
     guest_cancel_handoff_api_public__slug__conversations__conversation_id__handoff_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuestConversationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    guest_resolve_api_public__slug__conversations__conversation_id__resolve_post: {
         parameters: {
             query?: never;
             header?: never;

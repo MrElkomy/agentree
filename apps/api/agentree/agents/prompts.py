@@ -44,13 +44,33 @@ GOALS = {
     AgentRole.SALES: """Goals: help the customer understand {business}'s products and \
 services, answer their questions, qualify their needs (what they need, timeline, budget, how to \
 contact them), and move them toward a purchase or a conversation with the team.""",
-    AgentRole.CUSTOMER_SERVICE: """Goals: help {business}'s customers with questions about \
-orders, accounts, policies and complaints. Be patient and empathetic, and offer to connect \
-the customer with the team when you cannot resolve their request.""",
+    AgentRole.CUSTOMER_SERVICE: """Goals: help {business}'s customers with general questions, \
+company policies, service information, orders, accounts and complaints. Be patient and \
+empathetic, and make sure the customer leaves with a clear answer or a clear next step.
+- Answer policy and service questions only from the business knowledge, as written. If a \
+policy is not in the knowledge, say you don't have that information.
+- You cannot see orders, accounts, payments or any customer records, and you cannot change \
+anything in the business's systems. Never state or guess an order status, refund decision, \
+delivery date, account detail or exception to a policy, and never promise anything on the \
+business's behalf. For any request that needs someone to look something up, decide, approve \
+or change something, offer to connect the customer with the team.
+- For complaints and sensitive matters (refund or compensation demands, legal or safety \
+issues, a very upset customer), acknowledge the problem briefly and connect them with the team.""",
     AgentRole.TECHNICAL_SUPPORT: """Goals: help {business}'s customers set up and use its \
-products and fix problems, step by step. Ask what they see (exact error messages) and what they \
-already tried. When the knowledge does not cover the problem, say so and offer to connect them \
-with the team.""",
+products and fix problems, step by step.
+- Diagnose before you advise: ask one or two short questions at a time (what they were doing, \
+the exact error message, device or version, what they already tried).
+- Give troubleshooting steps only when the business knowledge supports them, one small numbered \
+step at a time, and ask the customer to tell you what happened. Never invent specifications, \
+settings, error meanings, policies or fixes.
+- You have no access to the customer's account, device or the business's systems, and you \
+cannot run tests or make changes. Never say you checked, reset, fixed or changed anything: \
+everything you give is a suggestion for the customer to try. Never say a step worked unless \
+the customer told you so.
+- Never ask the customer for passwords, codes or remote access. When the fix needs privileged \
+access (an account change, a reset only the business can do, a replacement or repair), when \
+the knowledge does not cover the problem, or when the steps did not help, say so and offer to \
+connect them with the team.""",
 }
 
 # Public page and website widget (anonymous visitors). Data access is still enforced by the
@@ -61,6 +81,15 @@ never ask for passwords, payment card numbers or other secrets.
 - If the visitor asks to talk to a person, or you cannot help with their request, say that you \
 are connecting them with the {business} team, and end your reply with one extra last line \
 exactly: <<HANDOFF>> (the visitor does not see it).
+"""
+
+# Only for an agent holding the resolve tool in a public conversation (Action Gateway:
+# resolve_conversation). The backend accepts the marker only from such an agent.
+RESOLVE = """- When the customer confirms that their question or problem is fully solved and they \
+need nothing else, thank them briefly and end your reply with one extra last line exactly: \
+<<RESOLVED>> (the customer does not see it; it marks the conversation resolved). Never use it \
+on your own guess, together with <<HANDOFF>> or <<ROUTE>>, or when the customer is still \
+waiting for something.
 """
 
 # Only for an agent that may capture leads in this business (Action Gateway: create_lead).
@@ -160,6 +189,7 @@ def agent_messages(
     user_message: str,
     public: bool = False,
     lead_capture: bool = False,
+    can_resolve: bool = False,
     teammates: Sequence[Teammate] = (),
     notes: Sequence[HandoffNote] = (),
     facts: CustomerFacts | None = None,
@@ -174,6 +204,8 @@ def agent_messages(
         audience = PUBLIC_AUDIENCE.format(business=business)
         if lead_capture:
             audience += LEAD_CAPTURE
+        if can_resolve:
+            audience += RESOLVE
     team = ""
     if teammates:
         listed = "\n".join(f"  - {t.role}: {t.handles}" for t in teammates)
@@ -268,6 +300,16 @@ def take_handoff_marker(reply: str) -> tuple[str, bool]:
     """Remove handoff markers; True when the model asked to bring in a person."""
     found = _HANDOFF_MARKER.search(reply) is not None
     return _HANDOFF_MARKER.sub("", reply).strip(), found
+
+
+_RESOLVED_MARKER = re.compile(r"<<RESOLVED\s*>>")
+
+
+def take_resolve_marker(reply: str) -> tuple[str, bool]:
+    """Remove resolve markers; True when the model proposes the conversation is resolved (the
+    backend decides whether that agent may resolve it)."""
+    found = _RESOLVED_MARKER.search(reply) is not None
+    return _RESOLVED_MARKER.sub("", reply).strip(), found
 
 
 # One line: the role, then an optional note. Everything from "<<ROUTE" to the end of its line is

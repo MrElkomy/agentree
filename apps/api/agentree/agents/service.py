@@ -17,8 +17,9 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from agentree.actions import service as gateway
 from agentree.actions.service import Action
-from agentree.agents import configs
+from agentree.agents import configs, inbox
 from agentree.agents.inbox import mark_handoff_requested
 from agentree.agents.models import AgentHandoff, Conversation, Message
 from agentree.agents.prompts import (
@@ -29,6 +30,7 @@ from agentree.agents.prompts import (
     agent_messages,
     split_lead_marker,
     take_handoff_marker,
+    take_resolve_marker,
     take_route_marker,
 )
 from agentree.agents.registry import DEFINITIONS, AgentRole
@@ -127,6 +129,7 @@ class GuestTurnResult:
     agent: str | None = None  # the agent that answered last (None: the AI did not answer)
     agent_name: str | None = None
     replies: list[AgentReply] = field(default_factory=list)
+    can_resolve: bool = False  # the visitor may mark the conversation resolved now
 
 
 @dataclass(frozen=True)
@@ -239,6 +242,7 @@ class _TurnDone:
     fallback: bool
     suggestion: LeadSuggestion | None
     handoff: bool  # the agent asked for a person (public conversations)
+    resolved: bool = False  # the last agent, allowed to, marked the conversation resolved
 
 
 class _MarkerGuard:
@@ -343,6 +347,17 @@ async def _notes(session: AsyncSession, ctx: TenantContext, conv_id: UUID) -> li
     ]  # fmt: skip
 
 
+def _may_resolve(agent: configs.AgentConfigInfo) -> bool:
+    """Shared-resolution role holding the resolve tool in this business (Action Gateway)."""
+    if not agent.definition.shared_resolution:
+        return False
+    try:
+        gateway.authorize(agent.role, Action.RESOLVE_CONVERSATION, agent.effective_tools)
+    except gateway.ActionDeniedError:
+        return False
+    return True
+
+
 def _active(roster: configs.Roster, current: str, *, guest: bool) -> configs.AgentConfigInfo | None:
     """The conversation's active agent if it may still answer, else the default entry agent."""
     if roster.allowed(current, guest=guest):
@@ -361,24 +376,32 @@ async def _stream_turn(
     The model can only propose a teammate by role name: `take_route_marker` accepts it only
     if it is in the roster's list of enabled agents this caller may reach (guests: public
     agents only). Lead and handoff markers are stripped; a lead suggestion is kept only from
-    an agent holding the create_lead tool. A turn that fails stores nothing (no messages, no
-    handoff, active agent unchanged), so the visitor can simply send the message again.
+    an agent holding the create_lead tool, and a resolve proposal only from the last agent if
+    it may resolve (`_may_resolve`). Each agent sees only knowledge open to its role. A turn that
+    fails stores nothing (no messages, no handoff, active agent unchanged), so the visitor can
+    simply send the message again.
     """
     business = await tenancy.get_business(factory, ctx)
-    entries = await knowledge.retrieve(factory, ctx, message)
+    entries: list[knowledge.RetrievedEntry] = []
+    sources: dict[UUID, str] = {}
     visitor = [m.content for m in history if m.role == "user"] + [message]
     current = agent
     calls: list[tuple[configs.AgentConfigInfo, _Answered, str]] = []
     handoffs: list[tuple[configs.AgentConfigInfo, configs.AgentConfigInfo, str]] = []
     suggestion: LeadSuggestion | None = None
     wants_person = False
+    resolved = False
     for hop in range(MAX_ROUTES_PER_TURN + 1):
         targets = roster.targets(current.role, guest=guest) if hop < MAX_ROUTES_PER_TURN else []
         lead_capture = public and Action.CREATE_LEAD in current.effective_tools
+        can_resolve = public and _may_resolve(current)
+        entries = await knowledge.retrieve(factory, ctx, message, role=current.role)
+        sources.update((e.id, e.title) for e in entries)
         prompt = agent_messages(
             current.role, title=current.definition.title, display_name=current.display_name,
             business_name=business.name, knowledge=entries, history=history,
             user_message=message, public=public, lead_capture=lead_capture,
+            can_resolve=can_resolve,
             teammates=[Teammate(t.role, t.definition.handles) for t in targets],
             notes=notes, facts=facts,
         )  # fmt: skip
@@ -407,7 +430,9 @@ async def _stream_turn(
         if lead_capture and lead is not None:
             suggestion = lead
         text, person = take_handoff_marker(text)
+        text, done_marker = take_resolve_marker(text)
         wants_person = wants_person or (public and person and target is None)
+        resolved = can_resolve and done_marker and target is None and not person
         calls.append((current, answered, text))
         nxt = roster.config(target) if target is not None else None
         if nxt is None:
@@ -454,11 +479,12 @@ async def _stream_turn(
         result=replace(last.result, text=last_text),
         replies=[AgentReply(c.role, c.name, t) for c, _a, t in calls if t],
         handoffs=[HandoffInfo(a.role, b.role) for a, b, _n in handoffs],
-        sources=[(e.id, e.title) for e in entries],
+        sources=list(sources.items()),
         slot=last.slot,
         fallback=last.fallback,
         suggestion=suggestion,
         handoff=wants_person,
+        resolved=resolved,
     )
 
 
@@ -566,11 +592,13 @@ async def stream_public_sales_turn(
         elif conv.status == "resolved":
             conv.status = "open"  # the visitor came back: the AI answers again
         status, conv_id, conv_channel = conv.status, conv.id, conv.channel
+        active = conv.active_agent
         current = None if paused else _active(roster, conv.active_agent, guest=True)
         history = [] if paused else await _history(session, ctx, conv.id)
         notes = [] if paused else await _notes(session, ctx, conv.id)
     if paused:
-        yield GuestTurnResult(conv_id, "", status=status)
+        yield GuestTurnResult(conv_id, "", status=status,
+                              can_resolve=inbox.visitor_may_resolve(status, active))  # fmt: skip
         return
     if current is None:
         raise AgentUnavailableError  # every public agent was disabled
@@ -594,12 +622,20 @@ async def stream_public_sales_turn(
     if done is None:
         raise AssertionError("turn ended without a result")
     requested = False
+    status = "open"
     if done.handoff:
         requested = await mark_handoff_requested(factory, ctx, conv_id, reason="agent")
+        status = "needs_human"
+    elif done.resolved:
+        try:
+            if await inbox.resolve_by_agent(factory, ctx, conv_id, agent=done.agent.role):
+                status = "resolved"
+        except inbox.ResolveNotAllowedError:  # cannot happen: _may_resolve checked the role
+            logger.warning("agent resolve refused", extra={"agent": done.agent.role})
     yield GuestTurnResult(
-        conv_id, done.result.text, done.suggestion,
-        status="needs_human" if done.handoff else "open", handoff_requested=requested,
+        conv_id, done.result.text, done.suggestion, status=status, handoff_requested=requested,
         agent=done.agent.role, agent_name=done.agent.name, replies=done.replies,
+        can_resolve=inbox.visitor_may_resolve(status, done.agent.role),
     )  # fmt: skip
 
 

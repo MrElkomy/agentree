@@ -78,6 +78,7 @@ ALLOWED_DETAILS = frozenset(
         "enabled",
         "public",
         "version",
+        "resolved_by",
     }
 )
 MAX_DETAIL_LEN = 200

@@ -87,6 +87,8 @@ function describe(e: AuditEvent): string {
     case "conversation.released":
       return `${who} handed a conversation back to the AI`;
     case "conversation.resolved":
+      if (d.resolved_by === "agent") return `${agentTitle(d.agent)} marked a conversation resolved`;
+      if (d.resolved_by === "visitor") return "A visitor marked their conversation resolved";
       return `${who} resolved a conversation`;
     case "agent.handoff":
       return `${agentTitle(d.from_agent)} handed a conversation to ${agentTitle(d.to_agent)}`;

@@ -38,6 +38,8 @@ export function GuestChat({
   const {
     turns,
     status,
+    canResolve,
+    resolve,
     busy,
     restoring,
     error,
@@ -215,6 +217,14 @@ export function GuestChat({
               Continue with the assistant
             </button>
           </div>
+        ) : status === "resolved" ? (
+          <p
+            className="rounded-lg border border-line bg-paper px-4 py-3 text-sm"
+            role="status"
+            data-testid="conversation-resolved"
+          >
+            This conversation is marked as resolved. Write again anytime if you need more help.
+          </p>
         ) : status === "human_active" ? (
           <p
             className="rounded-lg border border-brand/30 bg-brand-soft px-4 py-3 text-sm"
@@ -277,6 +287,15 @@ export function GuestChat({
               : "You're chatting with an AI assistant."}
           </p>
           <div className="flex flex-wrap items-center gap-3">
+            {canResolve && turns.length && !busy ? (
+              <button
+                type="button"
+                onClick={() => void resolve()}
+                className="font-semibold underline-offset-2 hover:underline"
+              >
+                My issue is resolved
+              </button>
+            ) : null}
             {turns.length && !busy && !paused ? (
               <button
                 type="button"

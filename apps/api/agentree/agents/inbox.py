@@ -4,6 +4,11 @@ Statuses: `open` (the AI answers), `needs_human` (the visitor or the agent asked
 the AI is paused), `human_active` (a member is replying; the AI is paused), `resolved`.
 A visitor writing to a resolved conversation reopens it for the AI. Every status change and
 assignment is audited; message content never goes to the audit trail or the logs.
+
+Who may resolve (approved PO decision, Task 15): a team member always; in conversations led by
+an agent with shared resolution (Customer Service) also the visitor and that agent (when the
+business left its resolve tool on). Sales conversations stay team-only. Checked here, never by
+the model or the browser.
 """
 
 import logging
@@ -15,6 +20,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from agentree.agents.models import Conversation, Message
+from agentree.agents.registry import definition
 from agentree.audit.service import AuditAction, record
 from agentree.core.config import Settings
 from agentree.core.email import EmailSender, OutgoingEmail, branded_email, send_safely
@@ -47,6 +53,10 @@ class InvalidStateError(Exception):
 
 class InvalidAssigneeError(ValueError):
     pass
+
+
+class ResolveNotAllowedError(Exception):
+    """The visitor or agent may not resolve this conversation (e.g. a Sales conversation)."""
 
 
 @dataclass(frozen=True)
@@ -130,6 +140,15 @@ async def conversation_status(factory: Factory, ctx: TenantContext, conversation
         return (await _public_conversation(session, ctx, conversation_id)).status
 
 
+async def guest_state(
+    factory: Factory, ctx: TenantContext, conversation_id: UUID
+) -> tuple[str, bool]:
+    """Status, and whether the visitor may mark the conversation resolved now."""
+    async with tenant_session(factory, ctx) as session:
+        conv = await _public_conversation(session, ctx, conversation_id)
+        return conv.status, visitor_may_resolve(conv.status, conv.active_agent)
+
+
 async def notify_handoff(
     factory: Factory, settings: Settings, mailer: EmailSender, push: PushSender,
     ctx: TenantContext, conversation_id: UUID, *, reason: str,
@@ -153,7 +172,7 @@ def _handoff_email(to: str, business: str, reason: str, url: str) -> OutgoingEma
     why = (
         "asked to talk to a person"
         if reason == "visitor"
-        else "has a question your Sales Agent couldn't answer"
+        else "has a question your AI agent couldn't answer"
     )
     return branded_email(
         to,
@@ -306,9 +325,57 @@ async def release(factory: Factory, ctx: TenantContext, conversation_id: UUID, *
 
 async def resolve(factory: Factory, ctx: TenantContext, conversation_id: UUID, *,
                   actor_id: UUID) -> None:  # fmt: skip
+    """A team member resolves any public conversation (also Sales ones)."""
     async with tenant_session(factory, ctx) as session:
         conv = await _public_conversation(session, ctx, conversation_id, lock=True)
         if conv.status == "resolved":
             return
         conv.status = "resolved"
-        await _audit(session, ctx, conv, AuditAction.CONVERSATION_RESOLVED, actor_id)
+        await _audit(session, ctx, conv, AuditAction.CONVERSATION_RESOLVED, actor_id,
+                     resolved_by="member")  # fmt: skip
+
+
+def shared_resolution(agent: str) -> bool:
+    d = definition(agent)
+    return d is not None and d.shared_resolution
+
+
+def visitor_may_resolve(status: str, agent: str) -> bool:
+    """Visitors may resolve open or waiting conversations their Customer Service agent leads;
+    not while a team member is handling it, never Sales conversations."""
+    return status in ("open", "needs_human") and shared_resolution(agent)
+
+
+async def resolve_by_visitor(factory: Factory, ctx: TenantContext, conversation_id: UUID) -> str:
+    """The visitor marks their conversation resolved. The caller checked that the conversation
+    belongs to this guest session. Returns the new status."""
+    async with tenant_session(factory, ctx) as session:
+        conv = await _public_conversation(session, ctx, conversation_id, lock=True)
+        if conv.status == "resolved":
+            return conv.status
+        if not shared_resolution(conv.active_agent):
+            raise ResolveNotAllowedError
+        if not visitor_may_resolve(conv.status, conv.active_agent):
+            raise InvalidStateError
+        conv.status = "resolved"
+        await _audit(session, ctx, conv, AuditAction.CONVERSATION_RESOLVED, None,
+                     resolved_by="visitor", agent=conv.active_agent)  # fmt: skip
+        return conv.status
+
+
+async def resolve_by_agent(
+    factory: Factory, ctx: TenantContext, conversation_id: UUID, *, agent: str
+) -> bool:
+    """The agent that just answered marks the conversation resolved: only an agent with shared
+    resolution that leads the conversation, and only while the AI is answering. The caller
+    checked the agent's resolve tool through the Action Gateway. True if resolved now."""
+    async with tenant_session(factory, ctx) as session:
+        conv = await _public_conversation(session, ctx, conversation_id, lock=True)
+        if conv.active_agent != agent or not shared_resolution(agent):
+            raise ResolveNotAllowedError
+        if conv.status != "open":
+            return False
+        conv.status = "resolved"
+        await _audit(session, ctx, conv, AuditAction.CONVERSATION_RESOLVED, None,
+                     resolved_by="agent", agent=agent)  # fmt: skip
+        return True

@@ -1,15 +1,17 @@
 """Knowledge base: manual entries, manual publishing (MVP default), full-text retrieval.
 
-Only published entries are ever retrievable by agents. Editing a published entry returns
-it to draft until an admin publishes it again.
+Only published entries are ever retrievable by agents. Editing a published entry (its text or
+which agents may use it) returns it to draft until an admin publishes it again. An entry can be
+limited to some agent roles (`agent_roles`, Task 15); an empty list means every agent.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
 from uuid import UUID
 
-from sqlalchemy import String, delete, func, select, text
+from sqlalchemy import String, delete, func, or_, select, text
 from sqlalchemy.dialects.postgresql import TSQUERY
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -43,6 +45,7 @@ class EntryInfo:
     status: Status
     published_at: datetime | None
     updated_at: datetime
+    agent_roles: tuple[str, ...] = ()  # empty: every agent
 
 
 @dataclass(frozen=True)
@@ -53,17 +56,25 @@ class RetrievedEntry:
 
 
 def _info(e: KnowledgeEntry) -> EntryInfo:
-    return EntryInfo(e.id, e.title, e.body, Status(e.status), e.published_at, e.updated_at)
+    return EntryInfo(e.id, e.title, e.body, Status(e.status), e.published_at, e.updated_at,
+                     tuple(e.agent_roles or ()))  # fmt: skip
+
+
+def _roles(roles: Sequence[str]) -> list[str]:
+    """Distinct, sorted (the caller validated the names against the agent registry)."""
+    return sorted(set(roles))
 
 
 async def create_entry(
-    factory: Factory, ctx: TenantContext, *, title: str, body: str, actor_id: UUID
-) -> EntryInfo:
+    factory: Factory, ctx: TenantContext, *, title: str, body: str, actor_id: UUID,
+    agent_roles: Sequence[str] = (),
+) -> EntryInfo:  # fmt: skip
     now = datetime.now(UTC)
     async with tenant_session(factory, ctx) as session:
         entry = KnowledgeEntry(
             id=uuid7(), business_id=ctx.business_id, title=title.strip(), body=body.strip(),
-            status=Status.DRAFT, created_by_user_id=actor_id, updated_at=now,
+            status=Status.DRAFT, agent_roles=_roles(agent_roles), created_by_user_id=actor_id,
+            updated_at=now,
         )  # fmt: skip
         session.add(entry)
         await session.flush()
@@ -102,14 +113,17 @@ async def get_entry(factory: Factory, ctx: TenantContext, entry_id: UUID) -> Ent
 
 
 async def update_entry(
-    factory: Factory, ctx: TenantContext, entry_id: UUID, *, title: str | None, body: str | None
-) -> EntryInfo:
+    factory: Factory, ctx: TenantContext, entry_id: UUID, *, title: str | None, body: str | None,
+    agent_roles: Sequence[str] | None = None,
+) -> EntryInfo:  # fmt: skip
     async with tenant_session(factory, ctx) as session:
         entry = await _get(session, ctx, entry_id)
         if title is not None:
             entry.title = title.strip()
         if body is not None:
             entry.body = body.strip()
+        if agent_roles is not None:
+            entry.agent_roles = _roles(agent_roles)
         entry.status, entry.published_at = Status.DRAFT, None  # re-review after any edit
         entry.updated_at = datetime.now(UTC)
         await session.flush()
@@ -141,12 +155,21 @@ async def delete_entry(factory: Factory, ctx: TenantContext, entry_id: UUID) -> 
 
 
 async def retrieve(
-    factory: Factory, ctx: TenantContext, query: str, *, limit: int = 5
+    factory: Factory, ctx: TenantContext, query: str, *, role: str | None = None, limit: int = 5
 ) -> list[RetrievedEntry]:
-    """Published entries relevant to `query`, within a character budget."""
+    """Published entries relevant to `query`, within a character budget.
+
+    `role`: the answering agent; only entries open to every agent or to that role are used.
+    None applies no role filter (agents always pass their role).
+    """
     published = (KnowledgeEntry.business_id == ctx.business_id) & (
         KnowledgeEntry.status == Status.PUBLISHED
     )
+    if role is not None:
+        published = published & or_(
+            func.cardinality(KnowledgeEntry.agent_roles) == 0,
+            KnowledgeEntry.agent_roles.contains([role]),
+        )
     async with tenant_session(factory, ctx) as session:
         total = (
             await session.execute(select(func.count()).select_from(KnowledgeEntry).where(published))

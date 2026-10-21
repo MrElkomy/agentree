@@ -20,7 +20,18 @@ export const ENTRY_HINT: Record<string, string> = {
   technical_support: "Setup or something not working? Let's fix it.",
 };
 
+/** Customer-facing roles, in the order the dashboard lists them. */
+export const PUBLIC_ROLES: { role: string; title: string }[] = [
+  { role: "sales", title: "Sales Agent" },
+  { role: "customer_service", title: "Customer Service" },
+  { role: "technical_support", title: "Technical Support" },
+];
+
 export const TOOL_LABEL: Record<string, { title: string; hint: string }> = {
+  resolve_conversation: {
+    title: "Mark conversations resolved",
+    hint: "When the customer confirms their issue is solved, the agent closes the conversation.",
+  },
   create_lead: { title: "Capture leads", hint: "Offer visitors a form to leave their contact details." },
   update_lead: { title: "Update leads", hint: "Visitors can correct the details they already sent." },
   create_follow_up_task: {

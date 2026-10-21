@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Anonymous visitor chat with a business's Sales Agent, shared by the public page panel
+ * Anonymous visitor chat with a business's AI agents, shared by the public page panel
  * and the website widget iframe. Both run on our own origin, so the public API's
  * same-origin check passes; customer websites only ever embed the iframe.
  *
@@ -87,6 +87,8 @@ const GUEST_MESSAGES: Record<string, string> = {
   invalid_phone: "Check the phone number (digits, spaces, + and dashes).",
   invalid_contact: "Add an email address or a phone number so the team can reach you.",
   idempotency_conflict: "Please send the form again.",
+  resolve_not_allowed: "Only the team can close this conversation.",
+  conversation_state: "The team is handling this conversation right now.",
 };
 
 function toTurns(conversation: GuestConversation): GuestTurn[] {
@@ -210,6 +212,8 @@ function newIdempotencyKey(): string {
 export function useGuestChat(slug: string, channel: GuestChannel, entryAgent?: string) {
   const [turns, setTurns] = useState<GuestTurn[]>([]);
   const [status, setStatus] = useState<ConversationStatus>("open");
+  // The backend decides: true only in Customer Service conversations the visitor may close.
+  const [canResolve, setCanResolve] = useState(false);
   // Prefill offered by the agent after the visitor shared contact details (never sent as-is).
   const [suggestion, setSuggestion] = useState<LeadSuggestion | null>(null);
   const [busy, setBusy] = useState(false);
@@ -225,6 +229,7 @@ export function useGuestChat(slug: string, channel: GuestChannel, entryAgent?: s
       if (cancelled) return;
       setTurns(restored ? toTurns(restored) : []);
       setStatus(restored?.status ?? "open");
+      setCanResolve(restored?.can_resolve ?? false);
       setRestoring(false);
     };
     if (!token || !conversationId) {
@@ -271,6 +276,7 @@ export function useGuestChat(slug: string, channel: GuestChannel, entryAgent?: s
         // Final replies replace the streamed ones. None: a person is answering, the AI stayed quiet.
         setTurns((t) => withFinalReplies(t, reply));
         setStatus(reply.status);
+        setCanResolve(reply.can_resolve ?? false);
         if (reply.lead_suggestion) setSuggestion(reply.lead_suggestion);
         return true;
       } catch (err) {
@@ -308,6 +314,7 @@ export function useGuestChat(slug: string, channel: GuestChannel, entryAgent?: s
           if (busyRef.current) return;
           setTurns(toTurns(conversation));
           setStatus(conversation.status);
+          setCanResolve(conversation.can_resolve ?? false);
         },
         () => {
           // transient: the next tick retries
@@ -333,12 +340,34 @@ export function useGuestChat(slug: string, channel: GuestChannel, entryAgent?: s
         );
         setTurns(toTurns(conversation));
         setStatus(conversation.status);
+        setCanResolve(conversation.can_resolve ?? false);
       } catch (err) {
         setError(guestErrorMessage(err));
       }
     },
     [slug],
   );
+
+  /** The visitor marks their Customer Service conversation resolved (the backend checks it). */
+  const resolve = useCallback(async (): Promise<void> => {
+    const token = read(tokenKey(slug));
+    const conversationId = read(convKey(slug));
+    if (!token || !conversationId) return;
+    setError(null);
+    try {
+      const conversation = await api<GuestConversation>(
+        `${base(slug)}/conversations/${encodeURIComponent(conversationId)}/resolve`,
+        "POST",
+        undefined,
+        opts(token),
+      );
+      setTurns(toTurns(conversation));
+      setStatus(conversation.status);
+      setCanResolve(conversation.can_resolve ?? false);
+    } catch (err) {
+      setError(guestErrorMessage(err));
+    }
+  }, [slug]);
 
   /** Sends an interrupted message again (it was not saved). */
   const retry = useCallback(async (): Promise<void> => {
@@ -353,6 +382,7 @@ export function useGuestChat(slug: string, channel: GuestChannel, entryAgent?: s
   const reset = useCallback(() => {
     write(convKey(slug), null);
     setStatus("open");
+    setCanResolve(false);
     setTurns([]);
     setSuggestion(null);
     setError(null);
@@ -387,6 +417,8 @@ export function useGuestChat(slug: string, channel: GuestChannel, entryAgent?: s
   return {
     turns,
     status,
+    canResolve,
+    resolve,
     busy,
     restoring,
     error,

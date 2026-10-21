@@ -28,11 +28,14 @@ class Action(StrEnum):
     CREATE_LEAD = "create_lead"
     UPDATE_LEAD = "update_lead"
     CREATE_FOLLOW_UP_TASK = "create_follow_up_task"
+    RESOLVE_CONVERSATION = "resolve_conversation"  # mark the visitor's conversation resolved
 
 
 # Agent role -> actions it may run. Agents not listed may run nothing.
 PERMISSIONS: Mapping[str, frozenset[Action]] = {
     "sales": frozenset({Action.CREATE_LEAD, Action.UPDATE_LEAD, Action.CREATE_FOLLOW_UP_TASK}),
+    "customer_service": frozenset({Action.RESOLVE_CONVERSATION}),
+    # technical_support runs no actions: it diagnoses and guides; people act (Task 15).
 }
 
 MAX_KEY_LEN = 100

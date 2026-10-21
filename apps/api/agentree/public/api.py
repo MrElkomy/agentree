@@ -232,6 +232,7 @@ def _chat_out(turn: agents.GuestTurnResult) -> GuestChatOut:
         agent=turn.agent, agent_name=turn.agent_name,
         replies=[GuestReplyOut(agent=r.agent, agent_name=r.name, content=r.content)
                  for r in turn.replies],
+        can_resolve=turn.can_resolve,
     )  # fmt: skip
 
 
@@ -383,11 +384,12 @@ async def guest_conversation(
     try:
         rows = await agents.list_guest_messages(factory, page.tenant, guest_session_id=guest,
                                                 conversation_id=conversation_id)  # fmt: skip
-        current = await inbox.conversation_status(factory, page.tenant, conversation_id)
+        current, can_resolve = await inbox.guest_state(factory, page.tenant, conversation_id)
     except (agents.NotFoundError, inbox.NotFoundError):
         raise _not_found() from None
     names = await _agent_names(request, page)
-    return GuestConversationOut(status=current, messages=[_message_out(m, names) for m in rows])
+    return GuestConversationOut(status=current, messages=[_message_out(m, names) for m in rows],
+                                can_resolve=can_resolve)  # fmt: skip
 
 
 async def _agent_names(request: Request, page: service.PublicPage) -> dict[str, str]:
@@ -441,4 +443,32 @@ async def guest_cancel_handoff(
         await inbox.cancel_handoff_by_guest(st.session_factory, page.tenant, conversation_id)
     except (agents.NotFoundError, inbox.NotFoundError):
         raise _not_found() from None
+    return await guest_conversation(slug, conversation_id, creds, request)
+
+
+@public_router.post("/conversations/{conversation_id}/resolve")
+async def guest_resolve(
+    slug: str, conversation_id: UUID, creds: GuestToken, request: Request
+) -> GuestConversationOut:
+    """The visitor marks their own Customer Service conversation resolved (Task 15).
+
+    403 `resolve_not_allowed` for conversations only the team may resolve (Sales);
+    409 `conversation_state` while a team member is handling it.
+    """
+    page = await _page(request, slug)
+    guest = await _guest(request, page, creds, touch=True)
+    if not await _within(request, "public-resolve:session", str(guest), 10, 3600):
+        raise _busy()
+    st = request.app.state
+    try:
+        await agents.guest_conversation_channel(st.session_factory, page.tenant,
+                                                guest_session_id=guest,
+                                                conversation_id=conversation_id)  # fmt: skip
+        await inbox.resolve_by_visitor(st.session_factory, page.tenant, conversation_id)
+    except (agents.NotFoundError, inbox.NotFoundError):
+        raise _not_found() from None
+    except inbox.ResolveNotAllowedError:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "resolve_not_allowed") from None
+    except inbox.InvalidStateError:
+        raise HTTPException(status.HTTP_409_CONFLICT, "conversation_state") from None
     return await guest_conversation(slug, conversation_id, creds, request)
