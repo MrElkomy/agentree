@@ -27,6 +27,12 @@ def key_for(scope: str, identifier: str) -> str:
     return f"{scope}:{digest}"
 
 
+def daily_ai_budget_key(business_id: object, day: str) -> str:
+    """One counter per business per UTC day for every AI call made for its visitors: chat
+    replies and customer-memory extraction (the business's `daily_reply_budget`)."""
+    return key_for("public-chat:business-day", f"{business_id}:{day}")
+
+
 async def hit(
     factory: async_sessionmaker[AsyncSession], key: str, *, limit: int, window_seconds: int
 ) -> bool:

@@ -27,6 +27,7 @@ export function GuestChat({
   entryAgent,
   leadCapture = true,
   retentionDays = 30,
+  customerMemory = true,
 }: {
   slug: string;
   displayName: string;
@@ -38,6 +39,8 @@ export function GuestChat({
   leadCapture?: boolean;
   /** Days chats and customer memory are kept (told to the visitor). */
   retentionDays?: number;
+  /** The business remembers customers ("Remember me" is offered). */
+  customerMemory?: boolean;
 }) {
   const {
     turns,
@@ -338,7 +341,12 @@ export function GuestChat({
         </div>
       </form>
       <div className="border-t border-line bg-surface px-3 py-2">
-        <GuestIdentity slug={slug} displayName={displayName} retentionDays={retentionDays} />
+        <GuestIdentity
+          slug={slug}
+          displayName={displayName}
+          retentionDays={retentionDays}
+          offered={customerMemory}
+        />
       </div>
     </div>
   );

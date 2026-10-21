@@ -99,7 +99,8 @@ async def test_profile_defaults_then_admin_saves_and_member_reads(harness: AppHa
     assert r.status_code == 200
     assert r.json() == {
         "slug": b["slug"], "enabled": False, "display_name": None, "bio": "", "links": [],
-        "widget_origins": [], "daily_reply_budget": 200, "updated_at": None,
+        "widget_origins": [], "daily_reply_budget": 200, "customer_memory": True,
+        "updated_at": None,
     }  # fmt: skip
 
     body = {
@@ -252,7 +253,7 @@ async def test_public_page_shows_only_safe_fields(harness: AppHarness) -> None:
         "slug": biz.slug, "display_name": "Acme Chairs", "bio": "Comfortable chairs.",
         "links": [{"label": "Shop", "url": "https://acme.example.com", "description": "Our store"}],
         "chat_enabled": True, "agents": [{"role": "sales", "name": "Sales Agent"}],
-        "lead_capture": True, "retention_days": 30,
+        "lead_capture": True, "retention_days": 30, "customer_memory": True,
     }  # fmt: skip
     r = await c.get(f"{biz.pub}/widget-config")
     assert r.status_code == 200

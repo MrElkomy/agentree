@@ -419,3 +419,56 @@ def test_worker_process_resolves_every_foreign_key() -> None:
     out = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True,  # noqa: S603
                          check=True)  # fmt: skip
     assert out.stdout.strip() == "[]", out.stdout + out.stderr
+
+
+# --- controls: "Remember customers" and the daily AI budget -------------------------------------
+
+
+async def test_remember_customers_off_stops_codes_extraction_and_reads(
+    harness: AppHarness, db_urls: DbUrls
+) -> None:
+    biz = await _support_business(harness)
+    c, auth = await _visitor(harness, biz)
+    await _chat_twice(harness, c, biz, auth)
+    await _extract(harness, db_urls, biz, INTEREST)
+    await _verify(harness, c, biz, auth, "mona@example.com")
+    r = await biz.owner.client.put(f"{biz.base}/public-profile",
+                                   json={"enabled": True, "customer_memory": False})  # fmt: skip
+    assert r.status_code == 200 and r.json()["customer_memory"] is False
+    assert (await c.get(biz.pub)).json()["customer_memory"] is False
+    r = await c.post(f"{biz.pub}/identity/start", headers=auth, json={"email": "x@example.com"})
+    assert r.status_code == 409 and r.json()["detail"] == "customer_memory_off"
+    r = await c.post(f"{biz.pub}/identity/confirm", headers=auth, json={"code": "123456"})
+    assert r.status_code == 409
+    # Agents stop reading memory, and new conversations are not processed.
+    _fake(harness).replies.append("Hello.")
+    await _say(c, biz, auth, "hello again", agent=SALES)
+    assert INTEREST["value"] not in _system(harness)
+    c2, auth2 = await _visitor(harness, biz)
+    await _chat_twice(harness, c2, biz, auth2)
+    calls = len(_fake(harness).calls)
+    assert await _extract(harness, db_urls, biz, ISSUE) == 0
+    assert len(_fake(harness).calls) == calls  # no AI call at all
+
+
+async def test_extraction_counts_toward_the_daily_ai_budget(
+    harness: AppHarness, db_urls: DbUrls
+) -> None:
+    biz = await _support_business(harness)
+    r = await biz.owner.client.put(f"{biz.base}/public-profile",
+                                   json={"enabled": True, "daily_reply_budget": 2})  # fmt: skip
+    assert r.status_code == 200
+    c, auth = await _visitor(harness, biz)
+    await _chat_twice(harness, c, biz, auth)  # both replies of today's budget
+    calls = len(_fake(harness).calls)
+    assert await _extract(harness, db_urls, biz, INTEREST) == 0
+    assert len(_fake(harness).calls) == calls  # over budget: no AI call
+    # The claim was released: tomorrow (a fresh counter) the conversation is processed.
+    _fake(harness).replies.clear()
+    await _admin_execute(db_urls.admin, "DELETE FROM rate_limit_buckets")
+    assert await _extract(harness, db_urls, biz, INTEREST) == 1
+    # That call used the budget too: one more chat reply fits, the next is refused.
+    _fake(harness).replies.append("Sure.")
+    conv = (await _say(c, biz, auth, "one more", agent=SALES)).json()["conversation_id"]
+    r = await _say(c, biz, auth, "and another", conv)
+    assert r.status_code == 429

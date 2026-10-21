@@ -165,4 +165,17 @@ test("support agents: routing, scoped knowledge, who may resolve; a visitor conf
   await expect(page.getByTestId("customer").filter({ hasText: visitorEmail })).toContainText("Email confirmed");
   await page.goto(`${businessPath}/activity`);
   await expect(log.filter({ hasText: "A visitor confirmed their email in the chat" })).toHaveCount(1);
+
+  // The owner turns "Remember customers" off: visitors are no longer offered "Remember me".
+  await page.getByRole("link", { name: "Public page & widget" }).first().click();
+  await page.getByLabel("Remember customers").uncheck();
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Saved. Your public page is live.")).toBeVisible();
+  const offContext = await browser.newContext();
+  const o = await offContext.newPage();
+  await o.goto(`/${slug}`);
+  await o.getByRole("button", { name: "Chat with our Sales Agent" }).click();
+  await expect(o.getByTestId("retention-notice")).toHaveText("Chats are deleted after 30 days.");
+  await expect(o.getByRole("button", { name: "Remember me next time" })).toHaveCount(0);
+  await offContext.close();
 });

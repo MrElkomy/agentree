@@ -80,6 +80,7 @@ class ProfileInfo:
     widget_origins: list[str]
     daily_reply_budget: int
     updated_at: datetime | None
+    customer_memory: bool = True
 
 
 @dataclass(frozen=True)
@@ -93,6 +94,7 @@ class PublicPage:
     links: list[Link]
     widget_origins: list[str]
     daily_reply_budget: int
+    customer_memory: bool = True
 
 
 @dataclass(frozen=True)
@@ -170,7 +172,7 @@ def _profile_info(p: PublicProfile | None) -> ProfileInfo:
     if p is None:
         return ProfileInfo(False, None, "", [], [], DEFAULT_REPLY_BUDGET, None)
     return ProfileInfo(p.enabled, p.display_name, p.bio, _links(p.links), list(p.widget_origins),
-                       p.daily_reply_budget, p.updated_at)  # fmt: skip
+                       p.daily_reply_budget, p.updated_at, p.customer_memory)  # fmt: skip
 
 
 async def _load(session: AsyncSession, ctx: TenantContext) -> PublicProfile | None:
@@ -190,6 +192,7 @@ async def get_profile(factory: Factory, ctx: TenantContext) -> ProfileInfo:
 async def save_profile(
     factory: Factory, ctx: TenantContext, *, enabled: bool, display_name: str | None, bio: str,
     links: list[Link], widget_origins: list[str], daily_reply_budget: int, allow_localhost: bool,
+    customer_memory: bool = True,
 ) -> ProfileInfo:  # fmt: skip
     """Replace the public page settings. Caller must have authorized an Admin or Owner."""
     if len(links) > MAX_LINKS:
@@ -209,6 +212,7 @@ async def save_profile(
         ],
         "widget_origins": origins,
         "daily_reply_budget": daily_reply_budget,
+        "customer_memory": customer_memory,
         "updated_at": _now(),
     }
     async with tenant_session(factory, ctx) as session:
@@ -243,7 +247,7 @@ async def resolve_page(factory: Factory, slug: str) -> PublicPage | None:
         tenant=ctx, slug=business.slug, display_name=profile.display_name or business.name,
         bio=profile.bio, links=_links(profile.links),
         widget_origins=list(profile.widget_origins),
-        daily_reply_budget=profile.daily_reply_budget,
+        daily_reply_budget=profile.daily_reply_budget, customer_memory=profile.customer_memory,
     )  # fmt: skip
 
 

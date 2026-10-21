@@ -744,3 +744,10 @@ async def complete(
         if isinstance(item, _Answered):
             return item.result
     raise AssertionError("stream ended without an answer")
+
+
+async def release_memory_claim(factory: Factory, ctx: TenantContext, conversation_id: UUID) -> None:
+    """Make an idle conversation eligible for memory extraction again (e.g. budget used up)."""
+    async with tenant_session(factory, ctx) as session:
+        conv = await _existing(session, ctx, conversation_id)
+        conv.memory_extracted_at = None

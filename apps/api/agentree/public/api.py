@@ -83,7 +83,8 @@ async def _profile_out(
     return PublicProfileOut(
         slug=business.slug, enabled=p.enabled, display_name=p.display_name, bio=p.bio,
         links=_links(p.links), widget_origins=p.widget_origins,
-        daily_reply_budget=p.daily_reply_budget, updated_at=p.updated_at,
+        daily_reply_budget=p.daily_reply_budget, customer_memory=p.customer_memory,
+        updated_at=p.updated_at,
     )  # fmt: skip
 
 
@@ -105,6 +106,7 @@ async def put_public_profile(
             display_name=body.display_name, bio=body.bio,
             links=[service.Link(link.label, link.url, link.description) for link in body.links],
             widget_origins=body.widget_origins, daily_reply_budget=body.daily_reply_budget,
+            customer_memory=body.customer_memory,
             allow_localhost=st.settings.environment in (Environment.DEV, Environment.TEST),
         )  # fmt: skip
     except service.InvalidOriginError:
@@ -162,6 +164,7 @@ async def public_page(slug: str, request: Request) -> PublicPageOut:
         agents=[PublicAgentOut(role=c.role, name=c.name) for c in reachable],
         lead_capture=sales is not None and Action.CREATE_LEAD in sales.effective_tools,
         retention_days=request.app.state.settings.retention_days,
+        customer_memory=page.customer_memory,
     )  # fmt: skip
 
 
@@ -214,8 +217,9 @@ async def _chat_admission(
         raise _busy()
     # Daily reply budget protects the customer's AI quota: one counter per business per UTC day.
     day = datetime.now(UTC).date().isoformat()
-    if not await _within(request, "public-chat:business-day", f"{page.tenant.business_id}:{day}",
-                         page.daily_reply_budget, 86400):  # fmt: skip
+    if not await ratelimit.hit(request.app.state.session_factory,
+                               ratelimit.daily_ai_budget_key(page.tenant.business_id, day),
+                               limit=page.daily_reply_budget, window_seconds=86400):  # fmt: skip
         raise _busy()
     return page, guest
 
@@ -261,7 +265,10 @@ async def _remembered(
     request: Request, page: service.PublicPage, guest: UUID
 ) -> list[RememberedFact]:
     """Memory of the verified customer behind this guest session (empty for anyone else);
-    each agent then sees only the categories its role may read."""
+    each agent then sees only the categories its role may read. Nothing when the business
+    turned "Remember customers" off."""
+    if not page.customer_memory:
+        return []
     facts = await customers.memory_for_guest(request.app.state.session_factory, page.tenant,
                                              guest)  # fmt: skip
     return [RememberedFact(f.category, f.value) for f in facts]
@@ -502,6 +509,11 @@ CODE_STARTS_PER_EMAIL_PER_DAY = 5
 CODE_CHECKS_PER_SESSION_PER_10_MIN = 10
 
 
+def _require_memory(page: service.PublicPage) -> None:
+    if not page.customer_memory:
+        raise HTTPException(status.HTTP_409_CONFLICT, "customer_memory_off")
+
+
 def _identity_out(identity: customers.Identity) -> IdentityOut:
     return IdentityOut(verified=identity.verified, email_hint=identity.email_hint)
 
@@ -536,9 +548,11 @@ def _code_email(to: str, business: str, code: str) -> OutgoingEmail:
 async def guest_identity_start(
     slug: str, body: IdentityStartIn, creds: GuestToken, request: Request, tasks: BackgroundTasks
 ) -> IdentityStartOut:
-    """Email a one-time code. Entering an email unlocks nothing until the code is confirmed."""
+    """Email a one-time code. Entering an email unlocks nothing until the code is confirmed.
+    409 `customer_memory_off` when the business does not remember customers."""
     page = await _page(request, slug)
     guest = await _guest(request, page, creds, touch=True)
+    _require_memory(page)
     try:
         email = customers.normalize_email(body.email)
     except customers.InvalidEmailError:
@@ -570,6 +584,7 @@ async def guest_identity_confirm(
     """422 `invalid_code` for a wrong, expired, used or exhausted code (indistinguishable)."""
     page = await _page(request, slug)
     guest = await _guest(request, page, creds, touch=True)
+    _require_memory(page)
     if not await _within(request, "identity-confirm:session", str(guest),
                          CODE_CHECKS_PER_SESSION_PER_10_MIN, 600):  # fmt: skip
         raise _busy()

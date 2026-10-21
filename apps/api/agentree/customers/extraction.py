@@ -6,6 +6,10 @@ then backup) to propose memory items, and keeps only what `service.validate_fact
 allowlisted categories, short summaries in the model's words, no quotes, no contact or payment
 data. The transcript is untrusted data inside delimiters. Message content and memory values are
 never logged. A conversation is claimed once per new activity; a failed call is not retried.
+
+Only businesses with "Remember customers" on are claimed, and every extraction call counts
+toward the business's daily AI budget (the same counter as visitor chat replies): when the
+budget is used up the claim is released and the conversation waits for the next day.
 """
 
 import asyncio
@@ -17,6 +21,7 @@ from uuid import UUID
 from sqlalchemy import text
 
 from agentree.agents import service as agents
+from agentree.core import ratelimit
 from agentree.core.config import Settings
 from agentree.core.vault import Vault
 from agentree.customers import service
@@ -102,12 +107,18 @@ def parse_items(reply: str, visitor_texts: list[str]) -> list[service.MemoryFact
 async def extract_one(
     factory: service.Factory, vault: Vault | None, settings: Settings,
     provider_factories: agents.ProviderFactories, ctx: TenantContext, conversation_id: UUID,
+    *, daily_budget: int, now: datetime,
 ) -> int:  # fmt: skip
     transcript = await agents.public_transcript(factory, ctx, conversation_id)
     if transcript is None:
         return 0
     visitor = [c for r, c in transcript.messages if r == "user"]
     if len(visitor) < MIN_VISITOR_MESSAGES:
+        return 0
+    day = now.date().isoformat()
+    if not await ratelimit.hit(factory, ratelimit.daily_ai_budget_key(ctx.business_id, day),
+                               limit=daily_budget, window_seconds=86400):  # fmt: skip
+        await agents.release_memory_claim(factory, ctx, conversation_id)  # retry tomorrow
         return 0
     result = await agents.complete(factory, vault, ctx, provider_factories,
                                    _prompt(transcript.messages))  # fmt: skip
@@ -125,21 +136,22 @@ async def extract_due(
     provider_factories: agents.ProviderFactories, *, now: datetime | None = None,
 ) -> int:  # fmt: skip
     """One pass: claim idle conversations and store their memory. Returns items stored."""
-    idle_before = (now or datetime.now(UTC)) - IDLE
+    now = now or datetime.now(UTC)
+    idle_before = now - IDLE
     async with factory() as session, session.begin():
         claimed = (
             await session.execute(
-                text("SELECT business_id, conversation_id "
+                text("SELECT business_id, conversation_id, daily_reply_budget "
                      "FROM agentree_claim_memory_extractions(:t, :n)"),
                 {"t": idle_before, "n": BATCH},
             )
         ).all()  # fmt: skip
     stored = 0
-    for business_id, conversation_id in claimed:
+    for business_id, conversation_id, budget in claimed:
         ctx = TenantContext(business_id, TenantSource.JOB)
         try:
             stored += await extract_one(factory, vault, settings, provider_factories, ctx,
-                                        conversation_id)  # fmt: skip
+                                        conversation_id, daily_budget=budget, now=now)  # fmt: skip
         except Exception as exc:  # one conversation (or one business's key) must not stop others
             logger.warning("memory extraction failed", extra={"error_type": type(exc).__name__,
                            "business_id": str(business_id)})  # fmt: skip

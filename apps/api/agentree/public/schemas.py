@@ -71,6 +71,8 @@ class PublicProfileIn(BaseModel):
         default_factory=list, max_length=MAX_ORIGINS
     )
     daily_reply_budget: int = Field(default=200, ge=1, le=MAX_REPLY_BUDGET)
+    # "Remember customers": email code, memory extraction (counts toward the daily budget).
+    customer_memory: bool = True
 
     @field_validator("display_name")
     @classmethod
@@ -86,6 +88,7 @@ class PublicProfileOut(BaseModel):
     links: list[LinkOut]
     widget_origins: list[str]
     daily_reply_budget: int
+    customer_memory: bool
     updated_at: datetime | None
 
 
@@ -107,6 +110,7 @@ class PublicPageOut(BaseModel):
     lead_capture: bool  # the "Leave your details" form is available
     # Days chats and what the agents remember about a visitor are kept (shown to visitors).
     retention_days: int = 30
+    customer_memory: bool = True  # "Remember me" is offered (the business remembers customers)
 
 
 class IdentityOut(BaseModel):

@@ -17,12 +17,14 @@ export function ChatEntry({
   agents,
   leadCapture,
   retentionDays,
+  customerMemory,
 }: {
   slug: string;
   displayName: string;
   agents: PublicAgent[];
   leadCapture: boolean;
   retentionDays: number;
+  customerMemory: boolean;
 }) {
   // A returning visitor finds their open conversation already expanded.
   const returning = useClientValue(() => hasGuestConversation(slug), false);
@@ -104,6 +106,7 @@ export function ChatEntry({
               entryAgent={chosen ?? undefined}
               leadCapture={leadCapture}
               retentionDays={retentionDays}
+              customerMemory={customerMemory}
               className="h-[32rem] max-h-[75dvh]"
             />
           </>

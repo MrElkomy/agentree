@@ -31,6 +31,7 @@ type Form = {
   links: LinkRow[];
   origins: string;
   budget: string;
+  memory: boolean;
 };
 
 let nextKey = 1;
@@ -44,6 +45,7 @@ function toForm(p: PublicProfile): Form {
     links: p.links.map((l) => row(l.label, l.url, l.description)),
     origins: p.widget_origins.join("\n"),
     budget: String(p.daily_reply_budget),
+    memory: p.customer_memory,
   };
 }
 
@@ -106,6 +108,7 @@ export default function PublicPageSettings() {
         .map((l) => ({ label: l.label.trim(), url: l.url.trim(), description: l.description.trim() })),
       widget_origins: originLines(form.origins),
       daily_reply_budget: Number(form.budget),
+      customer_memory: form.memory,
     };
     setSaving(true);
     setNotice(null);
@@ -238,9 +241,26 @@ export default function PublicPageSettings() {
               required
               value={form.budget}
               onChange={(e) => update({ budget: e.target.value })}
-              hint={`Most replies the public page and widget may send per day (UTC), 1–${MAX_BUDGET}. Protects your AI provider credit; visitors are asked to try later once it's reached.`}
+              hint={`Most AI calls the public page and widget may make per day (UTC), 1–${MAX_BUDGET}: replies and customer notes. Protects your AI provider credit; visitors are asked to try later once it's reached.`}
               className="max-w-xs"
             />
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={form.memory}
+                disabled={!canEdit}
+                onChange={(e) => update({ memory: e.target.checked })}
+                className="mt-0.5 size-4 accent-brand"
+              />
+              <span>
+                <span className="font-semibold">Remember customers</span>
+                <span className="block text-xs text-ink-muted">
+                  After each conversation, one small AI call on your key saves short notes about the
+                  customer (it counts toward the daily limit). Visitors can confirm their email so
+                  your agents use those notes next time. Everything is deleted after 30 days.
+                </span>
+              </span>
+            </label>
           </fieldset>
 
           {notice ? <Alert tone={notice.tone}>{notice.text}</Alert> : null}

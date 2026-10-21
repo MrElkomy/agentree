@@ -8,10 +8,12 @@ import { useGuestIdentity } from "@/lib/guest-chat";
  * "Remember me" for visitors (Task 16): email → one-time code → verified. Also states how long
  * the chat and what the assistants remember are kept (PO decision U-12: the visitor is told).
  */
-export function GuestIdentity({ slug, displayName, retentionDays }: {
+export function GuestIdentity({ slug, displayName, retentionDays, offered }: {
   slug: string;
   displayName: string;
   retentionDays: number;
+  /** The business remembers customers; else only the retention notice is shown. */
+  offered: boolean;
 }) {
   const { identity, busy, error, start, confirm, forget, clearError } = useGuestIdentity(slug);
   const [step, setStep] = useState<"closed" | "email" | "code">("closed");
@@ -41,9 +43,11 @@ export function GuestIdentity({ slug, displayName, retentionDays }: {
   return (
     <div className="flex flex-col gap-2 text-xs text-ink-muted" data-testid="guest-identity">
       <p data-testid="retention-notice">
-        Chats, and what {displayName}&apos;s assistants remember about you, are deleted after {retentionDays} days.
+        {offered
+          ? `Chats, and what ${displayName}'s assistants remember about you, are deleted after ${retentionDays} days.`
+          : `Chats are deleted after ${retentionDays} days.`}
       </p>
-      {identity.verified ? (
+      {!offered ? null : identity.verified ? (
         <p className="flex flex-wrap items-center gap-x-2" data-testid="identity-verified">
           <span>
             Remembered as <span className="font-semibold text-ink">{identity.email_hint}</span>
