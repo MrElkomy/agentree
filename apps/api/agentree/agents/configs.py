@@ -35,7 +35,7 @@ class InvalidAgentConfigError(ValueError):
 
 
 class AgentNotAvailableError(Exception):
-    """The role is not built yet (Data Analyst, Executive Assistant) and cannot be enabled."""
+    """The role is not built yet and cannot be enabled."""
 
 
 @dataclass(frozen=True)

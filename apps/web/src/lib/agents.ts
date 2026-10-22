@@ -38,6 +38,22 @@ export const TOOL_LABEL: Record<string, { title: string; hint: string }> = {
     title: "Create follow-up reminders",
     hint: "Add a reminder for your team to contact each new lead.",
   },
+  set_agent_enabled: {
+    title: "Turn agents on or off",
+    hint: "Ask it to pause or resume one of your agents. An owner or admin approves each change.",
+  },
+  update_public_profile: {
+    title: "Update the public page",
+    hint: "Ask it to turn the public page on or off or change its description, with approval.",
+  },
+  update_lead_status: {
+    title: "Move leads in the pipeline",
+    hint: "Ask it to move a lead in the pipeline (contacted, won…), with approval.",
+  },
+  assign_lead: {
+    title: "Assign leads",
+    hint: "Ask it to give a lead's follow-ups to a team member, with approval.",
+  },
   send_follow_up_email: {
     title: "Draft follow-up emails",
     hint: "If a new lead hasn't been contacted after 24 hours, the agent drafts an email to them. Nothing is sent until an owner or admin approves it (once, or always).",

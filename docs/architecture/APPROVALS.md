@@ -10,6 +10,7 @@ request offers **Approve once** or **Always allow**, so owners aren't asked agai
 | Action | Agent | Expires after | "Always allow" |
 |---|---|---|---|
 | `send_follow_up_email` | Sales Agent | 3 days | yes |
+| `set_agent_enabled`, `update_public_profile`, `update_lead_status`, `assign_lead` | Executive Assistant (Task 20, `EXECUTIVE.md`) | 1 day | yes |
 
 - The gateway refuses to run a sensitive action directly (`claim` raises). Only
   `agentree.approvals` runs it, after a person decides or a rule allows it.
@@ -31,7 +32,9 @@ already have taken effect.
   `AGENTREE_APPROVALS_INTERVAL_SECONDS`, default 60, as a safety net) first moves it from
   `approved` to `executing` in one conditional UPDATE, so only one runner wins. Retries and
   repeated decisions don't run it again. Requests are idempotent per key (one follow-up per lead).
-- **Re-checked at run time.** The agent must still hold the tool (`canceled: tool_turned_off`).
+- **Re-checked at run time.** The approver, or whoever created the rule, must still be an
+  Owner or Admin (`canceled: approver_not_allowed`, since Task 20). The agent must still hold the
+  tool (`canceled: tool_turned_off`).
   The action's own checks also apply (see below).
 - **Always allow** creates a rule (business, agent, action). Later requests from that agent for
   that action are approved by the rule and run at once. Nobody is notified, and the history shows

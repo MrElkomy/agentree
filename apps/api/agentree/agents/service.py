@@ -9,9 +9,10 @@ tools they hold come from `configs` (never from model output). Message content i
 """
 
 import logging
-from collections.abc import AsyncIterator, Callable, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
@@ -31,6 +32,7 @@ from agentree.agents.prompts import (
     agent_messages,
     cited_numbers_ok,
     split_lead_marker,
+    take_action_markers,
     take_handoff_marker,
     take_resolve_marker,
     take_route_marker,
@@ -243,6 +245,29 @@ StreamEvent = AgentStart | Delta | Restart | Handoff
 
 
 @dataclass(frozen=True)
+class RoleState:
+    """What an extension adds to one agent's prompt for a turn."""
+
+    computed: str  # computed numbers (COMPUTED_NUMBERS block)
+    state: str  # the business's current state (BUSINESS_STATE block)
+    checked: str = ""  # more numbers the reply may cite, beyond `computed`
+
+
+@dataclass(frozen=True)
+class RoleExtension:
+    """Context and actions for one role from a module this one must not import (Task 20:
+    `agentree.executive` gives the Executive Assistant the business's state and turns its
+    proposals into approval requests). `act` gets the untrusted proposals and returns one
+    status line per proposal for the reply."""
+
+    context: Callable[[TenantContext], Awaitable[RoleState]]
+    act: Callable[[TenantContext, UUID, list[dict[str, Any]]], Awaitable[list[str]]]
+
+
+Extensions = Mapping[AgentRole, RoleExtension]
+
+
+@dataclass(frozen=True)
 class _TurnDone:
     agent: configs.AgentConfigInfo  # answered last; now the conversation's active agent
     result: ChatResult  # the last provider call
@@ -425,7 +450,7 @@ async def _stream_turn(
     ctx: TenantContext, *, conv_id: UUID, channel: str, history: list[ChatMessage],
     message: str, roster: configs.Roster, agent: configs.AgentConfigInfo, guest: bool,
     public: bool, notes: list[HandoffNote], facts: CustomerFacts | None,
-    remembered: Sequence[RememberedFact] = (),
+    remembered: Sequence[RememberedFact] = (), extensions: Extensions | None = None,
 ) -> AsyncIterator[StreamEvent | _TurnDone]:  # fmt: skip
     """Stream one turn, routing at most once to an allowed teammate; persist at the end.
 
@@ -462,6 +487,12 @@ async def _stream_turn(
             tables = {f"d{i}": d for i, d in enumerate(await knowledge.datasets(factory, ctx), 1)}
             listed, counts = _tables_text(tables)
             computed, checked = computed + listed, computed + counts
+        state = ""
+        extension = (extensions or {}).get(current.role)
+        if extension is not None:  # the Executive Assistant (Task 20)
+            role_state = await extension.context(ctx)
+            computed, state = role_state.computed, role_state.state
+            checked = role_state.computed + "\n" + role_state.checked
         queries = MAX_QUERIES_PER_TURN if tables else 0
         # Announced with its first text: errors before any text stay plain HTTP errors, and
         # an agent that only hands over shows no empty reply.
@@ -477,7 +508,7 @@ async def _stream_turn(
                 notes=notes, facts=facts,
                 # Only the memory categories this role may read (registry), checked per agent.
                 remembered=[r for r in remembered if r.category in current.definition.memory],
-                computed=computed, can_query=queries > 0,
+                computed=computed, can_query=queries > 0, state=state,
             )  # fmt: skip
             guard = _MarkerGuard()
             shown = False
@@ -519,11 +550,18 @@ async def _stream_turn(
             suggestion = lead
         text, person = take_handoff_marker(text)
         text, done_marker = take_resolve_marker(text)
-        if computed and not text and target is None:
+        text, proposals = take_action_markers(text)  # stripped for every agent
+        status_lines: list[str] = []
+        if extension is not None and proposals and target is None:
+            # Proposals only: the extension asks a person to approve each (never runs them).
+            status_lines = await extension.act(ctx, conv_id, proposals)
+        if computed and not text and not status_lines and target is None:
             text = QUERY_UNANSWERED + computed
-        elif computed and not cited_numbers_ok(text, checked, message):
+        elif computed and text and not cited_numbers_ok(text, checked, message):
             # A number the backend did not compute: show the computed ones instead.
             text = UNVERIFIED_NUMBERS + computed
+        if status_lines:
+            text = "\n\n".join(p for p in (text, "\n".join(status_lines)) if p)
         wants_person = wants_person or (public and person and target is None)
         resolved = can_resolve and done_marker and target is None and not person
         calls.append((current, answered, text))
@@ -584,7 +622,7 @@ async def _stream_turn(
 async def stream_sales_console_turn(
     factory: Factory, vault: Vault | None, provider_factories: ProviderFactories,
     ctx: TenantContext, *, user_id: UUID, message: str, conversation_id: UUID | None,
-    agent: str | None = None,
+    agent: str | None = None, extensions: Extensions | None = None,
 ) -> AsyncIterator[StreamEvent | TurnResult]:  # fmt: skip
     """Console turn (a member testing their agents) as a stream ending in TurnResult.
 
@@ -606,7 +644,8 @@ async def stream_sales_console_turn(
     async for item in _stream_turn(factory, vault, provider_factories, ctx, conv_id=conv_id,
                                    channel=channel, history=history, message=message,
                                    roster=roster, agent=current, guest=False, public=False,
-                                   notes=notes, facts=None):  # fmt: skip
+                                   notes=notes, facts=None,
+                                   extensions=extensions):  # fmt: skip
         if isinstance(item, _TurnDone):
             yield TurnResult(
                 conv_id, item.result.text, item.sources, item.result.provider,
@@ -620,11 +659,11 @@ async def stream_sales_console_turn(
 async def sales_console_turn(
     factory: Factory, vault: Vault | None, provider_factories: ProviderFactories,
     ctx: TenantContext, *, user_id: UUID, message: str, conversation_id: UUID | None,
-    agent: str | None = None,
+    agent: str | None = None, extensions: Extensions | None = None,
 ) -> TurnResult:  # fmt: skip
     async for item in stream_sales_console_turn(
         factory, vault, provider_factories, ctx, user_id=user_id, message=message,
-        conversation_id=conversation_id, agent=agent,
+        conversation_id=conversation_id, agent=agent, extensions=extensions,
     ):  # fmt: skip
         if isinstance(item, TurnResult):
             return item

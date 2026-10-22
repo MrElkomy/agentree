@@ -191,6 +191,10 @@ until then the item remains an open MVP requirement and blocks the final pilot g
   sensitive, and audited.
 - **Acceptance:** reports match underlying data; an action without approval does not execute; the
   agent cannot act outside its permissions or on external systems; audit trail complete.
+- **Split (as built):** 20a = the agent, its context and approval-backed actions (pause/resume an
+  agent, public page, lead status, lead assignment; `EXECUTIVE.md`); 20b = scheduled reports and
+  alerts. "Agent schedules" (working hours) don't exist yet: availability is on/off. Working hours
+  are a **proposal** awaiting the PO.
 - **Out of scope (post-launch growth, PO 2026-10-21):** full "manage everything" coverage,
   external-system actions. Telegram delivery (6.3, approved): see the tracking table (proposed
   deferral, pending PO approval).

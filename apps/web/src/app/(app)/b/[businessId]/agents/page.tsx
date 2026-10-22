@@ -15,6 +15,8 @@ const ROLE_NOTE: Record<string, string> = {
     "Answers questions about your policies and services from your knowledge, never promises refunds or order updates, and brings in your team for anything it can't settle. Customers can mark its conversations resolved.",
   data_analyst:
     "Answers your team's questions about your numbers: conversations, leads, handoffs and trends. It only states numbers Agentree computed, never estimates. Internal: visitors can never reach it.",
+  executive:
+    "Your operations manager: summarizes how the business and your agents are doing and suggests next steps, using only numbers Agentree computed. It can propose changes, but never makes them: an owner or admin approves each one on the Approvals page. Internal: visitors can never reach it.",
   technical_support:
     "Asks what's wrong, then suggests troubleshooting steps from your knowledge. It never claims to have changed anything and brings in your team when a fix needs account access. Customers can mark its conversations resolved.",
 };

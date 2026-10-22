@@ -41,7 +41,7 @@ from agentree.notifications import service as notifications
 from agentree.tenancy import service as tenancy
 from agentree.tenancy.context import TenantContext, TenantSource
 from agentree.tenancy.db import tenant_session
-from agentree.tenancy.roles import Role
+from agentree.tenancy.roles import Role, at_least
 
 logger = logging.getLogger(__name__)
 Factory = async_sessionmaker[AsyncSession]
@@ -435,6 +435,12 @@ async def execute(factory: Factory, ctx: TenantContext, deps: Deps, approval_id:
         status, error = "failed", "params_changed"
     else:
         try:
+            # Only a current Owner or Admin's approval counts (the approver, or whoever created
+            # the "always allow" rule, may have left or been demoted since).
+            approver = (await tenancy.membership_role(factory, job.authorized_by, ctx.business_id)
+                        if job.authorized_by is not None else None)  # fmt: skip
+            if approver is None or not at_least(approver, Role.ADMIN):
+                raise ExecutionCanceledError("approver_not_allowed")
             tools = await agent_configs.agent_tools(factory, ctx, _role(job.agent))
             gateway.authorize(job.agent, job.action, tools)
             handler = _HANDLERS.get(job.action)

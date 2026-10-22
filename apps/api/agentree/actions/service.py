@@ -35,6 +35,11 @@ class Action(StrEnum):
     CREATE_FOLLOW_UP_TASK = "create_follow_up_task"
     RESOLVE_CONVERSATION = "resolve_conversation"  # mark the visitor's conversation resolved
     SEND_FOLLOW_UP_EMAIL = "send_follow_up_email"  # email a lead a drafted follow-up (Task 19)
+    # The Executive Assistant's controlled actions (Task 20); each needs an approval.
+    SET_AGENT_ENABLED = "set_agent_enabled"  # turn one of the business's agents on or off
+    UPDATE_PUBLIC_PROFILE = "update_public_profile"  # public page on/off and its description
+    UPDATE_LEAD_STATUS = "update_lead_status"  # move a lead in the pipeline
+    ASSIGN_LEAD = "assign_lead"  # assign a lead's open follow-ups to a member
 
 
 # Agent role -> actions it may run. Agents not listed may run nothing.
@@ -50,6 +55,14 @@ PERMISSIONS: Mapping[str, frozenset[Action]] = {
     "customer_service": frozenset({Action.RESOLVE_CONVERSATION}),
     # PO decision 2026-10-22: support conversations too may be closed by the agent.
     "technical_support": frozenset({Action.RESOLVE_CONVERSATION}),
+    "executive": frozenset(
+        {
+            Action.SET_AGENT_ENABLED,
+            Action.UPDATE_PUBLIC_PROFILE,
+            Action.UPDATE_LEAD_STATUS,
+            Action.ASSIGN_LEAD,
+        }
+    ),
 }
 
 # Tools a business must turn on itself: off in an agent's default configuration.
@@ -69,6 +82,19 @@ APPROVALS: Mapping[Action, ApprovalPolicy] = {
     # approves; 2026-10-22: approve once or always.
     Action.SEND_FOLLOW_UP_EMAIL: ApprovalPolicy(
         "send a follow-up email to a lead", ttl=timedelta(days=3), allow_always=True
+    ),
+    # Task 20: the Executive Assistant proposes, a person approves (once or always).
+    Action.SET_AGENT_ENABLED: ApprovalPolicy(
+        "turn an agent on or off", ttl=timedelta(days=1), allow_always=True
+    ),
+    Action.UPDATE_PUBLIC_PROFILE: ApprovalPolicy(
+        "update the public page", ttl=timedelta(days=1), allow_always=True
+    ),
+    Action.UPDATE_LEAD_STATUS: ApprovalPolicy(
+        "change a lead's status", ttl=timedelta(days=1), allow_always=True
+    ),
+    Action.ASSIGN_LEAD: ApprovalPolicy(
+        "assign a lead to a team member", ttl=timedelta(days=1), allow_always=True
     ),
 }
 

@@ -73,6 +73,14 @@ export default function ApprovalsPage() {
     };
   }, [fetchAll, handleError]);
 
+  // An approved request runs right after the decision: refresh until it has finished.
+  const running = lists?.history.some((a) => a.status === "approved" || a.status === "executing") ?? false;
+  useEffect(() => {
+    if (!running) return;
+    const timer = setTimeout(() => void load(), 1500);
+    return () => clearTimeout(timer);
+  }, [running, lists, load]);
+
   return (
     <div className="flex max-w-4xl flex-col gap-8">
       <title>{`Approvals · ${business.name} · Agentree`}</title>

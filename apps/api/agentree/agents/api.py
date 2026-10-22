@@ -72,7 +72,7 @@ async def sales_console(
         turn = await service.sales_console_turn(
             st.session_factory, st.vault, st.llm_providers, member.tenant,
             user_id=member.user.id, message=body.message, conversation_id=body.conversation_id,
-            agent=body.agent,
+            agent=body.agent, extensions=getattr(st, "agent_extensions", None),
         )  # fmt: skip
     except Exception as exc:
         if (err := _turn_error(exc)) is None:
@@ -108,7 +108,7 @@ async def sales_console_stream(
     items = service.stream_sales_console_turn(
         st.session_factory, st.vault, st.llm_providers, member.tenant,
         user_id=member.user.id, message=body.message, conversation_id=body.conversation_id,
-        agent=body.agent,
+        agent=body.agent, extensions=getattr(st, "agent_extensions", None),
     )  # fmt: skip
     try:
         first = await anext(items)

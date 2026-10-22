@@ -241,6 +241,29 @@ forbidden_modules = ["fastapi", "agentree.main", "agentree.health"]
 allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
+name = "the executive uses other modules only through their service layer"
+type = "forbidden"
+source_modules = ["agentree.executive"]
+forbidden_modules = [
+    "agentree.agents.models", "agentree.agents.api", "agentree.leads.models",
+    "agentree.leads.api", "agentree.public.models", "agentree.public.api",
+    "agentree.approvals.models", "agentree.approvals.api", "agentree.actions.models",
+    "agentree.identity", "agentree.providers", "agentree.llm", "agentree.tenancy.models",
+    "agentree.tenancy.api", "agentree.retention", "agentree.main", "agentree.worker", "fastapi",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "no feature module depends on the executive"
+type = "forbidden"
+source_modules = [
+    "agentree.agents", "agentree.leads", "agentree.public", "agentree.approvals",
+    "agentree.actions", "agentree.analytics", "agentree.customers", "agentree.knowledge",
+    "agentree.tenancy", "agentree.identity", "agentree.core",
+]
+forbidden_modules = ["agentree.executive"]
+
+[[tool.importlinter.contracts]]
 name = "only public and the app depend on leads"
 type = "forbidden"
 source_modules = [

@@ -12,7 +12,7 @@ and the customer does not repeat themselves. Everything that decides access is s
 | `customer_service` | public | Task 15 (full) | off |
 | `technical_support` | public | Task 15 (full) | off |
 | `data_analyst` | internal | Task 18 — cannot be enabled yet | off |
-| `executive` | internal | Task 20 — cannot be enabled yet | off |
+| `executive` | internal | Task 20a — business state, checked numbers, proposes changes for approval (`EXECUTIVE.md`) | off |
 
 Each definition is versioned (`version`, bump when a role's prompt or behaviour changes) and
 carries its title, audience, what it handles, and its Action Gateway allowlist

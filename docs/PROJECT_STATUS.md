@@ -41,9 +41,12 @@ that changes what it describes. Last updated: 2026-10-21.
   checked numbers (#43, `ANALYTICS.md`, migration 0020).
 - **Merged:** Task 18b — the Data Analyst calculates from uploaded CSV/XLSX through a
   sandboxed, read-only SQLite query (#44, `ANALYTICS.md`, migration 0021).
-- **In review:** Task 19 — approvals (approve once / always allow, PO 2026-10-22) and the Sales
-  Agent's follow-up email drafts (`APPROVALS.md`, migration 0022). Next: Task 20 (Executive
-  Agent); Google Sheets (17b) once the PO sets up Google Cloud.
+- **Merged:** Task 19 — approvals (approve once / always allow) and follow-up email drafts (#45,
+  `APPROVALS.md`, migration 0022). The repository is public since 2026-10-22 (PO decision, after
+  the Actions minutes ran out); CI runs once per commit.
+- **In review:** Task 20a — Executive Assistant: business state, checked numbers, changes only
+  as approval requests (`EXECUTIVE.md`). Next: 20b (scheduled reports and alerts). Open
+  proposal for the PO: agent working hours.
   Batch 3 = Tasks 17–21.
 - Shared Hetzner host with TRACK, IELTS and the Telegram bridge — never disrupt them.
 - Deploy: the PO runs `~/agentree/infra/staging/deploy.sh origin/main` (pre-deploy encrypted

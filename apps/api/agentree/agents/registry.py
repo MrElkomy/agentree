@@ -71,15 +71,15 @@ DEFINITIONS: Mapping[AgentRole, AgentDefinition] = {
             enabled_by_default=False, shared_resolution=True,
             memory=frozenset({"owned", "issue"}),
         ),
-        # Internal roles: built in Tasks 18 and 20. They can never be enabled for guests.
+        # Internal roles (Tasks 18 and 20). They can never be enabled for guests.
         AgentDefinition(
             AgentRole.DATA_ANALYST, 3, "Data Analyst", Audience.INTERNAL,
             "the business's own numbers: conversations, leads, handoffs and trends",
             available=True, enabled_by_default=False,
         ),
         AgentDefinition(
-            AgentRole.EXECUTIVE, 1, "Executive Assistant", Audience.INTERNAL,
-            "business overview, reports and managing the AI team", available=False,
+            AgentRole.EXECUTIVE, 2, "Executive Assistant", Audience.INTERNAL,
+            "business overview, reports and managing the AI team", available=True,
             enabled_by_default=False,
         ),
     )
