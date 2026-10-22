@@ -27,6 +27,7 @@ from agentree.core.email import SmtpEmailSender
 from agentree.core.logging import configure_logging
 from agentree.core.webpush import build_push_sender
 from agentree.customers.extraction import extract_due, run_memory_loop
+from agentree.executive import service as executive  # noqa: F401  (registers its executors)
 from agentree.leads import outreach
 from agentree.leads.follow_ups import run_follow_up_loop, send_due_reminders
 from agentree.llm.base import LLMProvider, ProviderName

@@ -9,8 +9,10 @@ from fastapi import FastAPI
 from agentree.agents.api import router as agents_router
 from agentree.agents.config_api import router as agent_configs_router
 from agentree.agents.inbox_api import router as inbox_router
+from agentree.agents.registry import AgentRole
 from agentree.analytics.api import router as analytics_router
 from agentree.approvals.api import router as approvals_router
+from agentree.approvals.service import Deps as ApprovalDeps
 from agentree.audit.api import router as audit_router
 from agentree.core.config import Settings, get_settings
 from agentree.core.csrf import csrf_middleware
@@ -20,6 +22,7 @@ from agentree.core.email import EmailSender, SmtpEmailSender
 from agentree.core.logging import configure_logging
 from agentree.core.webpush import PushSender, build_push_sender
 from agentree.customers.api import router as customers_router
+from agentree.executive import service as executive
 from agentree.health.api import router as health_router
 from agentree.identity.api import router as auth_router
 from agentree.knowledge.api import router as knowledge_router
@@ -81,6 +84,12 @@ def create_app(
         app.state.llm_providers = providers
         app.state.engine = engine
         app.state.session_factory = create_session_factory(engine)
+        # The Executive Assistant's business state and approval-backed proposals (Task 20).
+        app.state.agent_extensions = {
+            AgentRole.EXECUTIVE: executive.extension(
+                app.state.session_factory, ApprovalDeps(settings, mailer, push)
+            )
+        }
         try:
             yield
         finally:

@@ -1,5 +1,6 @@
 """Agent framework (Task 14): per-business configuration, routing, handoffs, shared context."""
 
+import dataclasses
 import json
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -9,7 +10,9 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy import func, select, text
 
+from agentree.agents import registry
 from agentree.agents.models import AgentHandoff
+from agentree.agents.registry import AgentRole
 from agentree.llm.base import ChatMessage, ProviderName
 from agentree.llm.fake import FakeProvider
 from agentree.retention.service import purge_expired_conversations
@@ -110,7 +113,7 @@ async def test_defaults_list_the_five_roles(harness: AppHarness) -> None:
     for internal in ("data_analyst", "executive"):
         assert agents[internal]["audience"] == "internal" and agents[internal]["public"] is False
     assert agents["data_analyst"]["available"] is True  # Task 18
-    assert agents["executive"]["available"] is False
+    assert agents["executive"]["available"] is True  # Task 20
 
 
 async def test_admin_configures_an_agent_and_it_is_versioned_and_audited(
@@ -127,7 +130,6 @@ async def test_admin_configures_an_agent_and_it_is_versioned_and_audited(
 
 
 @pytest.mark.parametrize(("role", "body", "status", "code"), [
-    ("executive", {"enabled": True, "public": False}, 409, "agent_not_available"),
     ("data_analyst", {"enabled": True, "public": True}, 422, "invalid_public"),
     ("executive", {"enabled": False, "public": True}, 422, "invalid_public"),
     ("sales", {"enabled": True, "public": True, "tools": ["delete_everything"]}, 422,
@@ -147,6 +149,19 @@ async def test_invalid_configurations_are_refused(
     biz = await _business(harness, support=False)
     r = await biz.owner.client.put(f"{biz.agents}/{role}", json={"display_name": ""} | body)
     assert r.status_code == status and r.json()["detail"] == code
+
+
+async def test_a_role_not_built_yet_cannot_be_enabled(
+    harness: AppHarness, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Every role is built since Task 20; the guard stays for future roles.
+    d = registry.DEFINITIONS[AgentRole.EXECUTIVE]
+    monkeypatch.setitem(registry.DEFINITIONS, AgentRole.EXECUTIVE,
+                        dataclasses.replace(d, available=False))  # fmt: skip
+    biz = await _business(harness, support=False)
+    r = await biz.owner.client.put(f"{biz.agents}/executive", json={
+        "display_name": "", "enabled": True, "public": False})  # fmt: skip
+    assert r.status_code == 409 and r.json()["detail"] == "agent_not_available"
 
 
 async def test_only_admins_change_agents(harness: AppHarness) -> None:

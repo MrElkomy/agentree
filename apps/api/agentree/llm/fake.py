@@ -105,6 +105,13 @@ class DemoProvider:
         if "<<SQL d1:" in system and "rows" in asked and "Uploaded tables" in system:
             return ChatResult(text="<<SQL d1: SELECT COUNT(*) AS rows FROM data>>",
                               provider=self.name, model=request.model)  # fmt: skip
+        if "<<<BUSINESS_STATE" in system and "turn off technical support" in asked:
+            # Executive Assistant (Task 20): propose a change; the backend asks for approval.
+            action = {"action": "set_agent_enabled", "agent": "technical_support",
+                      "enabled": False}  # fmt: skip
+            return ChatResult(text="I'll ask for approval to turn off Technical Support.\n"
+                              f"<<ACTION {json.dumps(action)}>>", provider=self.name,
+                              model=request.model)  # fmt: skip
         if "<<<COMPUTED_NUMBERS" in system:  # Data Analyst: quote a computed number
             block = system.split("Last 30 days", 1)[-1]
             found = re.search(r"- Visitor conversations: (\d+)", block)
