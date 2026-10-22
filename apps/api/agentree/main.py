@@ -10,6 +10,7 @@ from agentree.agents.api import router as agents_router
 from agentree.agents.config_api import router as agent_configs_router
 from agentree.agents.inbox_api import router as inbox_router
 from agentree.analytics.api import router as analytics_router
+from agentree.approvals.api import router as approvals_router
 from agentree.audit.api import router as audit_router
 from agentree.core.config import Settings, get_settings
 from agentree.core.csrf import csrf_middleware
@@ -23,6 +24,7 @@ from agentree.health.api import router as health_router
 from agentree.identity.api import router as auth_router
 from agentree.knowledge.api import router as knowledge_router
 from agentree.knowledge.files_api import router as knowledge_files_router
+from agentree.leads import outreach  # noqa: F401  (registers the follow-up email executor)
 from agentree.leads.api import router as leads_router
 from agentree.leads.api import tasks_router as follow_ups_router
 from agentree.llm.base import LLMProvider, ProviderName
@@ -104,4 +106,5 @@ def create_app(
     app.include_router(customers_router)
     app.include_router(knowledge_files_router)
     app.include_router(analytics_router)
+    app.include_router(approvals_router)
     return app

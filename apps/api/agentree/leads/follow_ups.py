@@ -14,6 +14,7 @@ Task titles may contain a lead's name: they are never logged.
 
 import asyncio
 import logging
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
@@ -35,6 +36,9 @@ from agentree.tenancy.roles import Role
 
 logger = logging.getLogger(__name__)
 Factory = async_sessionmaker[AsyncSession]
+# Called when an agent's first-contact task falls due (Task 19: the Sales Agent may draft a
+# follow-up email for approval). True: it took over, so no separate reminder email is sent.
+FirstContactHook = Callable[[TenantContext, UUID], Awaitable[bool]]
 
 FIRST_CONTACT_DELAY = timedelta(hours=24)
 AGENT_MIN_DUE, AGENT_MAX_DUE = timedelta(minutes=15), timedelta(days=30)
@@ -300,7 +304,12 @@ async def update_task(
 
 
 async def send_due_reminders(
-    factory: Factory, settings: Settings, mailer: EmailSender, *, now: datetime | None = None
+    factory: Factory,
+    settings: Settings,
+    mailer: EmailSender,
+    *,
+    now: datetime | None = None,
+    on_first_contact: FirstContactHook | None = None,
 ) -> int:
     """Claim overdue open tasks across businesses and email one reminder each.
 
@@ -317,7 +326,7 @@ async def send_due_reminders(
     for business_id, task_id in claimed:
         ctx = TenantContext(business_id, TenantSource.JOB)
         try:
-            ok = await _remind(factory, settings, mailer, ctx, task_id)
+            ok = await _remind(factory, settings, mailer, ctx, task_id, on_first_contact)
         except Exception as exc:  # one bad task must not stop the others
             logger.error("follow-up reminder failed", extra={"error_type": type(exc).__name__})
             ok = False
@@ -334,7 +343,8 @@ async def send_due_reminders(
 
 
 async def _remind(factory: Factory, settings: Settings, mailer: EmailSender,
-                  ctx: TenantContext, task_id: UUID) -> bool:  # fmt: skip
+                  ctx: TenantContext, task_id: UUID,
+                  on_first_contact: FirstContactHook | None = None) -> bool:  # fmt: skip
     async with tenant_session(factory, ctx) as session:
         row = (
             await session.execute(
@@ -347,6 +357,13 @@ async def _remind(factory: Factory, settings: Settings, mailer: EmailSender,
         task, lead = row
         title, lead_id, assignee = task.title, lead.id, task.assignee_user_id
         lead_name, lead_need = lead.name, lead.need
+        agent_first_contact = task.kind == "first_contact" and task.created_by_agent is not None
+    if agent_first_contact and on_first_contact is not None:
+        try:
+            if await on_first_contact(ctx, lead_id):
+                return True
+        except Exception as exc:  # a failed draft falls back to the team's reminder
+            logger.warning("follow-up draft failed", extra={"error_type": type(exc).__name__})
     business = await tenancy.get_business(factory, ctx)
     members = await tenancy.list_members(factory, ctx)
     to = [m.email for m in members if m.user_id == assignee]
@@ -384,11 +401,12 @@ def _reminder_email(
 
 
 async def run_follow_up_loop(factory: Factory, settings: Settings, mailer: EmailSender, *,
-                             interval_seconds: float, stop: asyncio.Event) -> None:  # fmt: skip
+                             interval_seconds: float, stop: asyncio.Event,
+                             on_first_contact: FirstContactHook | None = None) -> None:  # fmt: skip
     """Send due reminders every `interval_seconds` until `stop` is set."""
     while not stop.is_set():
         try:
-            await send_due_reminders(factory, settings, mailer)
+            await send_due_reminders(factory, settings, mailer, on_first_contact=on_first_contact)
         except Exception as exc:  # keep the worker alive; next run retries
             logger.error("follow-up pass failed", extra={"error_type": type(exc).__name__})
         try:

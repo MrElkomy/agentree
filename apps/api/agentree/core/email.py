@@ -20,12 +20,14 @@ class OutgoingEmail:
     subject: str
     body: str  # plain-text part (always sent)
     html: str | None = None  # branded HTML alternative; references the inline logo by CID
+    reply_to: str | None = None  # where replies go (e.g. the member who approved a follow-up)
 
 
-def branded_email(to: str, content: EmailContent) -> OutgoingEmail:
+def branded_email(to: str, content: EmailContent, *, reply_to: str | None = None) -> OutgoingEmail:
     """Build a multipart (text + HTML) email from the shared branded layout."""
     text, html = render_email(content)
-    return OutgoingEmail(to=to, subject=clean_text(content.subject), body=text, html=html)
+    return OutgoingEmail(to=to, subject=clean_text(content.subject), body=text, html=html,
+                         reply_to=reply_to)  # fmt: skip
 
 
 class EmailSender(Protocol):
@@ -41,6 +43,8 @@ class SmtpEmailSender:
         msg["From"] = self._s.mail_from
         msg["To"] = message.to
         msg["Subject"] = clean_text(message.subject)
+        if message.reply_to:
+            msg["Reply-To"] = message.reply_to
         msg.set_content(message.body)
         if message.html is not None:
             # multipart/alternative: text/plain + multipart/related(text/html + inline logo).
