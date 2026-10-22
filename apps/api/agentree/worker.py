@@ -35,6 +35,7 @@ from agentree.llm.fake import DemoProvider
 from agentree.llm.http_providers import PROVIDERS
 from agentree.providers.outages import alert_provider_outages, run_outage_alert_loop
 from agentree.providers.service import build_vault
+from agentree.reports import service as reports
 from agentree.retention.service import purge_expired_conversations, run_retention_loop
 
 logger = logging.getLogger("agentree.worker")
@@ -65,10 +66,13 @@ async def run(*, once: bool) -> None:
         # when an agent's first-contact reminder falls due.
         deps = approvals.Deps(settings, mailer, push)
         drafts = outreach.first_contact_hook(factory, vault, deps, llm)
+        # Task 20c: scheduled email reports and the "visitor still waiting" alerts.
+        report_deps = reports.Deps(settings, mailer, push, vault, llm)
         if once:
             await purge_expired_conversations(factory, retention_days=settings.retention_days)
             await send_due_reminders(factory, settings, mailer, on_first_contact=drafts)
             await approvals.run_due(factory, deps)
+            await reports.run_due(factory, report_deps)
             await alert_provider_outages(factory, settings, mailer, push)
             await extract_due(factory, vault, settings, llm)
             await compute_due(factory)
@@ -87,6 +91,7 @@ async def run(*, once: bool) -> None:
                 "memory_interval_seconds": settings.memory_interval_seconds,
                 "metrics_interval_seconds": settings.metrics_interval_seconds,
                 "approvals_interval_seconds": settings.approvals_interval_seconds,
+                "reports_interval_seconds": settings.reports_interval_seconds,
                 "web_push": push.public_key is not None,
             },
         )
@@ -107,6 +112,9 @@ async def run(*, once: bool) -> None:
             ),
             approvals.run_approvals_loop(
                 factory, deps, interval_seconds=settings.approvals_interval_seconds, stop=stop
+            ),
+            reports.run_reports_loop(
+                factory, report_deps, interval_seconds=settings.reports_interval_seconds, stop=stop
             ),
             run_outage_alert_loop(
                 factory,

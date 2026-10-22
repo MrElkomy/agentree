@@ -53,6 +53,7 @@ from agentree.public.schemas import (
     PublicProfileOut,
     WidgetConfigOut,
 )
+from agentree.reports import service as reports
 from agentree.tenancy import service as tenancy
 from agentree.tenancy.deps import Member
 from agentree.tenancy.roles import Role
@@ -220,6 +221,10 @@ async def _chat_admission(
     if not await ratelimit.hit(request.app.state.session_factory,
                                ratelimit.daily_ai_budget_key(page.tenant.business_id, day),
                                limit=page.daily_reply_budget, window_seconds=86400):  # fmt: skip
+        # Owners and Admins learn it once a day (Task 20c); the visitor only sees "busy".
+        st = request.app.state
+        await reports.budget_reached(st.session_factory, page.tenant, reports.Deps(
+            st.settings, st.mailer, st.push, st.vault, st.llm_providers))  # fmt: skip
         raise _busy()
     return page, guest
 

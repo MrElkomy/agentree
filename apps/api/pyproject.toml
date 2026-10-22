@@ -265,6 +265,19 @@ source_modules = [
 forbidden_modules = ["agentree.executive"]
 
 [[tool.importlinter.contracts]]
+name = "reports use other modules only through their service layer"
+type = "forbidden"
+source_modules = ["agentree.reports"]
+forbidden_modules = [
+    "agentree.agents.models", "agentree.agents.api", "agentree.leads.models",
+    "agentree.leads.api", "agentree.approvals.models", "agentree.approvals.api",
+    "agentree.analytics.models", "agentree.analytics.api", "agentree.public",
+    "agentree.executive", "agentree.identity", "agentree.providers", "agentree.tenancy.models",
+    "agentree.llm.http_providers", "agentree.retention", "agentree.main", "agentree.worker",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
 name = "only public and the app depend on leads"
 type = "forbidden"
 source_modules = [

@@ -40,6 +40,7 @@ from agentree.providers.api import router as providers_router
 from agentree.providers.service import build_vault
 from agentree.public.api import owner_router as public_owner_router
 from agentree.public.api import public_router
+from agentree.reports.api import router as reports_router
 from agentree.tenancy.api import router as tenancy_router
 
 logger = logging.getLogger(__name__)
@@ -112,6 +113,7 @@ def create_app(
     app.include_router(inbox_router)
     app.include_router(agent_configs_router)
     app.include_router(business_hours_router)
+    app.include_router(reports_router)
     app.include_router(metrics_router)
     app.include_router(notifications_router)
     app.include_router(customers_router)

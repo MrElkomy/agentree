@@ -118,6 +118,9 @@ class DemoProvider:
             count = found.group(1) if found else "0"
             return ChatResult(text=f"In the last 30 days you had {count} visitor conversations.",
                               provider=self.name, model=request.model)  # fmt: skip
+        if "write at most 3 short observations" in system:  # report notes (Task 20c)
+            notes = "- Your agents kept answering visitors.\n- Follow up new leads within a day."
+            return ChatResult(text=notes, provider=self.name, model=request.model)
         if "Write a short follow-up email" in system:  # Sales Agent follow-up draft (Task 19)
             draft = {
                 "subject": "Following up on your request",

@@ -74,6 +74,8 @@ class Settings(BaseSettings):
     metrics_interval_seconds: int = Field(default=3600, ge=60)
     # Approvals (Task 19): run approved actions the API did not run (safety net) and purge old ones.
     approvals_interval_seconds: int = Field(default=60, ge=10)
+    # Reports and alerts (Task 20c): due email reports and "visitor still waiting" alerts.
+    reports_interval_seconds: int = Field(default=300, ge=30)
 
     # Monitoring: GET /api/internal/metrics answers only with this token in the
     # X-Agentree-Metrics-Token header; unset disables the endpoint (404).

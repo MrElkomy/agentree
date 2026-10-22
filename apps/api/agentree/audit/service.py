@@ -63,6 +63,7 @@ class AuditAction(StrEnum):
     APPROVAL_RULE_REVOKED = "approval_rule.revoked"
     BUSINESS_HOURS_UPDATED = "business_hours.updated"
     AGENT_AVAILABILITY_UPDATED = "agent.availability_updated"
+    REPORT_SETTINGS_UPDATED = "report_settings.updated"
 
 
 # Detail keys that may be stored. Anything else is dropped, so a careless caller cannot leak a
