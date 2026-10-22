@@ -48,7 +48,10 @@ that changes what it describes. Last updated: 2026-10-21.
   initial version and will become a major selling feature.
 - **In review:** Task 20b — business hours and agent availability: always / during business hours /
   outside them, pauses (e.g. holidays) with a fixed message (PO 2026-10-22; `AGENTS.md`,
-  migration 0023). Next: 20c (scheduled reports and alerts), then Task 21.
+  migration 0023).
+- **In review:** Task 20c — email reports (daily/weekly, checked Executive notes) and alerts
+  (daily budget used up, visitor still waiting), `REPORTS.md`, migration 0024. Stacked on 20b.
+  Next: Task 21.
   Batch 3 = Tasks 17–21.
 - Shared Hetzner host with TRACK, IELTS and the Telegram bridge — never disrupt them.
 - Deploy: the PO runs `~/agentree/infra/staging/deploy.sh origin/main` (pre-deploy encrypted

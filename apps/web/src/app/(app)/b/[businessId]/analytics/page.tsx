@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useBusiness } from "@/components/business-shell";
+import { EmailReports } from "@/components/email-reports";
 import { useSession } from "@/components/session";
 import { Alert, SelectField, Spinner, buttonClass } from "@/components/ui";
 import { api, type AnalyticsSummary } from "@/lib/api";
@@ -149,6 +150,7 @@ export default function AnalyticsPage() {
           </section>
         </>
       ) : null}
+      <EmailReports businessBase={base.replace(/\/analytics$/, "")} canEdit={atLeast(business.role, "admin")} />
     </div>
   );
 }
