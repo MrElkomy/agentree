@@ -1,7 +1,10 @@
 name: CI
 
 on:
+  # Once per commit: pull requests run on `pull_request`; `main` runs again after a merge.
+  # (`push` on every branch ran each PR commit twice and used double the Actions minutes.)
   push:
+    branches: [main]
   pull_request:
 
 permissions:
