@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 
 from agentree.agents.prompts import KB_CLOSE, KB_OPEN
+from agentree.core import sandbox
 from agentree.knowledge import extract, files
 from tests.conftest import AppHarness, DbUrls, _admin_execute
 from tests.helpers import invite_and_join
@@ -298,7 +299,7 @@ async def test_files_are_tenant_isolated(harness: AppHarness) -> None:
 async def test_extraction_child_gets_no_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
     """A parser exploit in the child could read its environment: it holds no secrets."""
     monkeypatch.setenv("AGENTREE_MASTER_KEY", "secret-master-key")
-    assert "AGENTREE_MASTER_KEY" not in files.CHILD_ENV
-    assert all(not k.startswith("AGENTREE_") for k in files.CHILD_ENV)
+    assert "AGENTREE_MASTER_KEY" not in sandbox.CHILD_ENV
+    assert all(not k.startswith("AGENTREE_") for k in sandbox.CHILD_ENV)
     sections, error = await files.run_extractor("txt", "نص عربي".encode(), "t")
     assert error is None and sections[0].text == "نص عربي"
