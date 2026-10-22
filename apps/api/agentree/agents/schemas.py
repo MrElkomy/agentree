@@ -64,6 +64,13 @@ class InboxItemOut(BaseModel):
     created_at: datetime
     preview: str
     preview_role: str
+    legal_hold: bool  # kept past the retention window (Owner-only, Task 21)
+
+
+class LegalHoldIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    held: bool
 
 
 class InboxPageOut(BaseModel):

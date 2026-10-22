@@ -61,6 +61,12 @@ test("the AI hands a visitor to the team; the owner takes over, replies and hand
   await page.getByRole("button", { name: "Take over", exact: true }).click();
   await expect(page.getByTestId("inbox-status")).toHaveText("With the team");
   await expect(page.getByTestId("inbox-assignee")).toHaveText("You");
+  // Task 21: the owner keeps this conversation past the 30-day deletion (and can release it).
+  const hold = page.getByTestId("legal-hold");
+  await hold.getByRole("button", { name: "Place legal hold" }).click();
+  await expect(hold).toContainText("On legal hold: kept past the 30-day deletion");
+  await hold.getByRole("button", { name: "Release legal hold" }).click();
+  await expect(hold).toContainText("Deleted 30 days after the last message");
   await page.getByLabel(`Reply as the ${businessName} team`).fill("Hi! I can offer 10% off for 40 chairs.");
   await page.getByRole("button", { name: "Send reply" }).click();
   await expect(page.getByTestId("inbox-team")).toContainText("10% off");

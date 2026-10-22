@@ -117,7 +117,7 @@ async def test_agent_handoff_pauses_the_ai_and_alerts_owners_and_admins(
     events = [e for e in await _events(biz.owner, biz)
               if e["action"] == "conversation.handoff_requested"]  # fmt: skip
     assert len(events) == 1 and events[0]["actor"] is None
-    assert events[0]["details"] == {"channel": "public", "reason": "agent"}
+    assert events[0]["details"] == {"channel": "public", "reason": "agent", "agent": "sales"}
 
 
 async def test_visitor_requests_and_cancels_a_handoff(harness: AppHarness) -> None:

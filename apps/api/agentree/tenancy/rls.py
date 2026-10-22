@@ -13,6 +13,7 @@ GLOBAL_TABLES = frozenset(
     {
         "alembic_version", "users", "user_sessions", "auth_tokens", "rate_limit_buckets",
         "metric_days",  # Task 18: which UTC days the metrics job computed (dates only)
+        "retention_runs",  # Task 21: retention pass records (times and counts only)
     }
 )  # fmt: skip
 

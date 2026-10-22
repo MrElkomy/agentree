@@ -31,6 +31,7 @@ export default function InboxConversationPage() {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<Action | null>(null);
   const [draft, setDraft] = useState("");
+  const [holding, setHolding] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const lastCount = useRef(0);
 
@@ -42,6 +43,19 @@ export default function InboxConversationPage() {
       else setError(handleError(err));
     }
   }, [path, handleError]);
+
+  async function toggleHold(held: boolean) {
+    setHolding(true);
+    setError(null);
+    try {
+      await api(`${path}/legal-hold`, "PUT", { held });
+      await load();
+    } catch (err) {
+      setError(handleError(err));
+    } finally {
+      setHolding(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -220,6 +234,33 @@ export default function InboxConversationPage() {
             </Button>
           ) : null}
         </div>
+      </section>
+
+      <section
+        aria-label="Legal hold"
+        data-testid="legal-hold"
+        className="flex flex-col gap-2 rounded-lg border border-line bg-surface p-4 text-sm sm:flex-row sm:items-center sm:justify-between sm:p-5"
+      >
+        <div className="flex flex-col gap-1">
+          <span className="font-semibold">
+            {conv.legal_hold ? "On legal hold: kept past the 30-day deletion" : "Deleted 30 days after the last message"}
+          </span>
+          <span className="text-ink-muted">
+            {business.role === "owner"
+              ? "Only owners can place or release a legal hold. Each change is recorded in the activity log."
+              : "Only owners can place or release a legal hold."}
+          </span>
+        </div>
+        {business.role === "owner" ? (
+          <Button
+            size="sm"
+            variant="secondary"
+            busy={holding}
+            onClick={() => void toggleHold(!conv.legal_hold)}
+          >
+            {conv.legal_hold ? "Release legal hold" : "Place legal hold"}
+          </Button>
+        ) : null}
       </section>
 
       <section aria-label="Messages" aria-live="polite" className="flex flex-col gap-3 rounded-lg border border-line bg-surface p-4 sm:p-5">
