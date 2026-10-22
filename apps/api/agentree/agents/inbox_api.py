@@ -15,8 +15,10 @@ from agentree.agents.schemas import (
     InboxMessageOut,
     InboxPageOut,
     InboxReplyIn,
+    LegalHoldIn,
 )
 from agentree.tenancy.deps import Member
+from agentree.tenancy.roles import Role
 
 router = APIRouter(prefix="/api/businesses/{business_id}/inbox", tags=["inbox"])
 
@@ -127,3 +129,18 @@ async def resolve(conversation_id: UUID, member: Member, request: Request) -> No
                             actor_id=member.user.id)  # fmt: skip
     except inbox.NotFoundError:
         raise _not_found() from None
+
+
+@router.put("/{conversation_id}/legal-hold")
+async def set_legal_hold(
+    conversation_id: UUID, body: LegalHoldIn, member: Member, request: Request
+) -> LegalHoldIn:
+    """Owner only: keep this conversation past the retention window (or release it). Audited."""
+    member.require(Role.OWNER)
+    try:
+        held = await inbox.set_legal_hold(request.app.state.session_factory, member.tenant,
+                                          conversation_id, held=body.held,
+                                          actor_id=member.user.id)  # fmt: skip
+    except inbox.NotFoundError:
+        raise _not_found() from None
+    return LegalHoldIn(held=held)

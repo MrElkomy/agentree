@@ -71,6 +71,7 @@ class InboxItem:
     created_at: datetime
     preview: str  # start of the latest message (shown to members only)
     preview_role: str
+    legal_hold: bool = False  # kept past the retention window (Owner-only, Task 21)
 
 
 @dataclass(frozen=True)
@@ -119,7 +120,7 @@ async def mark_handoff_requested(
             return False
         conv.status, conv.handoff_reason, conv.handoff_requested_at = "needs_human", reason, _now()
         await _audit(session, ctx, conv, AuditAction.CONVERSATION_HANDOFF_REQUESTED, None,
-                     reason=reason)  # fmt: skip
+                     reason=reason, agent=conv.active_agent)  # fmt: skip
         return True
 
 
@@ -224,7 +225,7 @@ async def list_inbox(
     return [
         InboxItem(c.id, c.channel, c.status, c.assignee_user_id, c.handoff_reason,
                   c.handoff_requested_at, c.last_message_at, c.created_at,
-                  " ".join((content or "").split())[:PREVIEW], role or "")
+                  " ".join((content or "").split())[:PREVIEW], role or "", c.legal_hold)
         for c, content, role in rows
     ]  # fmt: skip
 
@@ -255,7 +256,7 @@ async def get_conversation(
         ).scalars().all()  # fmt: skip
         item = InboxItem(
             c.id, c.channel, c.status, c.assignee_user_id, c.handoff_reason,
-            c.handoff_requested_at, c.last_message_at, c.created_at, "", "",
+            c.handoff_requested_at, c.last_message_at, c.created_at, "", "", c.legal_hold,
         )  # fmt: skip
         return item, [InboxMessage(m.id, m.role, m.author_user_id, m.content, m.created_at,
                                            m.agent)
@@ -333,6 +334,20 @@ async def resolve(factory: Factory, ctx: TenantContext, conversation_id: UUID, *
         conv.status = "resolved"
         await _audit(session, ctx, conv, AuditAction.CONVERSATION_RESOLVED, actor_id,
                      resolved_by="member")  # fmt: skip
+
+
+async def set_legal_hold(factory: Factory, ctx: TenantContext, conversation_id: UUID, *,
+                         held: bool, actor_id: UUID) -> bool:  # fmt: skip
+    """Keep (or stop keeping) a conversation past the retention window (Owner-only, the caller
+    checks the role). Released conversations older than the window are deleted on the next
+    retention pass. Returns the new state; audited only when it changes."""
+    async with tenant_session(factory, ctx) as session:
+        conv = await _public_conversation(session, ctx, conversation_id, lock=True)
+        if conv.legal_hold != held:
+            conv.legal_hold = held
+            await _audit(session, ctx, conv, AuditAction.CONVERSATION_LEGAL_HOLD, actor_id,
+                         held=held)  # fmt: skip
+        return conv.legal_hold
 
 
 def shared_resolution(agent: str) -> bool:

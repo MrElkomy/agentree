@@ -64,6 +64,7 @@ class AuditAction(StrEnum):
     BUSINESS_HOURS_UPDATED = "business_hours.updated"
     AGENT_AVAILABILITY_UPDATED = "agent.availability_updated"
     REPORT_SETTINGS_UPDATED = "report_settings.updated"
+    CONVERSATION_LEGAL_HOLD = "conversation.legal_hold"
 
 
 # Detail keys that may be stored. Anything else is dropped, so a careless caller cannot leak a
@@ -101,6 +102,7 @@ ALLOWED_DETAILS = frozenset(
         "timezone",
         "mode",
         "paused",
+        "held",
     }
 )
 MAX_DETAIL_LEN = 200

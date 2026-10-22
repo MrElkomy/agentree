@@ -7,6 +7,10 @@ Since migration 0017 a second function deletes customer data past the window (Ta
 expired memory items, customer profiles idle past the window (their memory cascades) and old
 email codes (`agentree_purge_customer_data`).
 
+Every pass that runs leaves a persisted record (Task 21: `retention_runs`, times and counts only,
+through `agentree_record_retention_run`); owners see when it last ran, never other businesses'
+counts.
+
 Runs in the worker as the unprivileged `agentree_app` role. Cross-tenant deletion goes
 only through the `agentree_purge_expired_conversations` SECURITY DEFINER function, which
 returns a count and never content. Each batch is its own short transaction guarded by a
@@ -75,6 +79,7 @@ async def purge_expired_conversations(
         raise ValueError("retention_days must be between 1 and 30")
     cutoff = (now or datetime.now(UTC)) - timedelta(days=retention_days)
     started = time.monotonic()
+    started_at = datetime.now(UTC)
     deleted = batches = 0
     skipped = False
     while True:
@@ -86,6 +91,16 @@ async def purge_expired_conversations(
         deleted += n
         if n < batch_size:
             break
+    if not skipped or batches:
+        try:
+            async with factory() as session, session.begin():
+                await session.execute(
+                    text("SELECT agentree_record_retention_run(:s, :f, :c, :r, :b)"),
+                    {"s": started_at, "f": datetime.now(UTC), "c": cutoff, "r": deleted,
+                     "b": batches},
+                )  # fmt: skip
+        except Exception as exc:  # the deletions stand; a missing record must be noticed
+            logger.error("retention run record failed", extra={"error_type": type(exc).__name__})
     logger.info(
         "retention purge finished",
         extra={
@@ -97,6 +112,14 @@ async def purge_expired_conversations(
         },
     )
     return PurgeResult(deleted, batches, skipped)
+
+
+async def last_run(factory: async_sessionmaker[AsyncSession]) -> datetime | None:
+    """When the retention purge last ran (any business: no counts are exposed)."""
+    async with factory() as session:
+        return (
+            await session.execute(text("SELECT max(finished_at) FROM retention_runs"))
+        ).scalar_one_or_none()
 
 
 async def run_retention_loop(

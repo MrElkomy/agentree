@@ -7,7 +7,15 @@ from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import Response
 
 from agentree.analytics import export, service
-from agentree.analytics.schemas import DayOut, MetricOut, RateOut, SummaryOut
+from agentree.analytics.schemas import (
+    AgentOutcomeOut,
+    DayOut,
+    MetricOut,
+    RateOut,
+    RetentionOut,
+    SummaryOut,
+)
+from agentree.retention import service as retention
 from agentree.tenancy import service as tenancy
 from agentree.tenancy.deps import Member
 from agentree.tenancy.roles import Role, at_least
@@ -34,7 +42,17 @@ async def monthly_summary(month: Month, member: Member, request: Request) -> Sum
         totals=[MetricOut(name=m, label=service.METRICS[m], value=v) for m, v in s.totals.items()],
         rates=[RateOut(name=r, label=service.RATE_LABELS[r], value=v) for r, v in s.rates.items()],
         days=[DayOut(day=d.day, values=d.values) for d in s.days], missing_days=s.missing_days,
+        agents=[AgentOutcomeOut(role=r, outcomes=o) for r, o in sorted(s.agents.items())],
+        agent_outcome_labels=service.AGENT_OUTCOMES,
     )  # fmt: skip
+
+
+@router.get("/retention")
+async def retention_info(member: Member, request: Request) -> RetentionOut:
+    """How long raw conversations are kept and when the deletion job last ran (Task 21)."""
+    st = request.app.state
+    return RetentionOut(retention_days=st.settings.retention_days,
+                        last_run_at=await retention.last_run(st.session_factory))  # fmt: skip
 
 
 @router.get("/export", response_class=Response,

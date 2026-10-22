@@ -21,6 +21,7 @@ import agentree.notifications.models
 import agentree.providers.models
 import agentree.public.models
 import agentree.reports.models
+import agentree.retention.models
 import agentree.tenancy.models  # noqa: F401
 from agentree.core.config import Settings
 from agentree.core.models import Base

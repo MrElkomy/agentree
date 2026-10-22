@@ -191,7 +191,8 @@ source_modules = ["agentree.analytics"]
 forbidden_modules = [
     "agentree.agents", "agentree.customers", "agentree.knowledge", "agentree.public",
     "agentree.leads.models", "agentree.leads.api", "agentree.identity", "agentree.providers",
-    "agentree.llm", "agentree.retention", "agentree.main", "agentree.worker",
+    # Task 21: the retention service (when the job last ran) is fine; its tables are not.
+    "agentree.llm", "agentree.retention.models", "agentree.main", "agentree.worker",
 ]
 allow_indirect_imports = true
 
