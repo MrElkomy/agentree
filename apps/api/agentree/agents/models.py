@@ -22,7 +22,7 @@ from sqlalchemy import (
     false,
     func,
 )
-from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from agentree.core.models import Base
@@ -166,3 +166,56 @@ class AgentHandoff(Base):
     to_agent: Mapped[str] = mapped_column(String(32))
     note: Mapped[str] = mapped_column(Text, server_default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+HOURS_MODES = ("always", "business_hours", "outside_business_hours")
+_HOURS_MODES_SQL = ", ".join(f"'{m}'" for m in HOURS_MODES)
+
+
+class BusinessHours(Base):
+    """When the business is open (Task 20b): one time zone and one range per weekday.
+
+    `days` has 7 entries, Monday first: null (closed) or {"start": "HH:MM", "end": "HH:MM"}.
+    """
+
+    __tablename__ = "business_hours"
+
+    business_id: Mapped[UUID] = mapped_column(
+        ForeignKey("businesses.id", ondelete="CASCADE"), primary_key=True
+    )
+    timezone: Mapped[str] = mapped_column(String(64))
+    days: Mapped[list[dict[str, str] | None]] = mapped_column(JSONB)
+    updated_by_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AgentAvailability(Base):
+    """When one agent answers visitors (Task 20b, PO 2026-10-22): always, during business hours
+    (e.g. the team covers the rest) or outside them (it covers the off hours), and an optional
+    pause (e.g. a holiday). Otherwise visitors get a fixed message, never an AI reply."""
+
+    __tablename__ = "agent_availability"
+    __table_args__ = (
+        UniqueConstraint("business_id", "role"),
+        CheckConstraint(f"role IN ({AGENT_ROLES_SQL})", name="role"),
+        CheckConstraint(f"mode IN ({_HOURS_MODES_SQL})", name="mode"),
+        CheckConstraint(
+            "paused_until IS NULL OR paused_from IS NULL OR paused_from < paused_until",
+            name="pause_window",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    business_id: Mapped[UUID] = mapped_column(ForeignKey("businesses.id", ondelete="CASCADE"))
+    role: Mapped[str] = mapped_column(String(32))
+    mode: Mapped[str] = mapped_column(String(32), server_default="always")
+    away_message: Mapped[str] = mapped_column(String(500), server_default="")
+    paused_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    paused_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    pause_message: Mapped[str] = mapped_column(String(500), server_default="")
+    updated_by_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -27,6 +27,7 @@ METRICS: dict[str, str] = {
     "conversations": "Visitor conversations",
     "visitor_messages": "Visitor messages",
     "ai_replies": "AI replies",
+    "away_replies": "Away messages (agent not available)",  # Task 20b: fixed, not AI
     "team_replies": "Team replies",
     "agent_handoffs": "Handoffs between AI agents",
     "handoffs_to_team": "Handoffs to your team",

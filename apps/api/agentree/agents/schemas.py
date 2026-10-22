@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
 
 class ConsoleMessageIn(BaseModel):
@@ -112,6 +112,43 @@ class AgentConfigOut(BaseModel):
     available_tools: list[str]  # the role's allowlist
     version: int  # 0 until the business first saves this agent
     updated_at: datetime | None
+    availability: "AvailabilityOut"
+    answering_now: bool  # visitors get AI replies now (false: its fixed message)
+
+
+class AvailabilityOut(BaseModel):
+    mode: Literal["always", "business_hours", "outside_business_hours"]
+    away_message: str  # empty: the default message
+    paused_from: datetime | None
+    paused_until: datetime | None
+    pause_message: str  # empty: the default message
+
+
+class AvailabilityIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    mode: Literal["always", "business_hours", "outside_business_hours"]
+    away_message: str = Field(default="", max_length=500)
+    paused_from: AwareDatetime | None = None
+    paused_until: AwareDatetime | None = None
+    pause_message: str = Field(default="", max_length=500)
+
+
+class DayHoursIO(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    start: str = Field(pattern=r"^\d{2}:\d{2}$")
+    end: str = Field(pattern=r"^\d{2}:\d{2}$")
+
+
+class BusinessHoursIO(BaseModel):
+    """Monday first; null: closed. `configured` is false until the business saves its hours."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    timezone: str = Field(max_length=64)
+    days: list[DayHoursIO | None] = Field(min_length=7, max_length=7)
+    configured: bool = True
 
 
 class AgentConfigIn(BaseModel):
