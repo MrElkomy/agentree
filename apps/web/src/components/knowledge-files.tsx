@@ -16,6 +16,9 @@ const FAILED: Record<string, string> = {
   too_many_pages: "This PDF has more than 300 pages. Split it into smaller files.",
   too_complex: "This file took too long to read. Try a smaller or simpler file.",
   interrupted: "Reading was interrupted. Try again.",
+  no_rows: "No data rows found. The first row must be the column names, with data below it.",
+  too_many_rows: "This table has more than 200,000 rows. Split it into smaller files.",
+  too_many_columns: "This table has more than 100 columns. Remove the ones you don't need.",
 };
 
 function sizeLabel(bytes: number): string {
@@ -25,7 +28,10 @@ function sizeLabel(bytes: number): string {
 function statusLabel(f: KnowledgeFile): string {
   if (f.status === "processing") return "Reading…";
   if (f.status === "ready") return `${f.entry_count} ${f.entry_count === 1 ? "draft" : "drafts"} created`;
-  if (f.status === "stored") return "Stored for data analysis";
+  if (f.status === "stored") {
+    const rows = f.table_rows ?? 0;
+    return `Ready for the Data Analyst · ${rows.toLocaleString("en")} ${rows === 1 ? "row" : "rows"}, ${f.table_columns.length} columns`;
+  }
   return "Couldn't read";
 }
 
@@ -124,7 +130,8 @@ export function KnowledgeFiles({
         </h2>
         <p className="max-w-prose text-sm text-ink-muted">
           PDF, Word (.docx), TXT or Markdown, up to 10 MB each. Their text becomes draft entries
-          you review and publish. CSV and Excel files are stored for data analysis.
+          you review and publish. CSV and Excel tables (first sheet, first row as column names) are
+          kept for the Data Analyst, which can calculate from them.
         </p>
       </div>
       <div>

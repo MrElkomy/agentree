@@ -106,4 +106,23 @@ test("owner sets up the AI team; a visitor is handed Sales → Technical Support
   await page.getByLabel("Message", { exact: true }).fill("How many conversations did we have?");
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("chat-assistant").last()).toContainText("In the last 30 days you had");
+
+  // --- Task 18b: an uploaded table, queried by the Data Analyst in the sandbox ------------------
+  await page.goto(`${businessPath}/knowledge`);
+  await page.locator("#knowledge-upload").setInputFiles({
+    name: "orders.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from("product,units\nChair,4\nDesk,2\nLamp,9\n"),
+  });
+  const table = page.getByTestId("knowledge-file").filter({ hasText: "orders.csv" });
+  await expect(table.getByTestId("knowledge-file-status")).toHaveText(
+    "Ready for the Data Analyst · 3 rows, 2 columns",
+  );
+  await page.getByRole("link", { name: "Test chat" }).first().click();
+  await page.getByRole("button", { name: "New conversation" }).click();
+  await page.getByLabel("Start with").selectOption({ label: "Data Analyst" });
+  await page.getByLabel("Message", { exact: true }).fill("How many rows does my orders table have?");
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("chat-assistant").last()).toHaveText(/Your table has 3 rows\./);
+  await expect(page.getByText("<<SQL")).toHaveCount(0);
 });

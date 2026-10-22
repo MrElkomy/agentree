@@ -160,6 +160,10 @@ async def test_analyst_answers_from_a_query_result(harness: AppHarness) -> None:
     assert "Query on d1: SELECT region" in second and "North | 1500\nSouth | 700" in second
     assert "<<SQL" not in body["reply"]
 
+    # A result right after the row counts is checked as its own number (not glued to them).
+    _fake(harness).replies.extend(["<<SQL d1: SELECT COUNT(*) AS n FROM data>>", "It has 3 rows."])
+    assert (await _analyst(biz, "Rows?", body["conversation_id"]))["reply"] == "It has 3 rows."
+
     # Digits in a file name are not computed numbers; neither is an invented total.
     for invented in ("Your 2025 sales were great.", "Total sales: 2,900."):
         _fake(harness).replies.extend([

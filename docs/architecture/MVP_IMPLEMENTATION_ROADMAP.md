@@ -345,6 +345,7 @@ Partially delivered slices stay open until every item below is implemented and t
 ### 5.3 First external connector (proposed: signed outbound webhook), `unknown`-outcome handling
 ### 5.4 Operational metrics library + Data Analyst on Agentree data
 ### 5.5 CSV/XLSX import → Parquet snapshot → DuckDB sandbox → SELECT-only validation → cited-number check
+- As built (Task 18b): stored file → SQLite in a limited child process → single SELECT + engine authorizer → cited-number check (TD-15 note).
 ### 5.6 Connected data source (candidate: Google Sheets)
 - **Acceptance (phase gate):** an authorized action executes once under retries; an unauthorized one is denied; analyst answers match independently computed results on test datasets; a malicious dataset/SQL cannot read files, network or other tenants.
 

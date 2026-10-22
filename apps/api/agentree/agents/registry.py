@@ -73,7 +73,7 @@ DEFINITIONS: Mapping[AgentRole, AgentDefinition] = {
         ),
         # Internal roles: built in Tasks 18 and 20. They can never be enabled for guests.
         AgentDefinition(
-            AgentRole.DATA_ANALYST, 2, "Data Analyst", Audience.INTERNAL,
+            AgentRole.DATA_ANALYST, 3, "Data Analyst", Audience.INTERNAL,
             "the business's own numbers: conversations, leads, handoffs and trends",
             available=True, enabled_by_default=False,
         ),

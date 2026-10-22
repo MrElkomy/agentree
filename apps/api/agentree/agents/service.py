@@ -410,7 +410,7 @@ async def _run_query(
     lines = [" | ".join(_flat(c, 40) for c in result.columns), *(" | ".join(r) for r in cells)]
     more = len(result.rows) > len(rows) or result.truncated
     note = f"Result ({len(rows)} rows{', more not shown' if more else ''}):\n"
-    return head + note + "\n".join(lines), "\n".join(" ".join(r) for r in cells)
+    return head + note + "\n".join(lines), "".join("\n" + " ".join(r) for r in cells)
 
 
 def _active(roster: configs.Roster, current: str, *, guest: bool) -> configs.AgentConfigInfo | None:
