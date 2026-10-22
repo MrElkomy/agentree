@@ -34,6 +34,7 @@ from agentree.agents.prompts import (
     take_handoff_marker,
     take_resolve_marker,
     take_route_marker,
+    take_sql_marker,
 )
 from agentree.agents.registry import DEFINITIONS, AgentRole
 from agentree.analytics import service as analytics
@@ -64,6 +65,9 @@ HISTORY_TURNS = 20
 SALES = AgentRole.SALES
 MAX_ROUTES_PER_TURN = 1  # one handoff per visitor message: no ping-pong between agents
 MAX_NOTES = 3  # latest handoff notes shown to the answering agent
+QUERY_UNANSWERED = "I couldn't finish that calculation. Here are the computed numbers:\n\n"
+MAX_QUERIES_PER_TURN = 1  # uploaded-table queries the Data Analyst may ask for (Task 18b)
+MAX_RESULT_ROWS_SHOWN = 50
 UNVERIFIED_NUMBERS = (
     "I can only share numbers computed from your data, and my answer had one I couldn't "
     "verify. Here are the computed numbers:\n\n"
@@ -365,6 +369,50 @@ def _may_resolve(agent: configs.AgentConfigInfo) -> bool:
     return True
 
 
+def _flat(value: object, limit: int = 80) -> str:
+    """A file-provided value or name on one line, without markers (it is untrusted data)."""
+    if isinstance(value, float):
+        value = round(value, 2)
+    return " ".join(str("" if value is None else value).replace("<<", "").replace(">>", "")
+                    .split())[:limit]  # fmt: skip
+
+
+def _tables_text(tables: dict[str, "knowledge.Dataset"]) -> tuple[str, str]:
+    """The uploaded tables for the analyst's prompt, and their row counts (checked numbers).
+    Names may contain digits, so only the counts count as computed numbers."""
+    if not tables:
+        return "", ""
+    lines = ["", "Uploaded tables (query them with SQL on the table `data`):"]
+    counts = [""]
+    for label, d in tables.items():
+        columns = ", ".join(f"{_flat(c.get('name'), 40)} ({_flat(c.get('type'), 10)})"
+                            for c in d.columns)  # fmt: skip
+        lines.append(f"- {label}: file {_flat(d.filename, 120)}; {d.rows} rows; columns: {columns}")
+        counts.append(f"{d.rows}")
+    return "\n".join(lines), "\n".join(counts)
+
+
+async def _run_query(
+    factory: Factory, ctx: TenantContext, tables: dict[str, "knowledge.Dataset"], label: str,
+    sql: str,
+) -> tuple[str, str]:  # fmt: skip
+    """Run the analyst's query in the sandbox: (text for the prompt, result values to check)."""
+    head = f"\nQuery on {label}: {_flat(sql, 4000)}\n"
+    table = tables.get(label)
+    if table is None:
+        return head + "Result: failed (no table with that label).", ""
+    result, error = await knowledge.query_dataset(factory, ctx, table.file_id, sql)
+    logger.info("analyst table query", extra={"ok": result is not None, "error": error})
+    if result is None:
+        return head + f"Result: failed ({error}). Do not guess the answer.", ""
+    rows = result.rows[:MAX_RESULT_ROWS_SHOWN]
+    cells = [[_flat(v) for v in row] for row in rows]
+    lines = [" | ".join(_flat(c, 40) for c in result.columns), *(" | ".join(r) for r in cells)]
+    more = len(result.rows) > len(rows) or result.truncated
+    note = f"Result ({len(rows)} rows{', more not shown' if more else ''}):\n"
+    return head + note + "\n".join(lines), "\n".join(" ".join(r) for r in cells)
+
+
 def _active(roster: configs.Roster, current: str, *, guest: bool) -> configs.AgentConfigInfo | None:
     """The conversation's active agent if it may still answer, else the default entry agent."""
     if roster.allowed(current, guest=guest):
@@ -405,47 +453,75 @@ async def _stream_turn(
         can_resolve = public and _may_resolve(current)
         entries = await knowledge.retrieve(factory, ctx, message, role=current.role)
         sources.update((e.id, e.title) for e in entries)
-        # The Data Analyst states only numbers the backend computed (Task 18).
-        computed = (await analytics.analyst_numbers(factory, ctx)
-                    if current.role == AgentRole.DATA_ANALYST else "")  # fmt: skip
-        prompt = agent_messages(
-            current.role, title=current.definition.title, display_name=current.display_name,
-            business_name=business.name, knowledge=entries, history=history,
-            user_message=message, public=public, lead_capture=lead_capture,
-            can_resolve=can_resolve, joined=hop > 0,
-            teammates=[Teammate(t.role, t.definition.handles) for t in targets],
-            notes=notes, facts=facts,
-            # Only the memory categories this role may read (registry), checked per agent.
-            remembered=[r for r in remembered if r.category in current.definition.memory],
-            computed=computed,
-        )  # fmt: skip
+        # The Data Analyst states only numbers the backend computed (Task 18): the Agentree
+        # numbers, and what its uploaded-table queries return (Task 18b, run in a sandbox).
+        computed, checked = "", ""
+        tables: dict[str, knowledge.Dataset] = {}
+        if current.role == AgentRole.DATA_ANALYST:
+            computed = await analytics.analyst_numbers(factory, ctx)
+            tables = {f"d{i}": d for i, d in enumerate(await knowledge.datasets(factory, ctx), 1)}
+            listed, counts = _tables_text(tables)
+            computed, checked = computed + listed, computed + counts
+        queries = MAX_QUERIES_PER_TURN if tables else 0
         # Announced with its first text: errors before any text stay plain HTTP errors, and
         # an agent that only hands over shows no empty reply.
         start: AgentStart | None = AgentStart(current.role, current.name)
-        guard = _MarkerGuard()
-        answered: _Answered | None = None
-        async for item in _stream_with_fallback(factory, vault, ctx, provider_factories, prompt):
-            if isinstance(item, TextDelta):
-                visible = guard.feed(item.text)
-                if visible:
-                    if start is not None:
-                        yield start
-                        start = None
-                    yield Delta(visible)
-            elif isinstance(item, Restart):
-                guard = _MarkerGuard()
-                yield item
-            else:
-                answered = item
-        if answered is None:  # _stream_with_fallback ends with _Answered or raises
-            raise AssertionError("stream ended without an answer")
-        text, target, note = take_route_marker(answered.result.text, [t.role for t in targets])
+        used: list[ChatResult] = []
+        while True:
+            prompt = agent_messages(
+                current.role, title=current.definition.title,
+                display_name=current.display_name, business_name=business.name,
+                knowledge=entries, history=history, user_message=message, public=public,
+                lead_capture=lead_capture, can_resolve=can_resolve, joined=hop > 0,
+                teammates=[Teammate(t.role, t.definition.handles) for t in targets],
+                notes=notes, facts=facts,
+                # Only the memory categories this role may read (registry), checked per agent.
+                remembered=[r for r in remembered if r.category in current.definition.memory],
+                computed=computed, can_query=queries > 0,
+            )  # fmt: skip
+            guard = _MarkerGuard()
+            shown = False
+            answered: _Answered | None = None
+            async for item in _stream_with_fallback(
+                factory, vault, ctx, provider_factories, prompt
+            ):
+                if isinstance(item, TextDelta):
+                    visible = guard.feed(item.text)
+                    if visible:
+                        if start is not None:
+                            yield start
+                            start = None
+                        shown = True
+                        yield Delta(visible)
+                elif isinstance(item, Restart):
+                    guard = _MarkerGuard()
+                    yield item
+                else:
+                    answered = item
+            if answered is None:  # _stream_with_fallback ends with _Answered or raises
+                raise AssertionError("stream ended without an answer")
+            used.append(answered.result)
+            reply, asked = take_sql_marker(answered.result.text)
+            if asked is None or queries == 0:
+                break
+            queries -= 1
+            shown_text, values = await _run_query(factory, ctx, tables, *asked)
+            computed, checked = computed + shown_text, checked + values
+            if shown:  # text written before the query is replaced by the answer
+                yield Restart()
+        # Every call of this agent counts toward its reply's usage.
+        answered = replace(answered, result=replace(
+            answered.result, input_tokens=sum(r.input_tokens for r in used),
+            output_tokens=sum(r.output_tokens for r in used)))  # fmt: skip
+        text, target, note = take_route_marker(reply, [t.role for t in targets])
         text, lead = split_lead_marker(text, visitor)
         if lead_capture and lead is not None:
             suggestion = lead
         text, person = take_handoff_marker(text)
         text, done_marker = take_resolve_marker(text)
-        if computed and not cited_numbers_ok(text, computed, message):
+        if computed and not text and target is None:
+            text = QUERY_UNANSWERED + computed
+        elif computed and not cited_numbers_ok(text, checked, message):
             # A number the backend did not compute: show the computed ones instead.
             text = UNVERIFIED_NUMBERS + computed
         wants_person = wants_person or (public and person and target is None)

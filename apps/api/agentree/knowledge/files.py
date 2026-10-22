@@ -12,7 +12,7 @@ import hashlib
 import json
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
@@ -61,6 +61,8 @@ class FileInfo:
     entry_count: int
     created_at: datetime
     processed_at: datetime | None
+    table_rows: int | None = None  # CSV/XLSX ready for the Data Analyst (Task 18b)
+    table_columns: list[str] = field(default_factory=list)
 
 
 def _now() -> datetime:
@@ -83,8 +85,10 @@ def _info(f: KnowledgeFile) -> FileInfo:
     status, error = f.status, f.error
     if status == "processing" and f.started_at < _now() - STALE_AFTER:
         status, error = "failed", "interrupted"
+    table = f.profile if status == "stored" and f.profile else {}
     return FileInfo(f.id, f.filename, f.kind, f.size_bytes, status, error, f.entry_count,
-                    f.created_at, f.processed_at)  # fmt: skip
+                    f.created_at, f.processed_at, table.get("rows"),
+                    [str(c.get("name")) for c in table.get("columns", [])])  # fmt: skip
 
 
 async def _get(session: AsyncSession, ctx: TenantContext, file_id: UUID) -> KnowledgeFile:

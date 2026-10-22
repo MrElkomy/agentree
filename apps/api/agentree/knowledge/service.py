@@ -9,6 +9,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import String, delete, func, or_, select, text
@@ -19,6 +20,10 @@ from agentree.core.ids import uuid7
 from agentree.knowledge.models import KnowledgeEntry
 from agentree.tenancy.context import TenantContext
 from agentree.tenancy.db import tenant_session
+
+if TYPE_CHECKING:
+    from agentree.knowledge.files import Dataset as Dataset
+    from agentree.knowledge.files import QueryResult as QueryResult
 
 Factory = async_sessionmaker[AsyncSession]
 
@@ -204,3 +209,27 @@ async def retrieve(
         budget -= len(body)
         picked.append(RetrievedEntry(e.id, e.title, body))
     return picked
+
+
+# --- uploaded tables (Task 18b) -----------------------------------------------------------------
+# The other modules' entry point to files.py, which itself builds on this module (hence the
+# imports inside the functions).
+
+
+async def datasets(factory: Factory, ctx: TenantContext) -> "list[Dataset]":
+    """Uploaded CSV/XLSX files ready to query (columns, types, row count; no cell values)."""
+    from agentree.knowledge import files
+
+    return await files.datasets(factory, ctx)
+
+
+async def query_dataset(
+    factory: Factory, ctx: TenantContext, file_id: UUID, sql: str
+) -> "tuple[QueryResult | None, str | None]":
+    """One read-only SQL query on an uploaded table, run in the sandbox: (result, error code)."""
+    from agentree.knowledge import files
+
+    try:
+        return await files.query_dataset(factory, ctx, file_id, sql)
+    except (NotFoundError, files.InvalidStateError):
+        return None, "not_found"

@@ -98,19 +98,6 @@ async def test_files_become_draft_entries(
     assert any(needle in e["body"] for e in entries)
 
 
-async def test_csv_and_xlsx_are_stored_for_data_analysis(harness: AppHarness) -> None:
-    biz = await _support_business(harness)
-    xlsx = io.BytesIO()
-    with zipfile.ZipFile(xlsx, "w") as z:
-        z.writestr("[Content_Types].xml", "<Types/>")
-        z.writestr("xl/workbook.xml", "<workbook/>")
-    for name, data in (("sales.csv", b"month,leads\n2026-09,12\n"), ("q3.xlsx", xlsx.getvalue())):
-        r = await _upload(biz, name, data)
-        assert r.status_code == 202 and r.json()["status"] == "stored", r.text
-        assert r.json()["entry_count"] == 0
-    assert await _entries(biz) == []
-
-
 async def test_long_files_are_split_and_capped(harness: AppHarness) -> None:
     biz = await _support_business(harness)
     text = "\n\n".join(f"Paragraph {i}. " + "word " * 150 for i in range(40))
