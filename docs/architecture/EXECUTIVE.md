@@ -47,10 +47,9 @@ lifespan (`app.state.agent_extensions`) and passed to the console turn. Import-l
 that no feature module depends on `agentree.executive`.
 
 ## Not in 20a
-- **Task 20b:** scheduled reports (daily or weekly email) and alerts.
-- **Agent schedules / working hours:** no such feature exists yet. "Availability" is on/off for
-  now. Working hours would be a new product feature; it is recorded as a proposal for the Product
-  Owner, not dropped.
+- **Task 20c:** scheduled reports (daily or weekly email) and alerts.
+- **Agent working hours:** approved by the PO 2026-10-22 and built in Task 20b (`AGENTS.md`). The
+  Executive cannot change them yet; that comes as it is developed further.
 
 ## Tests
 `tests/test_executive.py` covers:

@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from agentree.actions import service as gateway
 from agentree.actions.service import Action
-from agentree.agents import configs, inbox
+from agentree.agents import configs, hours, inbox
 from agentree.agents.inbox import mark_handoff_requested
 from agentree.agents.models import AgentHandoff, Conversation, Message
 from agentree.agents.prompts import (
@@ -737,6 +737,29 @@ async def stream_public_sales_turn(
         return
     if current is None:
         raise AgentUnavailableError  # every public agent was disabled
+    away = await hours.away_message_now(factory, ctx, current.role)
+    if away is not None:
+        # Outside the agent's hours or paused (Task 20b): its fixed message, no AI call. The
+        # visitor's message stays for the team (Inbox); no provider is recorded on the reply.
+        now = datetime.now(UTC)
+        async with tenant_session(factory, ctx) as session:
+            session.add(Message(id=uuid7(), business_id=ctx.business_id, conversation_id=conv_id,
+                                role="user", content=message, created_at=now))  # fmt: skip
+            session.add(Message(id=uuid7(), business_id=ctx.business_id, conversation_id=conv_id,
+                                role="assistant", agent=current.role, content=away,
+                                created_at=now + timedelta(microseconds=1)))  # fmt: skip
+            conv_row = await session.get(Conversation, conv_id)
+            if conv_row is not None:
+                conv_row.last_message_at = now
+                conv_row.active_agent = current.role
+        yield AgentStart(current.role, current.name)
+        yield Delta(away)
+        yield GuestTurnResult(
+            conv_id, away, status=status, agent=current.role, agent_name=current.name,
+            replies=[AgentReply(current.role, current.name, away)],
+            can_resolve=inbox.visitor_may_resolve(status, current.role),
+        )  # fmt: skip
+        return
     done: _TurnDone | None = None
     try:
         async for item in _stream_turn(factory, vault, provider_factories, ctx, conv_id=conv_id,

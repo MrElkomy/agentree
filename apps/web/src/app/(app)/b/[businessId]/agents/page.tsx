@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useId, useState, type FormEvent } from "react";
+import { AgentAvailability } from "@/components/agent-availability";
 import { useBusiness } from "@/components/business-shell";
+import { BusinessHoursEditor } from "@/components/business-hours";
 import { useSession } from "@/components/session";
 import { Alert, Button, Spinner, buttonClass } from "@/components/ui";
 import { TOOL_LABEL } from "@/lib/agents";
-import { api, type AgentConfig, type AgentConfigIn } from "@/lib/api";
+import { api, type AgentConfig, type AgentConfigIn, type BusinessHours } from "@/lib/api";
 import { atLeast } from "@/lib/roles";
 
 // What each customer-facing agent does beyond answering from your knowledge.
@@ -28,9 +30,24 @@ export default function AgentsPage() {
   const canEdit = atLeast(business.role, "admin");
   const [agents, setAgents] = useState<AgentConfig[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [hoursSet, setHoursSet] = useState(false);
+
+  // Saving business hours can change which agents are answering right now.
+  const reload = useCallback(async () => {
+    setHoursSet(true);
+    try {
+      setAgents(await api<AgentConfig[]>(base));
+    } catch (err) {
+      setError(handleError(err));
+    }
+  }, [base, handleError]);
 
   useEffect(() => {
     let cancelled = false;
+    api<BusinessHours>(base.replace(/\/agents$/, "/business-hours")).then(
+      (h) => !cancelled && setHoursSet(Boolean(h.configured)),
+      () => undefined, // the hours editor reports its own errors
+    );
     api<AgentConfig[]>(base).then(
       (a) => !cancelled && setAgents(a),
       (err) => !cancelled && setError(handleError(err)),
@@ -66,12 +83,25 @@ export default function AgentsPage() {
 
       {agents ? (
         <>
+          <BusinessHoursEditor base={base} canEdit={canEdit} onSaved={reload} />
           <section aria-labelledby="public-agents" className="flex flex-col gap-4">
             <h2 id="public-agents" className="text-lg font-semibold">
               Customer-facing agents
             </h2>
             {publicOnes.map((a) => (
-              <AgentCard key={a.role} base={base} agent={a} canEdit={canEdit} onSaved={onSaved} />
+              <div key={a.role} className="flex flex-col gap-2">
+                <AgentCard base={base} agent={a} canEdit={canEdit} onSaved={onSaved} />
+                {a.enabled ? (
+                  <AgentAvailability
+                    key={`${a.role}-${a.availability.mode}-${a.availability.paused_from ?? ""}`}
+                    base={base}
+                    agent={a}
+                    canEdit={canEdit}
+                    hoursSet={hoursSet}
+                    onSaved={onSaved}
+                  />
+                ) : null}
+              </div>
             ))}
           </section>
           <section aria-labelledby="internal-agents" className="flex flex-col gap-4">

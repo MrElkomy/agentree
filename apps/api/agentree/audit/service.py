@@ -61,6 +61,8 @@ class AuditAction(StrEnum):
     APPROVAL_EXECUTED = "approval.executed"
     APPROVAL_RULE_CREATED = "approval_rule.created"
     APPROVAL_RULE_REVOKED = "approval_rule.revoked"
+    BUSINESS_HOURS_UPDATED = "business_hours.updated"
+    AGENT_AVAILABILITY_UPDATED = "agent.availability_updated"
 
 
 # Detail keys that may be stored. Anything else is dropped, so a careless caller cannot leak a
@@ -95,6 +97,9 @@ ALLOWED_DETAILS = frozenset(
         "flagged",
         "edited",
         "status",
+        "timezone",
+        "mode",
+        "paused",
     }
 )
 MAX_DETAIL_LEN = 200

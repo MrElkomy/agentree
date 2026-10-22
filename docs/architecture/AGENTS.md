@@ -149,3 +149,27 @@ holding `create_lead`; business tool choices bind the gateway; console reaches a
 to visitors; SSE `agent`/`handoff` events; RLS on handoffs and deletion by retention; shared
 context without contact details; marker validation. The isolation matrix covers
 `/agents/{role}`. E2E: `e2e/agents.spec.ts`.
+
+## When agents answer visitors (Task 20b, PO decision 2026-10-22)
+- **Business hours** (AI team page, Owners/Admins): one time zone and one range per weekday
+  (`business_hours`, RLS). Overnight ranges are not supported yet.
+- **Per customer-facing agent** (`agent_availability`, RLS):
+  - **Always**.
+  - **During business hours**: the team covers the rest.
+  - **Outside business hours**: it covers the time the team is off.
+  - Optional **pause** (from/until, e.g. a holiday) with its own message, which wins over the
+    mode. Internal agents only answer the team, so they have no schedule.
+- When the entry or active agent is not answering, the visitor gets its **fixed message** (or a
+  default) instead of an AI reply. There is no provider call. The visitor's message is stored and
+  waits for the team in the Inbox, and the fixed reply is stored without a provider.
+  - Daily metrics count such replies as `away_replies`, never as AI replies (migration 0023
+    updates the metrics function).
+  - The message still counts toward the visitor rate limits and the daily reply budget, as any
+    reply.
+- The test chat is not affected: the team can always try its agents.
+- Not yet: routing a visitor to another available agent, and a schedule action for the
+  Executive Assistant (it can already turn agents on or off, with approval).
+- API: `GET/PUT /api/businesses/{id}/business-hours`, `PUT /api/businesses/{id}/agents/{role}/availability`.
+  Agents list `availability` and `answering_now`. Audit: `business_hours.updated`,
+  `agent.availability_updated`. Tests: `tests/test_agent_hours.py`; E2E: end of `agents.spec.ts`
+  (a holiday pause, then a visitor gets the fixed message).

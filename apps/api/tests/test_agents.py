@@ -108,6 +108,10 @@ async def test_defaults_list_the_five_roles(harness: AppHarness) -> None:
         "available_tools": ["create_follow_up_task", "create_lead", "send_follow_up_email",
                             "update_lead"],
         "version": 0, "updated_at": None,
+        # Task 20b: answers visitors always until the business sets hours or a pause.
+        "availability": {"mode": "always", "away_message": "", "paused_from": None,
+                         "paused_until": None, "pause_message": ""},
+        "answering_now": True,
     }  # fmt: skip
     assert agents["technical_support"]["enabled"] is False
     for internal in ("data_analyst", "executive"):

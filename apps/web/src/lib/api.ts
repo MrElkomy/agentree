@@ -49,6 +49,8 @@ export type InboxConversation = Schemas["InboxConversationOut"];
 export type PushConfig = Schemas["PushConfigOut"];
 export type AgentConfig = Schemas["AgentConfigOut"];
 export type AgentConfigIn = Schemas["AgentConfigIn"];
+export type AvailabilityIn = Schemas["AvailabilityIn"];
+export type BusinessHours = Schemas["BusinessHoursIO"];
 export type PublicAgent = Schemas["PublicAgentOut"];
 
 export class ApiError extends Error {
