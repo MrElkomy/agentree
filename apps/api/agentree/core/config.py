@@ -72,6 +72,8 @@ class Settings(BaseSettings):
     memory_interval_seconds: int = Field(default=300, ge=30)
     # How often the worker refreshes today's and yesterday's daily metrics (Task 18).
     metrics_interval_seconds: int = Field(default=3600, ge=60)
+    # Approvals (Task 19): run approved actions the API did not run (safety net) and purge old ones.
+    approvals_interval_seconds: int = Field(default=60, ge=10)
 
     # Monitoring: GET /api/internal/metrics answers only with this token in the
     # X-Agentree-Metrics-Token header; unset disables the endpoint (404).

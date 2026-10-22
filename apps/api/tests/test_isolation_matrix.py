@@ -10,7 +10,9 @@ import uuid
 import pytest
 from httpx import AsyncClient
 
+from agentree.actions.service import Action
 from agentree.agents import service as agents
+from agentree.approvals import service as approvals
 from agentree.core.config import Settings
 from agentree.customers import service as customers
 from agentree.main import create_app
@@ -66,6 +68,8 @@ async def _snapshot(client: AsyncClient, business_id: str) -> tuple[object, ...]
         (await client.get(f"{base}/agents")).json(),
         (await client.get(f"{base}/customers")).json(),
         (await client.get(f"{base}/knowledge-files")).json(),
+        (await client.get(f"{base}/approvals")).json(),
+        (await client.get(f"{base}/approval-rules")).json(),
     )
 
 
@@ -130,6 +134,19 @@ async def test_owner_of_a_cannot_touch_b(harness: AppHarness, method: str, path:
     upload = await bob.client.post(f"/api/businesses/{b['id']}/knowledge-files",
                                    files={"file": ("b.txt", b"B only file")})  # fmt: skip
     assert upload.status_code == 202, upload.text
+    # A real pending approval and a real "always allow" rule in B (as the Sales Agent asks).
+    deps = approvals.Deps(harness.app.state.settings, harness.mailer)
+    pending_approval, _ = await approvals.request(
+        factory, ctx, deps, agent="sales", action=Action.SEND_FOLLOW_UP_EMAIL,
+        params={"lead_id": lead_id, "to": "v@example.com", "subject": "Hi", "body": "Hello there"},
+        summary="Follow-up email", idempotency_key="matrix-approval-1")  # fmt: skip
+    allowed, _ = await approvals.request(
+        factory, ctx, deps, agent="sales", action=Action.SEND_FOLLOW_UP_EMAIL,
+        params={"lead_id": lead_id, "to": "v@example.com", "subject": "Hi", "body": "Hello!"},
+        summary="Follow-up email", idempotency_key="matrix-approval-2")  # fmt: skip
+    await approvals.decide(factory, ctx, allowed.id, actor_id=bob.id,
+                           decision="always")  # fmt: skip
+    rule_id = (await approvals.list_rules(factory, ctx))[0].id
     before = await _snapshot(bob.client, b["id"])
     url = path.format(
         business_id=b["id"],
@@ -147,6 +164,8 @@ async def test_owner_of_a_cannot_touch_b(harness: AppHarness, method: str, path:
         customer_id=customer_id,  # a real customer profile in B
         item_id=item_id,  # a real memory item in B
         file_id=upload.json()["id"],  # a real knowledge file in B
+        approval_id=pending_approval.id,  # a real pending approval in B
+        rule_id=rule_id,  # a real "always allow" rule in B
     )
     r = await alice.client.request(method, url, json=PLACEHOLDER_BODIES.get(method))
     assert r.status_code == 404, (method, url, r.status_code, r.text)
@@ -156,6 +175,7 @@ async def test_owner_of_a_cannot_touch_b(harness: AppHarness, method: str, path:
     assert after[3] == before[3] and after[4] == before[4] and after[5] == before[5]
     assert after[6] == before[6] and after[7] == before[7] and after[8] == before[8]
     assert after[9] == before[9] and after[10] == before[10] and after[11] == before[11]
+    assert after[12] == before[12] and after[13] == before[13]
 
 
 @pytest.mark.parametrize(("method", "path"), BUSINESS_ROUTES)
@@ -174,6 +194,8 @@ async def test_unknown_business_is_404_not_403(harness: AppHarness, method: str,
         customer_id=uuid.uuid4(),
         item_id=uuid.uuid4(),
         file_id=uuid.uuid4(),
+        approval_id=uuid.uuid4(),
+        rule_id=uuid.uuid4(),
     )
     r = await alice.client.request(method, url, json=PLACEHOLDER_BODIES.get(method))
     assert r.status_code == 404
@@ -195,6 +217,8 @@ async def test_anonymous_is_rejected(harness: AppHarness, method: str, path: str
         customer_id=uuid.uuid4(),
         item_id=uuid.uuid4(),
         file_id=uuid.uuid4(),
+        approval_id=uuid.uuid4(),
+        rule_id=uuid.uuid4(),
     )
     r = await c.request(method, url, json=PLACEHOLDER_BODIES.get(method))
     assert r.status_code == 401

@@ -63,7 +63,7 @@ until then the item remains an open MVP requirement and blocks the final pilot g
 
 | Requirement (phase ref) | Proposed handling | Status |
 |---|---|---|
-| Follow-up actions: `create_follow_up_task` via the gateway (3.3) | **Approved 2026-10-21:** (A) team reminders now as Task 11b; (B) agent-sent follow-up messages later, as drafts approved by the owner (with Task 19), within limits and the business's sales playbook | A: Task 11b · B: with Task 19 |
+| Follow-up actions: `create_follow_up_task` via the gateway (3.3) | **Approved 2026-10-21:** (A) team reminders now as Task 11b; (B) agent-sent follow-up messages later, as drafts approved by the owner (with Task 19), within limits and the business's sales playbook. **PO 2026-10-22:** each approval offers "approve once" or "always allow" | A: Task 11b · B: Task 19 (`APPROVALS.md`) |
 | External handoff by signed webhook with context summary (4.5) | Proposed deferral to after Task 22 (email handoff ships in Task 12); needs the SSRF guard (5.2) | Needs PO approval |
 | Integration connections + SSRF-guarded HTTP client (5.2) | Proposed deferral to after Task 22 | Needs PO approval |
 | First external connector, `unknown`-outcome handling (5.3) | Proposed deferral to after Task 22 | Needs PO approval |

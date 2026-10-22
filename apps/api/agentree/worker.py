@@ -19,6 +19,7 @@ from collections.abc import Callable
 import agentree.identity.models
 import agentree.public.models  # noqa: F401
 from agentree.analytics.service import compute_due, run_metrics_loop
+from agentree.approvals import service as approvals
 from agentree.core.config import get_settings
 from agentree.core.db import create_app_engine, create_session_factory
 from agentree.core.db_roles import assert_safe_app_role
@@ -26,6 +27,7 @@ from agentree.core.email import SmtpEmailSender
 from agentree.core.logging import configure_logging
 from agentree.core.webpush import build_push_sender
 from agentree.customers.extraction import extract_due, run_memory_loop
+from agentree.leads import outreach
 from agentree.leads.follow_ups import run_follow_up_loop, send_due_reminders
 from agentree.llm.base import LLMProvider, ProviderName
 from agentree.llm.fake import DemoProvider
@@ -58,9 +60,14 @@ async def run(*, once: bool) -> None:
         llm: dict[ProviderName, Callable[[], LLMProvider]] = dict(PROVIDERS)
         if settings.llm_demo_mode:  # dev/E2E only (refused in deployed environments)
             llm = {n: _demo(n) for n in ProviderName}
+        # Approvals (Task 19): approved actions the API did not run, and follow-up email drafts
+        # when an agent's first-contact reminder falls due.
+        deps = approvals.Deps(settings, mailer, push)
+        drafts = outreach.first_contact_hook(factory, vault, deps, llm)
         if once:
             await purge_expired_conversations(factory, retention_days=settings.retention_days)
-            await send_due_reminders(factory, settings, mailer)
+            await send_due_reminders(factory, settings, mailer, on_first_contact=drafts)
+            await approvals.run_due(factory, deps)
             await alert_provider_outages(factory, settings, mailer, push)
             await extract_due(factory, vault, settings, llm)
             await compute_due(factory)
@@ -78,6 +85,7 @@ async def run(*, once: bool) -> None:
                 "outage_alert_interval_seconds": settings.outage_alert_interval_seconds,
                 "memory_interval_seconds": settings.memory_interval_seconds,
                 "metrics_interval_seconds": settings.metrics_interval_seconds,
+                "approvals_interval_seconds": settings.approvals_interval_seconds,
                 "web_push": push.public_key is not None,
             },
         )
@@ -94,6 +102,10 @@ async def run(*, once: bool) -> None:
                 mailer,
                 interval_seconds=settings.follow_up_interval_seconds,
                 stop=stop,
+                on_first_contact=drafts,
+            ),
+            approvals.run_approvals_loop(
+                factory, deps, interval_seconds=settings.approvals_interval_seconds, stop=stop
             ),
             run_outage_alert_loop(
                 factory,

@@ -38,6 +38,10 @@ export const TOOL_LABEL: Record<string, { title: string; hint: string }> = {
     title: "Create follow-up reminders",
     hint: "Add a reminder for your team to contact each new lead.",
   },
+  send_follow_up_email: {
+    title: "Draft follow-up emails",
+    hint: "If a new lead hasn't been contacted after 24 hours, the agent drafts an email to them. Nothing is sent until an owner or admin approves it (once, or always).",
+  },
 };
 
 export type Agent = AgentConfig;

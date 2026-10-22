@@ -111,6 +111,13 @@ class DemoProvider:
             count = found.group(1) if found else "0"
             return ChatResult(text=f"In the last 30 days you had {count} visitor conversations.",
                               provider=self.name, model=request.model)  # fmt: skip
+        if "Write a short follow-up email" in system:  # Sales Agent follow-up draft (Task 19)
+            draft = {
+                "subject": "Following up on your request",
+                "body": "Hi! Thanks for reaching out. We'd be glad to help with your request. "
+                "Reply to this email and we'll take it from there.\n\nThe team",
+            }
+            return ChatResult(text=json.dumps(draft), provider=self.name, model=request.model)
         if "You maintain short notes about a customer" in system:  # customer memory job
             item = {"category": "interest", "value": "Demo interest in the business's products"}
             return ChatResult(text=json.dumps({"items": [item]}), provider=self.name,

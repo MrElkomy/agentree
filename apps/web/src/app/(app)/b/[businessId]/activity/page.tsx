@@ -5,6 +5,7 @@ import { useBusiness } from "@/components/business-shell";
 import { useSession } from "@/components/session";
 import { Alert, Button, Spinner } from "@/components/ui";
 import { api, type AuditEvent, type AuditPage, type Role } from "@/lib/api";
+import { ACTION_LABEL } from "@/lib/approvals";
 import { CHANNEL_LABEL, LEAD_STATUS_LABEL } from "@/lib/leads";
 import { ROLE_LABEL, atLeast } from "@/lib/roles";
 
@@ -24,6 +25,10 @@ function statusLabel(value: unknown): string {
   return typeof value === "string" && value in LEAD_STATUS_LABEL
     ? LEAD_STATUS_LABEL[value as keyof typeof LEAD_STATUS_LABEL]
     : String(value ?? "");
+}
+
+function actionLabel(value: unknown): string {
+  return ACTION_LABEL[String(value)] ?? String(value ?? "act");
 }
 
 function actorName(e: AuditEvent): string {
@@ -102,6 +107,20 @@ function describe(e: AuditEvent): string {
       return `${who} deleted a customer note`;
     case "customer.deleted":
       return `${who} deleted a customer and their notes`;
+    case "approval.requested":
+      return `${agentTitle(d.agent)} asked for approval to ${actionLabel(d.kind)}${d.flagged ? " (flagged for review)" : ""}`;
+    case "approval.decided":
+      if (d.decision === "rule") return `${agentTitle(d.agent)} was allowed to ${actionLabel(d.kind)} by an "Always allow" rule`;
+      if (d.decision === "reject") return `${who} rejected a request to ${actionLabel(d.kind)}`;
+      return `${who} approved a request to ${actionLabel(d.kind)}${d.decision === "always" ? " and allowed it always" : ""}${d.edited ? " (edited)" : ""}`;
+    case "approval.executed":
+      return d.status === "executed"
+        ? `${agentTitle(d.agent)} completed an approved request to ${actionLabel(d.kind)}`
+        : `An approved request to ${actionLabel(d.kind)} didn't run (${String(d.status ?? "")})`;
+    case "approval_rule.created":
+      return `${who} always allowed ${agentTitle(d.agent)} to ${actionLabel(d.kind)}`;
+    case "approval_rule.revoked":
+      return `${who} stopped always allowing ${agentTitle(d.agent)} to ${actionLabel(d.kind)}`;
     case "agent.handoff":
       return `${agentTitle(d.from_agent)} handed a conversation to ${agentTitle(d.to_agent)}`;
     case "agent.config_updated":

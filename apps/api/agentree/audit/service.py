@@ -56,6 +56,11 @@ class AuditAction(StrEnum):
     CUSTOMER_MEMORY_DELETED = "customer.memory_deleted"
     KNOWLEDGE_FILE_UPLOADED = "knowledge_file.uploaded"
     KNOWLEDGE_FILE_DELETED = "knowledge_file.deleted"
+    APPROVAL_REQUESTED = "approval.requested"
+    APPROVAL_DECIDED = "approval.decided"
+    APPROVAL_EXECUTED = "approval.executed"
+    APPROVAL_RULE_CREATED = "approval_rule.created"
+    APPROVAL_RULE_REVOKED = "approval_rule.revoked"
 
 
 # Detail keys that may be stored. Anything else is dropped, so a careless caller cannot leak a
@@ -86,6 +91,10 @@ ALLOWED_DETAILS = frozenset(
         "version",
         "resolved_by",
         "category",
+        "decision",
+        "flagged",
+        "edited",
+        "status",
     }
 )
 MAX_DETAIL_LEN = 200

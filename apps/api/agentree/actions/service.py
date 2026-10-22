@@ -6,11 +6,16 @@ and (2) idempotent: the first execution of an idempotency key is
 recorded in the caller's transaction; a retry with the same key and parameters returns the
 original result instead of acting twice, and the same key with different parameters is refused.
 Model output never names the action or the agent: trusted server code does.
+
+Sensitive actions (`APPROVALS`, Task 19) never run directly: they become approval requests
+(`agentree.approvals`) that an Owner or Admin approves once or always, and run after that.
 """
 
 import hashlib
 import json
 from collections.abc import Mapping
+from dataclasses import dataclass
+from datetime import timedelta
 from enum import StrEnum
 from typing import Any
 from uuid import UUID
@@ -29,14 +34,42 @@ class Action(StrEnum):
     UPDATE_LEAD = "update_lead"
     CREATE_FOLLOW_UP_TASK = "create_follow_up_task"
     RESOLVE_CONVERSATION = "resolve_conversation"  # mark the visitor's conversation resolved
+    SEND_FOLLOW_UP_EMAIL = "send_follow_up_email"  # email a lead a drafted follow-up (Task 19)
 
 
 # Agent role -> actions it may run. Agents not listed may run nothing.
 PERMISSIONS: Mapping[str, frozenset[Action]] = {
-    "sales": frozenset({Action.CREATE_LEAD, Action.UPDATE_LEAD, Action.CREATE_FOLLOW_UP_TASK}),
+    "sales": frozenset(
+        {
+            Action.CREATE_LEAD,
+            Action.UPDATE_LEAD,
+            Action.CREATE_FOLLOW_UP_TASK,
+            Action.SEND_FOLLOW_UP_EMAIL,
+        }
+    ),
     "customer_service": frozenset({Action.RESOLVE_CONVERSATION}),
     # PO decision 2026-10-22: support conversations too may be closed by the agent.
     "technical_support": frozenset({Action.RESOLVE_CONVERSATION}),
+}
+
+# Tools a business must turn on itself: off in an agent's default configuration.
+OPT_IN: frozenset[Action] = frozenset({Action.SEND_FOLLOW_UP_EMAIL})
+
+
+@dataclass(frozen=True)
+class ApprovalPolicy:
+    label: str  # what the agent wants to do, for people ("send a follow-up email")
+    ttl: timedelta  # an unanswered request expires after this
+    allow_always: bool  # an Owner/Admin may allow it permanently ("Always allow")
+
+
+# Sensitive actions: they run only after a person approves (once, or always by rule).
+APPROVALS: Mapping[Action, ApprovalPolicy] = {
+    # PO decision 2026-10-21 (option B): agent-written follow-up messages are drafts the owner
+    # approves; 2026-10-22: approve once or always.
+    Action.SEND_FOLLOW_UP_EMAIL: ApprovalPolicy(
+        "send a follow-up email to a lead", ttl=timedelta(days=3), allow_always=True
+    ),
 }
 
 MAX_KEY_LEN = 100
@@ -58,6 +91,10 @@ def authorize(agent: str, action: Action, granted: frozenset[Action] | None = No
         raise ActionDeniedError(f"{action} is turned off for {agent}")
 
 
+def requires_approval(action: Action) -> bool:
+    return action in APPROVALS
+
+
 def params_hash(params: Mapping[str, Any]) -> str:
     canonical = json.dumps(params, sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(canonical.encode()).hexdigest()
@@ -74,6 +111,8 @@ async def claim(
     claim of the same key waits on the unique index until the first transaction finishes.
     """
     authorize(agent, action, granted)
+    if requires_approval(action):  # only agentree.approvals runs these, after a person decides
+        raise ActionDeniedError(f"{action} needs an approval")
     if not idempotency_key or len(idempotency_key) > MAX_KEY_LEN:
         raise ValueError("invalid idempotency key")
     digest = params_hash(params)

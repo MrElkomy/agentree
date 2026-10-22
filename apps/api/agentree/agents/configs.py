@@ -15,7 +15,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from agentree.actions.service import Action
+from agentree.actions.service import OPT_IN, Action
 from agentree.agents.models import AgentConfig
 from agentree.agents.registry import DEFINITIONS, AgentDefinition, AgentRole, Audience
 from agentree.audit.service import AuditAction, record
@@ -67,7 +67,8 @@ class AgentConfigInfo:
 def _default(d: AgentDefinition) -> AgentConfigInfo:
     return AgentConfigInfo(
         definition=d, enabled=d.enabled_by_default and d.available, display_name="",
-        public=d.audience is Audience.PUBLIC, tools=d.tools, version=0, updated_at=None,
+        public=d.audience is Audience.PUBLIC, tools=d.tools - OPT_IN, version=0,
+        updated_at=None,
     )  # fmt: skip
 
 

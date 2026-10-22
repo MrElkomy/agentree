@@ -101,7 +101,9 @@ async def test_defaults_list_the_five_roles(harness: AppHarness) -> None:
         "audience": "public", "handles": agents["sales"]["handles"], "available": True,
         "enabled": True, "public": True,
         "tools": ["create_follow_up_task", "create_lead", "update_lead"],
-        "available_tools": ["create_follow_up_task", "create_lead", "update_lead"],
+        # Follow-up emails (Task 19) are available but opt-in: off by default.
+        "available_tools": ["create_follow_up_task", "create_lead", "send_follow_up_email",
+                            "update_lead"],
         "version": 0, "updated_at": None,
     }  # fmt: skip
     assert agents["technical_support"]["enabled"] is False
