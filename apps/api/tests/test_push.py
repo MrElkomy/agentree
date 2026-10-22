@@ -29,7 +29,8 @@ from agentree.providers.outages import alert_provider_outages
 from tests.conftest import AppHarness, FakeMailer, _returning
 from tests.helpers import Account, create_business, invite_and_join, signup
 
-KEY = "sk-push-primary-key-pppp1111"  # gitleaks:allow (fake test key)
+# Non-hex last 4 characters: the hint check below cannot match an id or timestamp by chance.
+KEY = "sk-push-primary-key-ppppQrSt"  # gitleaks:allow (fake test key)
 BACKUP_KEY = "sk-push-backup-key-pppp2222"  # gitleaks:allow (fake test key)
 
 
