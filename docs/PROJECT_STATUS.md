@@ -37,8 +37,11 @@ that changes what it describes. Last updated: 2026-10-21.
   `CUSTOMERS.md`), memory controls (#40), honest handoff wording + Technical Support
   resolution (#41).
 - **Merged:** Task 17 — knowledge file uploads (#42, `KNOWLEDGE_FILES.md`, migration 0019).
-- **In review:** Task 18a — daily metrics, monthly summary + Excel export, Data Analyst with
-  checked numbers (`ANALYTICS.md`, migration 0020). Next: 18b (CSV/XLSX analysis).
+- **Merged:** Task 18a — daily metrics, monthly summary + Excel export, Data Analyst with
+  checked numbers (#43, `ANALYTICS.md`, migration 0020).
+- **In review:** Task 18b — the Data Analyst calculates from uploaded CSV/XLSX through a
+  sandboxed, read-only SQLite query (`ANALYTICS.md`, migration 0021; SQLite instead of DuckDB,
+  TD-15 note). Next: Google Sheets connection (17b) once the PO sets up Google Cloud.
   Batch 3 = Tasks 17–21.
 - Shared Hetzner host with TRACK, IELTS and the Telegram bridge — never disrupt them.
 - Deploy: the PO runs `~/agentree/infra/staging/deploy.sh origin/main` (pre-deploy encrypted

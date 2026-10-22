@@ -8,28 +8,22 @@ Files are never executed and only ever served back as attachments. File names an
 never logged.
 """
 
-import asyncio
 import hashlib
 import json
 import logging
 import re
-import resource
-import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from agentree.audit.service import AuditAction, record
+from agentree.core import sandbox
 from agentree.core.ids import uuid7
-from agentree.knowledge.extract import (
-    EXTRACTED_KINDS,
-    FileRejectedError,
-    Section,
-    sniff,
-)
+from agentree.knowledge.extract import STORED_ONLY_KINDS, FileRejectedError, Section, sniff
 from agentree.knowledge.models import KnowledgeEntry, KnowledgeFile, KnowledgeFileData
 from agentree.knowledge.service import MAX_BODY_CHARS, NotFoundError, Status
 from agentree.tenancy.context import TenantContext
@@ -45,12 +39,6 @@ CHILD_MEMORY_BYTES = 256 * 1024 * 1024
 CHILD_CPU_SECONDS = 30
 STALE_AFTER = timedelta(minutes=10)  # "processing" this long: the server restarted mid-way
 
-# The child gets no secrets (vault key, database URLs): only what Python needs. It may not
-# write files, so it must not try to write bytecode caches either.
-CHILD_ENV = {"PYTHONDONTWRITEBYTECODE": "1", "PYTHONIOENCODING": "utf-8", "LANG": "C.UTF-8"}
-
-# One extraction at a time per server process: bounded memory next to the API.
-_slot = asyncio.Semaphore(1)
 _UNSAFE_NAME = re.compile(r"[\x00-\x1f\x7f/\\<>:\"|?*​-‏‪-‮⁦-⁩]")
 
 
@@ -73,6 +61,8 @@ class FileInfo:
     entry_count: int
     created_at: datetime
     processed_at: datetime | None
+    table_rows: int | None = None  # CSV/XLSX ready for the Data Analyst (Task 18b)
+    table_columns: list[str] = field(default_factory=list)
 
 
 def _now() -> datetime:
@@ -95,8 +85,10 @@ def _info(f: KnowledgeFile) -> FileInfo:
     status, error = f.status, f.error
     if status == "processing" and f.started_at < _now() - STALE_AFTER:
         status, error = "failed", "interrupted"
+    table = f.profile if status == "stored" and f.profile else {}
     return FileInfo(f.id, f.filename, f.kind, f.size_bytes, status, error, f.entry_count,
-                    f.created_at, f.processed_at)  # fmt: skip
+                    f.created_at, f.processed_at, table.get("rows"),
+                    [str(c.get("name")) for c in table.get("columns", [])])  # fmt: skip
 
 
 async def _get(session: AsyncSession, ctx: TenantContext, file_id: UUID) -> KnowledgeFile:
@@ -115,7 +107,7 @@ async def upload(
     factory: Factory, ctx: TenantContext, *, filename: str, data: bytes, actor_id: UUID
 ) -> FileInfo:
     """Check and store a file. Raises FileRejectedError (code) or QuotaExceededError. The
-    caller then runs `process` for files whose status is `processing`."""
+    caller then runs `process` (extraction, or the table profile of CSV/XLSX)."""
     name = safe_filename(filename)
     kind = sniff(name, data)
     now = _now()
@@ -131,9 +123,7 @@ async def upload(
         f = KnowledgeFile(
             id=uuid7(), business_id=ctx.business_id, filename=name, kind=kind,
             size_bytes=len(data), sha256=hashlib.sha256(data).hexdigest(),
-            status="processing" if kind in EXTRACTED_KINDS else "stored",
-            uploaded_by_user_id=actor_id, created_at=now, started_at=now,
-            processed_at=None if kind in EXTRACTED_KINDS else now,
+            status="processing", uploaded_by_user_id=actor_id, created_at=now, started_at=now,
         )  # fmt: skip
         session.add(f)
         await session.flush()
@@ -144,30 +134,16 @@ async def upload(
         return _info(f)
 
 
-def _limits() -> None:  # runs in the child before exec
-    resource.setrlimit(resource.RLIMIT_AS, (CHILD_MEMORY_BYTES, CHILD_MEMORY_BYTES))
-    resource.setrlimit(resource.RLIMIT_CPU, (CHILD_CPU_SECONDS, CHILD_CPU_SECONDS))
-    resource.setrlimit(resource.RLIMIT_FSIZE, (0, 0))  # it may not write files
-
-
 async def run_extractor(kind: str, data: bytes, title: str) -> tuple[list[Section], str | None]:
     """Extract in a limited child process. Returns (sections, None) or ([], error code)."""
-    async with _slot:
-        proc = await asyncio.create_subprocess_exec(
-            sys.executable, "-m", "agentree.knowledge.extract", kind, title,
-            stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.DEVNULL, preexec_fn=_limits, env=CHILD_ENV,
-        )  # fmt: skip
-        try:
-            out, _ = await asyncio.wait_for(proc.communicate(data), EXTRACT_TIMEOUT_SECONDS)
-        except TimeoutError:
-            proc.kill()
-            await proc.wait()
-            return [], "too_complex"
-    if proc.returncode != 0:  # killed by a limit (memory, CPU) or crashed
+    child = await sandbox.run_limited(
+        "agentree.knowledge.extract", [kind, title], data, memory_bytes=CHILD_MEMORY_BYTES,
+        cpu_seconds=CHILD_CPU_SECONDS, timeout_seconds=EXTRACT_TIMEOUT_SECONDS,
+    )  # fmt: skip
+    if not child.ok:  # killed by a limit (memory, CPU, time) or crashed
         return [], "too_complex"
     try:
-        result = json.loads(out)
+        result = json.loads(child.stdout)
     except ValueError:
         return [], "damaged_file"
     if not result.get("ok"):
@@ -189,14 +165,24 @@ async def process(factory: Factory, ctx: TenantContext, file_id: UUID, *, actor_
                     KnowledgeFileData.file_id == file_id)
             )
         ).scalar_one()  # fmt: skip
+    profile: dict[str, Any] | None = None
+    sections: list[Section] = []
     try:
-        sections, error = await run_extractor(kind, data, title)
+        if kind in STORED_ONLY_KINDS:  # a table for the Data Analyst: profile it (Task 18b)
+            result, error = await _tables(kind, data, {"mode": "profile"})
+            profile = result
+        else:
+            sections, error = await run_extractor(kind, data, title)
     except Exception as exc:  # the file stays failed; details never include its content
         logger.warning("knowledge extraction failed", extra={"error_type": type(exc).__name__})
         sections, error = [], "damaged_file"
     now = _now()
     async with tenant_session(factory, ctx) as session:
         f = await _get(session, ctx, file_id)
+        if kind in STORED_ONLY_KINDS:
+            f.status = "failed" if error else "stored"
+            f.error, f.profile, f.processed_at = error, profile, now
+            return
         for s in sections:
             session.add(KnowledgeEntry(
                 id=uuid7(), business_id=ctx.business_id, title=s.title[:200],
@@ -227,7 +213,7 @@ async def retry(factory: Factory, ctx: TenantContext, file_id: UUID) -> FileInfo
     """A failed (or interrupted) extraction runs again; the caller schedules `process`."""
     async with tenant_session(factory, ctx) as session:
         f = await _get(session, ctx, file_id)
-        if f.kind not in EXTRACTED_KINDS or _info(f).status != "failed":
+        if _info(f).status != "failed":
             raise InvalidStateError
         f.status, f.error, f.started_at = "processing", None, _now()
         return _info(f)
@@ -261,3 +247,84 @@ async def delete_file(factory: Factory, ctx: TenantContext, file_id: UUID, *,
 
 
 __all__ = ["FileRejectedError", "NotFoundError"]
+
+
+# --- uploaded tables (Task 18b) -----------------------------------------------------------------
+
+TABLE_MEMORY_BYTES = 384 * 1024 * 1024
+TABLE_CPU_SECONDS = 20
+TABLE_TIMEOUT_SECONDS = 30
+
+
+@dataclass(frozen=True)
+class Dataset:
+    file_id: UUID
+    filename: str
+    kind: str
+    columns: list[dict[str, str]]  # name, type
+    rows: int
+
+
+@dataclass(frozen=True)
+class QueryResult:
+    columns: list[str]
+    rows: list[list[Any]]
+    truncated: bool
+
+
+async def _tables(
+    kind: str, data: bytes, header: dict[str, Any]
+) -> tuple[dict[str, Any] | None, str | None]:
+    payload = json.dumps({**header, "kind": kind}).encode() + b"\n" + data
+    child = await sandbox.run_limited(
+        "agentree.knowledge.tables", [], payload, memory_bytes=TABLE_MEMORY_BYTES,
+        cpu_seconds=TABLE_CPU_SECONDS, timeout_seconds=TABLE_TIMEOUT_SECONDS,
+    )  # fmt: skip
+    if not child.ok:
+        return None, "too_complex"
+    try:
+        result: dict[str, Any] = json.loads(child.stdout)
+    except ValueError:
+        return None, "damaged_file"
+    if not result.pop("ok", False):
+        return None, str(result.get("error") or "damaged_file")[:32]
+    return result, None
+
+
+async def datasets(factory: Factory, ctx: TenantContext) -> list[Dataset]:
+    """Uploaded CSV/XLSX files ready to query, newest first."""
+    async with tenant_session(factory, ctx) as session:
+        rows = (
+            await session.execute(
+                select(KnowledgeFile).where(KnowledgeFile.business_id == ctx.business_id,
+                                            KnowledgeFile.status == "stored",
+                                            KnowledgeFile.profile.is_not(None))
+                .order_by(KnowledgeFile.created_at.desc()).limit(20)
+            )
+        ).scalars().all()  # fmt: skip
+    return [Dataset(f.id, f.filename, f.kind, list((f.profile or {}).get("columns", [])),
+                    int((f.profile or {}).get("rows", 0))) for f in rows]  # fmt: skip
+
+
+async def query_dataset(
+    factory: Factory, ctx: TenantContext, file_id: UUID, sql: str
+) -> tuple[QueryResult | None, str | None]:
+    """Run one read-only query on an uploaded table in the sandbox (Task 18b)."""
+    async with tenant_session(factory, ctx) as session:
+        f = await _get(session, ctx, file_id)
+        if f.kind not in STORED_ONLY_KINDS or f.status != "stored":
+            raise InvalidStateError
+        kind = f.kind
+        data = (
+            await session.execute(
+                select(KnowledgeFileData.data).where(
+                    KnowledgeFileData.business_id == ctx.business_id,
+                    KnowledgeFileData.file_id == file_id)
+            )
+        ).scalar_one()  # fmt: skip
+    result, error = await _tables(kind, data, {"mode": "query", "sql": sql})
+    if result is None:
+        return None, error
+    return QueryResult(
+        list(result["columns"]), list(result["rows"]), bool(result["truncated"])
+    ), None

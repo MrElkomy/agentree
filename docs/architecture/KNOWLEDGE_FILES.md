@@ -38,6 +38,10 @@ parsed with defusedxml (DTDs and entities refused, so billion-laughs/XXE files f
 (drafts created), `stored` or `failed` (with a reason). A file stuck in `processing` for 10
 minutes (server restart) shows as failed (`interrupted`) and can be retried.
 
+CSV and XLSX files are not turned into entries: they are profiled in the same kind of limited
+child process and become `stored` tables the Data Analyst can query (Task 18b, `ANALYTICS.md`).
+Any failed file can be retried.
+
 ## Safety of the text
 
 Extracted text is untrusted data: drafts are never seen by agents until a person publishes

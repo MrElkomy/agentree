@@ -40,3 +40,5 @@ class KnowledgeFileOut(BaseModel):
     entry_count: int
     created_at: datetime
     processed_at: datetime | None
+    table_rows: int | None  # stored CSV/XLSX: rows the Data Analyst can query (no cell values)
+    table_columns: list[str]

@@ -1,6 +1,7 @@
 """Business knowledge base entries. RLS: tenant-scoped on business_id."""
 
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import (
@@ -18,7 +19,7 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import ARRAY, TSVECTOR
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column
 
 from agentree.core.models import Base
@@ -83,6 +84,8 @@ class KnowledgeFile(Base):
     status: Mapped[str] = mapped_column(String(16))
     error: Mapped[str | None] = mapped_column(String(32))  # stable code when failed
     entry_count: Mapped[int] = mapped_column(Integer, server_default="0")
+    # CSV/XLSX (Task 18b): {"columns": [{"name", "type"}], "rows": n}; never cell values.
+    profile: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     uploaded_by_user_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL")
     )

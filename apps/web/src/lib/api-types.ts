@@ -1975,6 +1975,10 @@ export interface components {
             created_at: string;
             /** Processed At */
             processed_at: string | null;
+            /** Table Rows */
+            table_rows: number | null;
+            /** Table Columns */
+            table_columns: string[];
         };
         /** LeadDetailOut */
         LeadDetailOut: {

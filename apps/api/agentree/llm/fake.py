@@ -97,6 +97,14 @@ class DemoProvider:
     async def chat(self, api_key: str, request: ChatRequest) -> ChatResult:
         text = DEMO_REPLY
         system = request.messages[0].content if request.messages else ""
+        asked = request.messages[-1].content.lower() if request.messages else ""
+        result = re.search(r"Query on d1: .*\nResult \(1 rows\):\nrows\n(\d+)", system)
+        if result:  # Data Analyst, after its uploaded-table query ran (Task 18b)
+            return ChatResult(text=f"Your table has {result.group(1)} rows.",
+                              provider=self.name, model=request.model)  # fmt: skip
+        if "<<SQL d1:" in system and "rows" in asked and "Uploaded tables" in system:
+            return ChatResult(text="<<SQL d1: SELECT COUNT(*) AS rows FROM data>>",
+                              provider=self.name, model=request.model)  # fmt: skip
         if "<<<COMPUTED_NUMBERS" in system:  # Data Analyst: quote a computed number
             block = system.split("Last 30 days", 1)[-1]
             found = re.search(r"- Visitor conversations: (\d+)", block)

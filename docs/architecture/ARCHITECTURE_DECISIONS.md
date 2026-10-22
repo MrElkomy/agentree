@@ -65,7 +65,7 @@ Not approved (V2 explicit): risk-based knowledge publishing — remains a recomm
 | TD-12 | Public abuse controls protecting customer keys: rate limits, daily per-business caps, bot challenge. | §10 |
 | TD-13 | Action registry + Gateway state machine; approval bound to parameter hash; `unknown` outcomes never blindly retried. | §11 |
 | TD-14 | First actions: internal lead/task actions; first external connector proposal: signed outbound webhook. | §11 |
-| TD-15 | Data Analyst: metric library for operational data; DuckDB in sandboxed subprocess over immutable Parquet snapshots; `sqlglot` SELECT-only validation; cited-number post-check. | §13 |
+| TD-15 | Data Analyst: metric library for operational data; DuckDB in sandboxed subprocess over immutable Parquet snapshots; `sqlglot` SELECT-only validation; cited-number post-check. **Implemented differently in Task 18b (PO informed 2026-10-22):** SQLite (stdlib, in memory) in the same limited child process as file extraction, over the stored original file (no Parquet snapshot), with a single-SELECT check plus SQLite's authorizer (only reads of the `data` table and allow-listed functions) instead of `sqlglot` — less memory on the shared host, no new dependency, refusal enforced by the engine itself. See `ANALYTICS.md`. | §13 |
 | TD-16 | Notification abstraction with sensitivity classes; Telegram linking via one-time deep-link token + verified webhook. | §14 |
 | TD-17 | Widget = script injecting an iframe from agentree.com; `frame-ancestors` allowlist per business. | §15 |
 | TD-18 | Retention: daily batched hard delete; 30-day rolling encrypted backups; legal-hold flag; no message content in logs. | §16 |
