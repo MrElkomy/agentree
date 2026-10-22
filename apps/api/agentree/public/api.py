@@ -25,6 +25,7 @@ from agentree.agents import service as agents
 from agentree.agents.prompts import CustomerFacts, RememberedFact
 from agentree.agents.registry import AgentRole
 from agentree.core import ratelimit, sse
+from agentree.core.botcheck import Verdict
 from agentree.core.client_ip import client_ip
 from agentree.core.config import Environment
 from agentree.core.email import EmailSender, OutgoingEmail, branded_email, send_safely
@@ -40,6 +41,7 @@ from agentree.public.schemas import (
     GuestLeadOut,
     GuestMessageOut,
     GuestReplyOut,
+    GuestSessionIn,
     GuestSessionOut,
     IdentityConfirmIn,
     IdentityOut,
@@ -165,6 +167,7 @@ async def public_page(slug: str, request: Request) -> PublicPageOut:
         agents=[PublicAgentOut(role=c.role, name=c.name) for c in reachable],
         lead_capture=sales is not None and Action.CREATE_LEAD in sales.effective_tools,
         retention_days=request.app.state.settings.retention_days,
+        challenge_site_key=request.app.state.bot_challenge.site_key,
         customer_memory=page.customer_memory,
     )  # fmt: skip
 
@@ -176,12 +179,22 @@ async def widget_config(slug: str, request: Request) -> WidgetConfigOut:
 
 
 @public_router.post("/sessions", status_code=status.HTTP_201_CREATED)
-async def create_guest_session(slug: str, request: Request) -> GuestSessionOut:
+async def create_guest_session(
+    slug: str, request: Request, body: GuestSessionIn | None = None
+) -> GuestSessionOut:
     page = await _page(request, slug)
     bid = str(page.tenant.business_id)
-    if not await _within(request, "public-session:ip", _ip(request),
+    ip = _ip(request)
+    if not await _within(request, "public-session:ip", ip,
                          service.SESSIONS_PER_IP_PER_HOUR, 3600):  # fmt: skip
         raise _busy()
+    # After the per-IP limit (no free calls to Cloudflare) and before the per-business one, so
+    # unsolved requests cannot use up a business's daily sessions.
+    verdict = await request.app.state.bot_challenge.verify(body.challenge if body else None, ip)
+    if verdict is Verdict.UNAVAILABLE:
+        raise _busy()
+    if verdict is not Verdict.PASSED:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="challenge_failed")
     if not await _within(request, "public-session:business", bid,
                          service.SESSIONS_PER_BUSINESS_PER_DAY, 86400):  # fmt: skip
         raise _busy()

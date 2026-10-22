@@ -109,7 +109,7 @@ Rules: at least one Owner always exists; nobody can grant a role higher than the
 | U-13 | Memory review schedule | **Resolved 2026-10-21 (PO), follows U-12:** no long-term review schedule; memory items are deleted within the 30-day window (the 180-day proposal is withdrawn). | Task 16 |
 | U-14 | Telegram two-way Executive chat in MVP | Outbound notifications + deep links only | Phase 6 |
 | U-15 | Billing/payment implementation | Out of MVP code until prices exist | Post-MVP |
-| U-16 | Bot challenge provider | Cloudflare Turnstile candidate | Phase 4 |
+| U-16 | Bot challenge provider | Cloudflare Turnstile, implemented in Task 22 (pending PO approval): free, no visitor tracking cookies; keys come from the PO's Cloudflare account | Phase 4 |
 
 ## 4. Risks
 

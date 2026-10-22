@@ -102,6 +102,8 @@ class PublicAgentOut(BaseModel):
 
 class PublicPageOut(BaseModel):
     slug: str
+    # Turnstile site key for opening a chat session; None when the bot challenge is off.
+    challenge_site_key: str | None = None
     display_name: str
     bio: str
     links: list[LinkOut]
@@ -138,6 +140,11 @@ class IdentityConfirmIn(BaseModel):
 
 class WidgetConfigOut(BaseModel):
     widget_origins: list[str]
+
+
+class GuestSessionIn(BaseModel):
+    # Cloudflare Turnstile token from the browser; required when the bot challenge is on.
+    challenge: str | None = Field(default=None, max_length=2048)
 
 
 class GuestSessionOut(BaseModel):

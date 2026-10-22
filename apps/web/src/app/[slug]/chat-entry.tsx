@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { GuestChat } from "@/components/guest-chat";
+import { registerChallenge } from "@/lib/bot-challenge";
 import type { PublicAgent } from "@/lib/api";
 import { ENTRY_HINT, chatWith } from "@/lib/agents";
 import { hasGuestConversation } from "@/lib/guest-chat";
@@ -18,6 +19,7 @@ export function ChatEntry({
   leadCapture,
   retentionDays,
   customerMemory,
+  challengeSiteKey,
 }: {
   slug: string;
   displayName: string;
@@ -25,7 +27,9 @@ export function ChatEntry({
   leadCapture: boolean;
   retentionDays: number;
   customerMemory: boolean;
+  challengeSiteKey: string | null;
 }) {
+  registerChallenge(slug, challengeSiteKey);
   // A returning visitor finds their open conversation already expanded.
   const returning = useClientValue(() => hasGuestConversation(slug), false);
   const [chosen, setChosen] = useState<string | null>(null);

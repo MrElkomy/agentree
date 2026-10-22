@@ -31,6 +31,8 @@ SECURE_PROD: dict[str, object] = {
     "smtp_password": "not-a-real-secret",
     "mail_from": "Agentree <no-reply@agentree.com>",
     "master_key": generate_master_key(),
+    "turnstile_site_key": "0x4AAAAAAAexample",
+    "turnstile_secret_key": "not-a-real-secret",
 }
 
 
@@ -54,6 +56,8 @@ def test_secure_deployed_configuration_is_accepted(environment: str) -> None:
         ({"mail_from": "Agentree <no-reply@localhost>"}, "mail_from"),
         ({"master_key": None}, "master_key is required"),
         ({"llm_demo_mode": True}, "llm_demo_mode must be false"),
+        ({"turnstile_site_key": None, "turnstile_secret_key": None}, "turnstile"),
+        ({"turnstile_secret_key": None}, "turnstile"),
     ],
 )
 def test_insecure_production_configuration_fails_closed(
@@ -71,3 +75,14 @@ def test_dev_defaults_are_allowed_outside_deployed_environments() -> None:
 def test_malformed_master_key_rejected(value: str) -> None:
     with pytest.raises(ValidationError):
         Settings(database_url="postgresql+asyncpg://u:p@h/d", master_key=value)
+
+
+def test_staging_may_run_without_the_bot_challenge() -> None:
+    Settings.model_validate(SECURE_PROD | {"environment": "staging", "turnstile_site_key": None,
+                                           "turnstile_secret_key": None})  # fmt: skip
+
+
+def test_turnstile_keys_come_together_in_every_environment() -> None:
+    with pytest.raises(ValidationError, match="turnstile"):
+        Settings.model_validate({"database_url": SECURE_PROD["database_url"],
+                                 "turnstile_site_key": "0x4AAAAAAAexample"})  # fmt: skip
