@@ -52,6 +52,9 @@ that changes what it describes. Last updated: 2026-10-21.
 - **In review:** Task 20c — email reports (daily/weekly, checked Executive notes) and alerts
   (daily budget used up, visitor still waiting), `REPORTS.md`, migration 0024. Stacked on 20b.
   Next: Task 21.
+- **In review:** Task 21 — Owner-only legal hold, retention run records, per-agent outcomes and AI
+  key health on Analytics (`LEGAL_HOLD.md`, migration 0025). Stacked on 20c. With it, batch 3
+  (Tasks 17–21) is complete and ready to deploy once the PO approves.
   Batch 3 = Tasks 17–21.
 - Shared Hetzner host with TRACK, IELTS and the Telegram bridge — never disrupt them.
 - Deploy: the PO runs `~/agentree/infra/staging/deploy.sh origin/main` (pre-deploy encrypted

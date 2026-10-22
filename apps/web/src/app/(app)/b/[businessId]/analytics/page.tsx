@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useBusiness } from "@/components/business-shell";
+import { AgentOutcomes, KeysAndRetention } from "@/components/analytics-extras";
 import { EmailReports } from "@/components/email-reports";
 import { useSession } from "@/components/session";
 import { Alert, SelectField, Spinner, buttonClass } from "@/components/ui";
@@ -150,6 +151,8 @@ export default function AnalyticsPage() {
           </section>
         </>
       ) : null}
+      {shown ? <AgentOutcomes summary={shown} /> : null}
+      <KeysAndRetention businessBase={base.replace(/\/analytics$/, "")} businessId={business.id} />
       <EmailReports businessBase={base.replace(/\/analytics$/, "")} canEdit={atLeast(business.role, "admin")} />
     </div>
   );

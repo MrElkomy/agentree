@@ -995,6 +995,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/businesses/{business_id}/inbox/{conversation_id}/legal-hold": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Legal Hold
+         * @description Owner only: keep this conversation past the retention window (or release it). Audited.
+         */
+        put: operations["set_legal_hold_api_businesses__business_id__inbox__conversation_id__legal_hold_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/businesses/{business_id}/agents": {
         parameters: {
             query?: never;
@@ -1343,6 +1363,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/businesses/{business_id}/analytics/retention": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Retention Info
+         * @description How long raw conversations are kept and when the deletion job last ran (Task 21).
+         */
+        get: operations["retention_info_api_businesses__business_id__analytics_retention_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/businesses/{business_id}/analytics/export": {
         parameters: {
             query?: never;
@@ -1506,6 +1546,15 @@ export interface components {
             availability: components["schemas"]["AvailabilityOut"];
             /** Answering Now */
             answering_now: boolean;
+        };
+        /** AgentOutcomeOut */
+        AgentOutcomeOut: {
+            /** Role */
+            role: string;
+            /** Outcomes */
+            outcomes: {
+                [key: string]: number;
+            };
         };
         /** AgentReplyOut */
         AgentReplyOut: {
@@ -2177,6 +2226,8 @@ export interface components {
             preview: string;
             /** Preview Role */
             preview_role: string;
+            /** Legal Hold */
+            legal_hold: boolean;
         };
         /** InboxMessageOut */
         InboxMessageOut: {
@@ -2403,6 +2454,11 @@ export interface components {
             status?: components["schemas"]["LeadStatus"] | null;
             /** Notes */
             notes?: string | null;
+        };
+        /** LegalHoldIn */
+        LegalHoldIn: {
+            /** Held */
+            held: boolean;
         };
         /** LinkIn */
         LinkIn: {
@@ -2693,6 +2749,13 @@ export interface components {
             /** New Password */
             new_password: string;
         };
+        /** RetentionOut */
+        RetentionOut: {
+            /** Retention Days */
+            retention_days: number;
+            /** Last Run At */
+            last_run_at: string | null;
+        };
         /**
          * Role
          * @enum {string}
@@ -2766,6 +2829,12 @@ export interface components {
             days: components["schemas"]["DayOut"][];
             /** Missing Days */
             missing_days: string[];
+            /** Agents */
+            agents: components["schemas"]["AgentOutcomeOut"][];
+            /** Agent Outcome Labels */
+            agent_outcome_labels: {
+                [key: string]: string;
+            };
         };
         /** TestSendOut */
         TestSendOut: {
@@ -4962,6 +5031,42 @@ export interface operations {
             };
         };
     };
+    set_legal_hold_api_businesses__business_id__inbox__conversation_id__legal_hold_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+                business_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LegalHoldIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LegalHoldIn"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_agents_api_businesses__business_id__agents_get: {
         parameters: {
             query?: never;
@@ -5765,6 +5870,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SummaryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retention_info_api_businesses__business_id__analytics_retention_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetentionOut"];
                 };
             };
             /** @description Validation Error */

@@ -203,6 +203,9 @@ test("owner sets up the AI team; a visitor is handed Sales → Technical Support
 
   // --- Task 20c: email reports (a real email, checked in Mailpit) --------------------------------
   await page.getByRole("link", { name: "Analytics" }).first().click();
+  // Task 21: AI key health and data retention, measured.
+  await expect(page.getByTestId("key-health-primary")).toContainText("Working");
+  await expect(page.getByTestId("retention-last-run")).toBeVisible();
   const reportsForm = page.getByTestId("email-reports");
   await reportsForm.getByLabel("Send").selectOption("weekly");
   await reportsForm.getByLabel("Weekday").selectOption("Friday");
