@@ -2,6 +2,10 @@
 
 export const ACTION_LABEL: Record<string, string> = {
   send_follow_up_email: "send a follow-up email to a lead",
+  set_agent_enabled: "turn an agent on or off",
+  update_public_profile: "update the public page",
+  update_lead_status: "change a lead's status",
+  assign_lead: "assign a lead to a team member",
 };
 
 export const STATUS_LABEL: Record<string, string> = {
@@ -24,7 +28,11 @@ export const ERROR_LABEL: Record<string, string> = {
   tool_turned_off: "The agent's follow-up emails were turned off.",
   send_failed: "The email server refused the message. Contact the lead yourself.",
   params_changed: "The request changed after it was approved, so the approval no longer counts.",
-  error: "Something went wrong. Contact the lead yourself.",
+  approver_not_allowed: "Whoever approved it is no longer an owner or admin, so the approval doesn't count.",
+  agent_not_available: "That agent isn't available.",
+  not_allowed: "The Executive Assistant can't change itself.",
+  member_left: "That team member is no longer in the business.",
+  error: "Something went wrong. Try again or make the change yourself.",
 };
 
 /** Why the backend wants a person to review a draft (never sent automatically). */

@@ -39,9 +39,9 @@ test("owner sets up the AI team; a visitor is handed Sales → Technical Support
   await support.getByLabel("Name customers see").fill("Tariq");
   await support.getByRole("button", { name: "Save Technical Support" }).click();
   await expect(page.getByTestId("agent-status-technical_support")).toHaveText("On");
-  // Internal agents cannot be turned on yet, and never by visitors.
-  await expect(page.getByTestId("agent-executive")).toContainText("Coming soon");
-  await expect(page.getByTestId("agent-executive").getByRole("checkbox")).toHaveCount(0);
+  // Internal agents can never be opened to visitors.
+  await expect(page.getByTestId("agent-executive")).toContainText("Internal");
+  await expect(page.getByTestId("agent-executive").getByText("Visitors can chat with this agent")).toHaveCount(0);
 
   await page.getByRole("link", { name: "Public page & widget" }).first().click();
   const slug = new URL((await page.getByTestId("public-url").textContent())!.trim()).pathname.slice(1);
@@ -143,4 +143,30 @@ test("owner sets up the AI team; a visitor is handed Sales → Technical Support
   await expect(page.getByRole("heading", { level: 1, name: "Approvals" })).toBeVisible();
   await expect(page.getByText("Nothing to approve.")).toBeVisible();
   await expect(page.getByText("Every request waits for a person.")).toBeVisible();
+
+  // --- Task 20: the Executive Assistant proposes, a person approves -------------------------
+  await page.goto(`${businessPath}/agents`);
+  const exec = page.getByTestId("agent-executive");
+  await exec.getByLabel("Turn on Executive Assistant").check();
+  await exec.getByRole("button", { name: "Save Executive Assistant" }).click();
+  await expect(page.getByTestId("agent-status-executive")).toHaveText("On");
+  await page.evaluate(() => {
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith("agentree:sales-conversation:")) localStorage.removeItem(key);
+    }
+  });
+  await page.getByRole("link", { name: "Test chat" }).first().click();
+  await page.getByLabel("Start with").selectOption({ label: "Executive Assistant" });
+  await page.getByLabel("Message", { exact: true }).fill("Please turn off Technical Support");
+  await page.keyboard.press("Enter");
+  const proposal = page.getByTestId("chat-assistant").last();
+  await expect(proposal).toContainText("Waiting for approval: Turn off the Technical Support.");
+  await expect(page.getByText("<<ACTION")).toHaveCount(0);
+  await page.getByRole("link", { name: "Approvals" }).first().click();
+  const card = page.getByTestId("approval-card").filter({ hasText: "Executive Assistant wants to turn an agent on or off" });
+  await expect(card).toContainText("Turn off the Technical Support");
+  await card.getByRole("button", { name: "Approve once" }).click();
+  await expect(page.getByTestId("approval-history").first().getByTestId("approval-status")).toHaveText("Done");
+  await page.goto(`${businessPath}/agents`);
+  await expect(page.getByTestId("agent-status-technical_support")).toHaveText("Off");
 });
