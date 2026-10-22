@@ -3,7 +3,7 @@
 from fastapi import APIRouter, HTTPException, Request, Response, status
 
 from agentree.core import ratelimit
-from agentree.core.client_ip import client_ip
+from agentree.core.client_ip import client_ip, rate_limit_bucket
 from agentree.identity import service
 from agentree.identity.deps import CurrentUser
 from agentree.identity.passwords import WeakPasswordError
@@ -24,7 +24,8 @@ ACCEPTED = StatusOut(status="accepted")
 
 
 def _client_ip(request: Request) -> str:
-    return client_ip(request, request.app.state.settings.trusted_proxy_count)
+    """Per-IP rate limit bucket (IPv6: the /64 network)."""
+    return rate_limit_bucket(client_ip(request, request.app.state.settings.trusted_proxy_count))
 
 
 async def _limit(request: Request, scope: str, identifier: str, limit: int, window: int) -> None:

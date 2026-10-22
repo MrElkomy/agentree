@@ -104,3 +104,15 @@ test("owner creates a business and invites a member who joins", async ({ browser
   await expect(member).toHaveURL(/\/login\?next=%2Fdashboard$/);
   await memberContext.close();
 });
+
+test("sign-in never redirects to another site", async ({ page }) => {
+  // Task 22 security review: browsers drop the tab, so "/\t/evil.example" would be "//evil.example".
+  const email = `redirect-${runId()}@example.com`;
+  await page.goto("/signup");
+  await signUp(page, email);
+  await verifyFromEmail(page, email);
+  await page.goto(`/login?next=${encodeURIComponent("/\t/evil.example/")}`);
+  await logIn(page, email);
+  await expect(page).toHaveURL(/\/dashboard$/);
+  expect(new URL(page.url()).host).not.toContain("evil.example");
+});

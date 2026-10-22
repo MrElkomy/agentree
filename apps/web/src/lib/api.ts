@@ -133,12 +133,22 @@ export function loginHref(next?: string): string {
   return safe ? `/login?next=${encodeURIComponent(safe)}` : "/login";
 }
 
-/** Only allow local absolute paths as post-login redirects (no open redirects). */
+const SAME_ORIGIN = "https://agentree.invalid";
+
+/**
+ * Only allow local absolute paths as post-login redirects (no open redirects). Browsers drop
+ * tabs and newlines and read `\` as `/` in URLs, so "/\t/evil.com" would become "//evil.com":
+ * control characters and backslashes are refused, and the path must stay on our own origin.
+ */
 export function safeNext(next: string | null | undefined): string | null {
-  if (!next || !next.startsWith("/") || next.startsWith("//") || next.startsWith("/\\")) {
+  if (!next || !next.startsWith("/") || /[\u0000-\u001f\u007f\\]/.test(next)) return null;
+  let url: URL;
+  try {
+    url = new URL(next, SAME_ORIGIN);
+  } catch {
     return null;
   }
-  return next;
+  return url.origin === SAME_ORIGIN ? `${url.pathname}${url.search}${url.hash}` : null;
 }
 
 /** Multipart upload of one file (same-origin cookie; the Origin header satisfies CSRF). */

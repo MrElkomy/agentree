@@ -174,7 +174,10 @@ async def _conversation(
     entry: AgentRole,
 ) -> Conversation:  # fmt: skip
     if conversation_id is not None:
-        return await _existing(session, ctx, conversation_id)
+        conv = await _existing(session, ctx, conversation_id)
+        if conv.channel != "console":  # visitors' conversations are answered in the Inbox
+            raise NotFoundError
+        return conv
     conv = Conversation(id=uuid7(), business_id=ctx.business_id, channel="console",
                         active_agent=entry, created_by_user_id=user_id)  # fmt: skip
     session.add(conv)
@@ -257,11 +260,12 @@ class RoleState:
 class RoleExtension:
     """Context and actions for one role from a module this one must not import (Task 20:
     `agentree.executive` gives the Executive Assistant the business's state and turns its
-    proposals into approval requests). `act` gets the untrusted proposals and returns one
-    status line per proposal for the reply."""
+    proposals into approval requests). `act` gets the untrusted proposals and whether the
+    person chatting may let "always allow" rules run them at once (Owners and Admins only),
+    and returns one status line per proposal for the reply."""
 
     context: Callable[[TenantContext], Awaitable[RoleState]]
-    act: Callable[[TenantContext, UUID, list[dict[str, Any]]], Awaitable[list[str]]]
+    act: Callable[[TenantContext, UUID, list[dict[str, Any]], bool], Awaitable[list[str]]]
 
 
 Extensions = Mapping[AgentRole, RoleExtension]
@@ -451,6 +455,7 @@ async def _stream_turn(
     message: str, roster: configs.Roster, agent: configs.AgentConfigInfo, guest: bool,
     public: bool, notes: list[HandoffNote], facts: CustomerFacts | None,
     remembered: Sequence[RememberedFact] = (), extensions: Extensions | None = None,
+    allow_rules: bool = False,
 ) -> AsyncIterator[StreamEvent | _TurnDone]:  # fmt: skip
     """Stream one turn, routing at most once to an allowed teammate; persist at the end.
 
@@ -554,7 +559,7 @@ async def _stream_turn(
         status_lines: list[str] = []
         if extension is not None and proposals and target is None:
             # Proposals only: the extension asks a person to approve each (never runs them).
-            status_lines = await extension.act(ctx, conv_id, proposals)
+            status_lines = await extension.act(ctx, conv_id, proposals, allow_rules)
         if computed and not text and not status_lines and target is None:
             text = QUERY_UNANSWERED + computed
         elif computed and text and not cited_numbers_ok(text, checked, message):
@@ -622,12 +627,14 @@ async def _stream_turn(
 async def stream_sales_console_turn(
     factory: Factory, vault: Vault | None, provider_factories: ProviderFactories,
     ctx: TenantContext, *, user_id: UUID, message: str, conversation_id: UUID | None,
-    agent: str | None = None, extensions: Extensions | None = None,
+    agent: str | None = None, extensions: Extensions | None = None, allow_rules: bool = False,
 ) -> AsyncIterator[StreamEvent | TurnResult]:  # fmt: skip
     """Console turn (a member testing their agents) as a stream ending in TurnResult.
 
     Members may reach every enabled agent, including ones not open to visitors. `agent`
-    picks the entry agent of a new conversation.
+    picks the entry agent of a new conversation. `allow_rules`: the member is an Owner or
+    Admin, so "always allow" rules may run the Executive's proposals at once; a Member's
+    proposals always wait for approval.
     """
     roster = await configs.roster(factory, ctx)
     entry = roster.entry(agent, guest=False)
@@ -645,7 +652,7 @@ async def stream_sales_console_turn(
                                    channel=channel, history=history, message=message,
                                    roster=roster, agent=current, guest=False, public=False,
                                    notes=notes, facts=None,
-                                   extensions=extensions):  # fmt: skip
+                                   extensions=extensions, allow_rules=allow_rules):  # fmt: skip
         if isinstance(item, _TurnDone):
             yield TurnResult(
                 conv_id, item.result.text, item.sources, item.result.provider,
@@ -659,11 +666,12 @@ async def stream_sales_console_turn(
 async def sales_console_turn(
     factory: Factory, vault: Vault | None, provider_factories: ProviderFactories,
     ctx: TenantContext, *, user_id: UUID, message: str, conversation_id: UUID | None,
-    agent: str | None = None, extensions: Extensions | None = None,
+    agent: str | None = None, extensions: Extensions | None = None, allow_rules: bool = False,
 ) -> TurnResult:  # fmt: skip
     async for item in stream_sales_console_turn(
         factory, vault, provider_factories, ctx, user_id=user_id, message=message,
         conversation_id=conversation_id, agent=agent, extensions=extensions,
+        allow_rules=allow_rules,
     ):  # fmt: skip
         if isinstance(item, TurnResult):
             return item

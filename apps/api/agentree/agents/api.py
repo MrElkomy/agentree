@@ -17,6 +17,7 @@ from agentree.agents.schemas import (
 from agentree.core import ratelimit, sse
 from agentree.core.vault import VaultDecryptError, VaultUnavailableError
 from agentree.tenancy.deps import Member
+from agentree.tenancy.roles import Role, at_least
 
 router = APIRouter(prefix="/api/businesses/{business_id}", tags=["agents"])
 
@@ -73,6 +74,7 @@ async def sales_console(
             st.session_factory, st.vault, st.llm_providers, member.tenant,
             user_id=member.user.id, message=body.message, conversation_id=body.conversation_id,
             agent=body.agent, extensions=getattr(st, "agent_extensions", None),
+        allow_rules=at_least(member.role, Role.ADMIN),
         )  # fmt: skip
     except Exception as exc:
         if (err := _turn_error(exc)) is None:
@@ -109,6 +111,7 @@ async def sales_console_stream(
         st.session_factory, st.vault, st.llm_providers, member.tenant,
         user_id=member.user.id, message=body.message, conversation_id=body.conversation_id,
         agent=body.agent, extensions=getattr(st, "agent_extensions", None),
+        allow_rules=at_least(member.role, Role.ADMIN),
     )  # fmt: skip
     try:
         first = await anext(items)

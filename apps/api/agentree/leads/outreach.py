@@ -151,7 +151,10 @@ async def propose(
     ]  # fmt: skip
     result = await agents.complete(factory, vault, ctx, provider_factories, messages)
     subject, body = parse_draft(result.text)
-    sources = [e.body for e in entries] + [e.title for e in entries] + [need, name, business.name]
+    # Only the business's own published knowledge backs numbers and links. The visitor typed the
+    # name and request (and the address is not verified), so a link or number that only they
+    # wrote flags the draft: it then waits for a person, even under "always allow".
+    sources = [e.body for e in entries] + [e.title for e in entries] + [business.name]
     flag = check_draft(subject, body, sources=sources)
     info, _created = await approvals.request(
         factory, ctx, deps, agent=AGENT, action=ACTION,
