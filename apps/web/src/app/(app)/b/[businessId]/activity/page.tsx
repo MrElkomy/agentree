@@ -121,6 +121,8 @@ function describe(e: AuditEvent): string {
       return `${who} always allowed ${agentTitle(d.agent)} to ${actionLabel(d.kind)}`;
     case "approval_rule.revoked":
       return `${who} stopped always allowing ${agentTitle(d.agent)} to ${actionLabel(d.kind)}`;
+    case "report_settings.updated":
+      return d.kind === "off" ? `${who} turned off email reports` : `${who} set email reports to ${String(d.kind)}`;
     case "business_hours.updated":
       return `${who} updated the business hours (${String(d.timezone ?? "")})`;
     case "agent.availability_updated":

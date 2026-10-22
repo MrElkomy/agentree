@@ -1071,6 +1071,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/businesses/{business_id}/report-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Report Settings */
+        get: operations["get_report_settings_api_businesses__business_id__report_settings_get"];
+        /** Put Report Settings */
+        put: operations["put_report_settings_api_businesses__business_id__report_settings_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/businesses/{business_id}/report-settings/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send Test Report
+         * @description Email the report to yourself now (weekly when reports are off). 429 `busy`.
+         */
+        post: operations["send_test_report_api_businesses__business_id__report_settings_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/businesses/{business_id}/notifications/push": {
         parameters: {
             query?: never;
@@ -2628,6 +2666,26 @@ export interface components {
             /** Password */
             password: string;
         };
+        /** ReportSettingsIO */
+        ReportSettingsIO: {
+            /**
+             * Frequency
+             * @enum {string}
+             */
+            frequency: "off" | "daily" | "weekly";
+            /**
+             * Weekday
+             * @default 0
+             */
+            weekday: number;
+            /**
+             * Include Notes
+             * @default false
+             */
+            include_notes: boolean;
+            /** Last Sent At */
+            last_sent_at?: string | null;
+        };
         /** ResetConfirmIn */
         ResetConfirmIn: {
             /** Token */
@@ -2708,6 +2766,11 @@ export interface components {
             days: components["schemas"]["DayOut"][];
             /** Missing Days */
             missing_days: string[];
+        };
+        /** TestSendOut */
+        TestSendOut: {
+            /** Sent */
+            sent: number;
         };
         /** TokenIn */
         TokenIn: {
@@ -5055,6 +5118,103 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BusinessHoursIO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_report_settings_api_businesses__business_id__report_settings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportSettingsIO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_report_settings_api_businesses__business_id__report_settings_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportSettingsIO"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportSettingsIO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    send_test_report_api_businesses__business_id__report_settings_test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestSendOut"];
                 };
             };
             /** @description Validation Error */

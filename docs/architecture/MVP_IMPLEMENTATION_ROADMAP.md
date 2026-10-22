@@ -71,7 +71,7 @@ until then the item remains an open MVP requirement and blocks the final pilot g
 | Telegram linking and delivery (6.3) | Proposed deferral to after Task 22 (email alerts ship in Tasks 11, 12, 20) | Needs PO approval |
 | In-app notification center (6.3) | Proposed deferral to after Task 22 | Needs PO approval |
 | Custom agent display name (2.4, PO request 2026-10-20) | **Approved 2026-10-21** (Task 14 authorization): display name per agent, cosmetic only | Task 14 |
-| Alert when a business hits its daily reply budget (4.3) | Proposed: add to Task 13 (monitoring) | Needs PO approval of placement |
+| Alert when a business hits its daily reply budget (4.3) | Built in Task 20c with the other alerts (`REPORTS.md`) | Task 20c |
 | Daily aggregated operational metrics job (approved with 5.4) | **Placed in Task 18a (PO 2026-10-22)**; 13-month retention | Done in 18a |
 | **New (PO request 2026-10-21):** free Web Push notifications to Owners/Admins (new lead, handoff request, provider outage) via the standard Push API + VAPID, opt-in per device, email stays the fallback; iOS needs 16.4+ and Add to Home Screen | **Approved 2026-10-21:** Task 13b (lead, handoff and provider-down alerts) | Task 13b |
 | **New (PO request 2026-10-21):** platform admin dashboard for the Agentree team, separate from business dashboards: manage customer businesses (e.g. suspend/reactivate), send announcements/notifications to customers, with room for many more capabilities | PO: "at the end" — after Task 22; scope and security (separate admin identity, audit) to be specified then | Later (after Task 22) |

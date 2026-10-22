@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { logIn, replyDone, runId, signUp, verifyFromEmail } from "./helpers";
+import { emailText } from "./mailpit";
 
 // Runs against the dev stack with AGENTREE_LLM_DEMO_MODE=true: the demo provider routes problems
 // ("error", "not working") to Technical Support and buying questions back to Sales when that
@@ -199,4 +200,17 @@ test("owner sets up the AI team; a visitor is handed Sales → Technical Support
   await h.keyboard.press("Enter");
   await expect(h.getByTestId("guest-assistant").last()).toHaveText(/Eid Mubarak! We're back on Sunday\./);
   await holidayContext.close();
+
+  // --- Task 20c: email reports (a real email, checked in Mailpit) --------------------------------
+  await page.getByRole("link", { name: "Analytics" }).first().click();
+  const reportsForm = page.getByTestId("email-reports");
+  await reportsForm.getByLabel("Send").selectOption("weekly");
+  await reportsForm.getByLabel("Weekday").selectOption("Friday");
+  await reportsForm.getByRole("button", { name: "Save email reports" }).click();
+  await expect(reportsForm.getByText("Saved.")).toBeVisible();
+  await reportsForm.getByRole("button", { name: "Send me a report now" }).click();
+  await expect(reportsForm.getByText("A report is on its way to your email.")).toBeVisible();
+  const report = await emailText(ownerEmail, "Weekly report for");
+  expect(report).toContain("Visitor conversations:");
+  expect(report).toContain("Leads still new:");
 });

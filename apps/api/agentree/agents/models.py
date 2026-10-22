@@ -81,6 +81,8 @@ class Conversation(Base):
     assignee_user_id: Mapped[UUID | None] = mapped_column()  # no FK: kept if the member leaves
     handoff_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     handoff_reason: Mapped[str | None] = mapped_column(String(16))  # visitor | agent
+    # Task 20c: when Owners and Admins were alerted that this visitor is still waiting.
+    waiting_alerted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Message(Base):
