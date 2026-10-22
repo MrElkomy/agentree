@@ -118,8 +118,13 @@ test("owner sets up the AI team; a visitor is handed Sales → Technical Support
   await expect(table.getByTestId("knowledge-file-status")).toHaveText(
     "Ready for the Data Analyst · 3 rows, 2 columns",
   );
+  // Start a fresh test chat: forget the saved one, so no restore races the "Start with" choice.
+  await page.evaluate(() => {
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith("agentree:sales-conversation:")) localStorage.removeItem(key);
+    }
+  });
   await page.getByRole("link", { name: "Test chat" }).first().click();
-  await page.getByRole("button", { name: "New conversation" }).click();
   await page.getByLabel("Start with").selectOption({ label: "Data Analyst" });
   await page.getByLabel("Message", { exact: true }).fill("How many rows does my orders table have?");
   await page.keyboard.press("Enter");
