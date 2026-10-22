@@ -44,9 +44,11 @@ that changes what it describes. Last updated: 2026-10-21.
 - **Merged:** Task 19 — approvals (approve once / always allow) and follow-up email drafts (#45,
   `APPROVALS.md`, migration 0022). The repository is public since 2026-10-22 (PO decision, after
   the Actions minutes ran out); CI runs once per commit.
-- **In review:** Task 20a — Executive Assistant: business state, checked numbers, changes only
-  as approval requests (`EXECUTIVE.md`). Next: 20b (scheduled reports and alerts). Open
-  proposal for the PO: agent working hours.
+- **Merged:** Task 20a — Executive Assistant (#46, `EXECUTIVE.md`). PO 2026-10-22: it is an
+  initial version and will become a major selling feature.
+- **In review:** Task 20b — business hours and agent availability: always / during business hours /
+  outside them, pauses (e.g. holidays) with a fixed message (PO 2026-10-22; `AGENTS.md`,
+  migration 0023). Next: 20c (scheduled reports and alerts), then Task 21.
   Batch 3 = Tasks 17–21.
 - Shared Hetzner host with TRACK, IELTS and the Telegram bridge — never disrupt them.
 - Deploy: the PO runs `~/agentree/infra/staging/deploy.sh origin/main` (pre-deploy encrypted

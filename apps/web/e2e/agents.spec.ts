@@ -169,4 +169,34 @@ test("owner sets up the AI team; a visitor is handed Sales → Technical Support
   await expect(page.getByTestId("approval-history").first().getByTestId("approval-status")).toHaveText("Done");
   await page.goto(`${businessPath}/agents`);
   await expect(page.getByTestId("agent-status-technical_support")).toHaveText("Off");
+
+  // --- Task 20b: business hours and a pause with a fixed message ------------------------------
+  const hoursForm = page.getByTestId("business-hours");
+  await expect(hoursForm.getByText("Not set yet: every agent answers always.")).toBeVisible();
+  await hoursForm.getByRole("button", { name: "Save business hours" }).click();
+  await expect(hoursForm.getByText("Business hours saved.")).toBeVisible();
+  const salesHours = page.getByTestId("availability-sales");
+  await expect(page.getByTestId("answering-sales")).toHaveText("Answering now");
+  const [from, until] = await page.evaluate(() => {
+    const local = (d: Date) => {
+      const p = (n: number) => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+    };
+    const now = Date.now();
+    return [local(new Date(now - 3600_000)), local(new Date(now + 86400_000))];
+  });
+  await salesHours.getByLabel("From").fill(from);
+  await salesHours.getByLabel("Until").fill(until);
+  await salesHours.getByLabel("Message during the pause").fill("Eid Mubarak! We're back on Sunday.");
+  await salesHours.getByRole("button", { name: "Save availability" }).click();
+  await expect(page.getByTestId("answering-sales")).toHaveText("Away now");
+
+  const holidayContext = await browser.newContext();
+  const h = await holidayContext.newPage();
+  await h.goto(`/${slug}`);
+  await h.getByRole("button", { name: "Chat with Sara" }).click();
+  await h.getByLabel("Message", { exact: true }).fill("Are you open?");
+  await h.keyboard.press("Enter");
+  await expect(h.getByTestId("guest-assistant").last()).toHaveText(/Eid Mubarak! We're back on Sunday\./);
+  await holidayContext.close();
 });

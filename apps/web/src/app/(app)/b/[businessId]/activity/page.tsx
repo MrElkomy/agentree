@@ -121,6 +121,10 @@ function describe(e: AuditEvent): string {
       return `${who} always allowed ${agentTitle(d.agent)} to ${actionLabel(d.kind)}`;
     case "approval_rule.revoked":
       return `${who} stopped always allowing ${agentTitle(d.agent)} to ${actionLabel(d.kind)}`;
+    case "business_hours.updated":
+      return `${who} updated the business hours (${String(d.timezone ?? "")})`;
+    case "agent.availability_updated":
+      return `${who} changed when the ${agentTitle(d.agent)} answers visitors${d.paused ? " (paused for a period)" : ""}`;
     case "agent.handoff":
       return `${agentTitle(d.from_agent)} handed a conversation to ${agentTitle(d.to_agent)}`;
     case "agent.config_updated":

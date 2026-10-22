@@ -1012,6 +1012,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/businesses/{business_id}/agents/{role}/availability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Availability
+         * @description When this agent answers visitors. 409 `business_hours_not_set` for an hours mode before
+         *     the business saved its hours; 422 `invalid_<field>`.
+         */
+        put: operations["update_availability_api_businesses__business_id__agents__role__availability_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/businesses/{business_id}/agents/{role}": {
         parameters: {
             query?: never;
@@ -1022,6 +1043,27 @@ export interface paths {
         get?: never;
         /** Update Agent */
         put: operations["update_agent_api_businesses__business_id__agents__role__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/businesses/{business_id}/business-hours": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Business Hours */
+        get: operations["get_business_hours_api_businesses__business_id__business_hours_get"];
+        /**
+         * Put Business Hours
+         * @description 422 `invalid_timezone` or `invalid_days` (each open day needs start before end).
+         */
+        put: operations["put_business_hours_api_businesses__business_id__business_hours_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1423,6 +1465,9 @@ export interface components {
             version: number;
             /** Updated At */
             updated_at: string | null;
+            availability: components["schemas"]["AvailabilityOut"];
+            /** Answering Now */
+            answering_now: boolean;
         };
         /** AgentReplyOut */
         AgentReplyOut: {
@@ -1531,6 +1576,44 @@ export interface components {
             /** Next Before */
             next_before: string | null;
         };
+        /** AvailabilityIn */
+        AvailabilityIn: {
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "always" | "business_hours" | "outside_business_hours";
+            /**
+             * Away Message
+             * @default
+             */
+            away_message: string;
+            /** Paused From */
+            paused_from?: string | null;
+            /** Paused Until */
+            paused_until?: string | null;
+            /**
+             * Pause Message
+             * @default
+             */
+            pause_message: string;
+        };
+        /** AvailabilityOut */
+        AvailabilityOut: {
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "always" | "business_hours" | "outside_business_hours";
+            /** Away Message */
+            away_message: string;
+            /** Paused From */
+            paused_from: string | null;
+            /** Paused Until */
+            paused_until: string | null;
+            /** Pause Message */
+            pause_message: string;
+        };
         /** Body_upload_file_api_businesses__business_id__knowledge_files_post */
         Body_upload_file_api_businesses__business_id__knowledge_files_post: {
             /**
@@ -1545,6 +1628,21 @@ export interface components {
             name: string;
             /** Slug */
             slug: string;
+        };
+        /**
+         * BusinessHoursIO
+         * @description Monday first; null: closed. `configured` is false until the business saves its hours.
+         */
+        BusinessHoursIO: {
+            /** Timezone */
+            timezone: string;
+            /** Days */
+            days: (components["schemas"]["DayHoursIO"] | null)[];
+            /**
+             * Configured
+             * @default true
+             */
+            configured: boolean;
         };
         /** BusinessOut */
         BusinessOut: {
@@ -1675,6 +1773,13 @@ export interface components {
              * Format: date-time
              */
             last_seen_at: string;
+        };
+        /** DayHoursIO */
+        DayHoursIO: {
+            /** Start */
+            start: string;
+            /** End */
+            end: string;
         };
         /** DayOut */
         DayOut: {
@@ -4825,6 +4930,42 @@ export interface operations {
             };
         };
     };
+    update_availability_api_businesses__business_id__agents__role__availability_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                role: components["schemas"]["AgentRole"];
+                business_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AvailabilityIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentConfigOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     update_agent_api_businesses__business_id__agents__role__put: {
         parameters: {
             query?: never;
@@ -4848,6 +4989,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AgentConfigOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_business_hours_api_businesses__business_id__business_hours_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BusinessHoursIO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_business_hours_api_businesses__business_id__business_hours_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                business_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BusinessHoursIO"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BusinessHoursIO"];
                 };
             };
             /** @description Validation Error */
