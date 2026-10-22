@@ -139,6 +139,7 @@ function Sidebar({ businessId, current }: { businessId: string; current: Busines
             <NavItem href={`/b/${businessId}/agents/sales`} label="Test chat" />
             <NavItem href={`/b/${businessId}/inbox`} label="Inbox" section />
             <NavItem href={`/b/${businessId}/leads`} label="Leads" section />
+            <NavItem href={`/b/${businessId}/approvals`} label="Approvals" />
             <NavItem href={`/b/${businessId}/customers`} label="Customers" />
             <NavItem href={`/b/${businessId}/analytics`} label="Analytics" />
             <NavItem href={`/b/${businessId}/knowledge`} label="Knowledge" />

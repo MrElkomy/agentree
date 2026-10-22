@@ -45,8 +45,10 @@
 | DELETE | `/api/businesses/{id}/leads/{lead_id}` | admin+ |
 
 ## Follow-up reminders (Task 11b)
-People contact customers; the agent only schedules reminders for them (PO decision 2026-10-21:
-option A now; agent-sent follow-up messages come later with Approvals, Task 19).
+People contact customers; the agent schedules reminders for them (PO decision 2026-10-21,
+option A). Since Task 19 (option B), a business can also let the Sales Agent draft a follow-up
+email when the first-contact reminder falls due; it is sent only after an Owner or Admin
+approves it once or always allows it (`APPROVALS.md`).
 - **Rules** (fixed by Agentree for now; per-business sales playbooks come with agent configuration):
   every new lead gets one *first contact* task from the Sales Agent, due 24 hours later, created
   through the gateway (`create_follow_up_task`, idempotent per lead); moving the lead past *new*

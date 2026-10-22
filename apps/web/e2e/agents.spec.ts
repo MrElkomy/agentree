@@ -125,4 +125,17 @@ test("owner sets up the AI team; a visitor is handed Sales → Technical Support
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("chat-assistant").last()).toHaveText(/Your table has 3 rows\./);
   await expect(page.getByText("<<SQL")).toHaveCount(0);
+
+  // --- Task 19: follow-up email drafts are opt-in and wait on the Approvals page --------------
+  await page.goto(`${businessPath}/agents`);
+  const salesAgent = page.getByTestId("agent-sales");
+  const drafts = salesAgent.getByLabel(/Draft follow-up emails/);
+  await expect(drafts).not.toBeChecked(); // off until the business turns it on
+  await drafts.check();
+  await salesAgent.getByRole("button", { name: "Save Sales Agent" }).click();
+  await expect(salesAgent.getByText("Saved.")).toBeVisible();
+  await page.getByRole("link", { name: "Approvals" }).first().click();
+  await expect(page.getByRole("heading", { level: 1, name: "Approvals" })).toBeVisible();
+  await expect(page.getByText("Nothing to approve.")).toBeVisible();
+  await expect(page.getByText("Every request waits for a person.")).toBeVisible();
 });
