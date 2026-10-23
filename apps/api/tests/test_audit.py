@@ -15,7 +15,9 @@ from tests.conftest import AppHarness
 from tests.helpers import Account, create_business, invite_and_join, signup
 
 Factory = async_sessionmaker[AsyncSession]
-SECRET = "sk-live-AUDITSECRET-1a2b3c4d"  # noqa: S105  # gitleaks:allow (fake test key)
+# The last 4 characters (the key hint) are not hex, so they cannot occur by chance in the ids
+# and timestamps of the response (a hex hint such as "3c4d" matched a random UUID ~1% of runs).
+SECRET = "sk-live-AUDITSECRET-1a2bWxYz"  # noqa: S105  # gitleaks:allow (fake test key)
 
 
 async def _events(acc: Account, business_id: str, **params: Any) -> list[dict[str, Any]]:
