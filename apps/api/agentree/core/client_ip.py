@@ -1,8 +1,25 @@
 """Client IP for rate limiting, honouring only a configured number of trusted proxies."""
 
-from ipaddress import ip_address
+from ipaddress import IPv6Address, ip_address, ip_network
 
 from starlette.requests import Request
+
+
+def rate_limit_bucket(ip: str) -> str:
+    """The unit a per-IP rate limit counts: the address for IPv4, its /64 network for IPv6.
+
+    One IPv6 subscriber or server usually holds a whole /64, so counting single IPv6 addresses
+    would let one client rotate through billions of buckets.
+    """
+    try:
+        address = ip_address(ip)
+    except ValueError:
+        return ip
+    if isinstance(address, IPv6Address):
+        if address.ipv4_mapped is not None:
+            return str(address.ipv4_mapped)
+        return str(ip_network(f"{address}/64", strict=False))
+    return str(address)
 
 
 def client_ip(request: Request, trusted_proxy_count: int) -> str:

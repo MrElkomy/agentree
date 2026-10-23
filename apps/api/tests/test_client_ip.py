@@ -3,7 +3,7 @@
 import pytest
 from starlette.requests import Request
 
-from agentree.core.client_ip import client_ip
+from agentree.core.client_ip import client_ip, rate_limit_bucket
 from agentree.core.config import Settings
 from agentree.main import create_app
 from tests.conftest import WEB_ORIGIN, FakeMailer, running_app
@@ -55,3 +55,14 @@ async def test_rate_limit_is_per_forwarded_client(settings: Settings) -> None:
         assert codes == [202] * 10 + [429]
         # Another client behind the same proxy is not affected.
         assert await register("198.51.100.8") == 202
+
+
+@pytest.mark.parametrize(("ip", "bucket"), [
+    ("203.0.113.9", "203.0.113.9"),
+    ("2001:db8:1:2:aaaa::1", "2001:db8:1:2::/64"),
+    ("2001:db8:1:2:ffff:ffff:ffff:ffff", "2001:db8:1:2::/64"),  # same /64, same bucket
+    ("::ffff:203.0.113.9", "203.0.113.9"),  # IPv4-mapped counts as the IPv4 address
+    ("unknown", "unknown"),
+])  # fmt: skip
+def test_ipv6_rate_limits_count_the_64_network(ip: str, bucket: str) -> None:
+    assert rate_limit_bucket(ip) == bucket

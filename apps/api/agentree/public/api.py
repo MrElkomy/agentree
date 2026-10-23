@@ -26,7 +26,7 @@ from agentree.agents.prompts import CustomerFacts, RememberedFact
 from agentree.agents.registry import AgentRole
 from agentree.core import ratelimit, sse
 from agentree.core.botcheck import Verdict
-from agentree.core.client_ip import client_ip
+from agentree.core.client_ip import client_ip, rate_limit_bucket
 from agentree.core.config import Environment
 from agentree.core.email import EmailSender, OutgoingEmail, branded_email, send_safely
 from agentree.core.email_layout import EmailContent
@@ -152,7 +152,8 @@ async def _within(request: Request, scope: str, ident: str, limit: int, window: 
 
 
 def _ip(request: Request) -> str:
-    return client_ip(request, request.app.state.settings.trusted_proxy_count)
+    """Per-IP rate limit bucket (IPv6: the /64 network)."""
+    return rate_limit_bucket(client_ip(request, request.app.state.settings.trusted_proxy_count))
 
 
 @public_router.get("")

@@ -16,6 +16,7 @@ from agentree.analytics.api import router as analytics_router
 from agentree.approvals.api import router as approvals_router
 from agentree.approvals.service import Deps as ApprovalDeps
 from agentree.audit.api import router as audit_router
+from agentree.core.body_limit import BodyLimitMiddleware
 from agentree.core.botcheck import BotChallenge, build_bot_challenge
 from agentree.core.config import Settings, get_settings
 from agentree.core.csrf import csrf_middleware
@@ -29,6 +30,7 @@ from agentree.executive import service as executive
 from agentree.health.api import router as health_router
 from agentree.identity.api import router as auth_router
 from agentree.knowledge.api import router as knowledge_router
+from agentree.knowledge.extract import MAX_FILE_BYTES
 from agentree.knowledge.files_api import router as knowledge_files_router
 from agentree.leads import outreach  # noqa: F401  (registers the follow-up email executor)
 from agentree.leads.api import router as leads_router
@@ -50,6 +52,9 @@ logger = logging.getLogger(__name__)
 
 def _demo_factory(name: ProviderName) -> Callable[[], LLMProvider]:
     return lambda: DemoProvider(name=name)
+
+
+MAX_BODY_BYTES = 1024 * 1024
 
 
 def create_app(
@@ -109,6 +114,9 @@ def create_app(
 
     app = FastAPI(title="Agentree API", version="0.1.0", lifespan=lifespan)
     app.middleware("http")(csrf_middleware(settings.allowed_origins))
+    # Bodies stop at 1 MiB, knowledge file uploads at their 10 MB limit plus multipart overhead.
+    app.add_middleware(BodyLimitMiddleware, default=MAX_BODY_BYTES, large=MAX_FILE_BYTES + 65536,
+                       large_paths=r"/api/businesses/[^/]+/knowledge-files")  # fmt: skip
     app.include_router(health_router)
     app.include_router(auth_router)
     app.include_router(tenancy_router)

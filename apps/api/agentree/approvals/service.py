@@ -183,9 +183,12 @@ async def request(
     factory: Factory, ctx: TenantContext, deps: Deps, *, agent: str, action: Action,
     params: Mapping[str, Any], summary: str, idempotency_key: str,
     target_type: str | None = None, target_id: UUID | None = None, flag: str | None = None,
-    granted: frozenset[Action] | None = None,
+    granted: frozenset[Action] | None = None, use_rules: bool = True,
 ) -> tuple[ApprovalInfo, bool]:  # fmt: skip
     """Ask for a person's approval (or approve under an "always allow" rule).
+
+    `use_rules=False` always waits for a person: the request came from someone who may not
+    approve it themselves (an Executive proposal asked for by a Member).
 
     Returns (request, created). Idempotent per `idempotency_key`: a repeat with the same
     parameters returns the first request; different parameters raise IdempotencyConflictError.
@@ -201,7 +204,7 @@ async def request(
     now = _now()
     async with tenant_session(factory, ctx) as session:
         rule = None
-        if policy.allow_always and flag is None:
+        if policy.allow_always and flag is None and use_rules:
             rule = (
                 await session.execute(
                     select(ApprovalRule).where(ApprovalRule.business_id == ctx.business_id,
