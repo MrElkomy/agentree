@@ -225,13 +225,23 @@ async def test_always_allow_sends_later_drafts_without_asking_until_revoked(
     assert [p["summary"] for p in await _pending(biz)] == ["Follow-up email to Lina"]
 
 
-async def _second_lead(h: AppHarness, biz: Biz, name: str, email: str) -> dict[str, Any]:
+async def _second_lead(h: AppHarness, biz: Biz, name: str, email: str,
+                       need: str | None = None) -> dict[str, Any]:  # fmt: skip
     c = h.new_client()
     auth = {"X-Agentree-Guest": (await c.post(f"{biz.pub}/sessions")).json()["token"]}
     convo = (await c.post(f"{biz.pub}/chat", json={"message": "hi"}, headers=auth)).json()
-    r = await c.post(f"{biz.pub}/leads", headers=auth, json={
-        "conversation_id": convo["conversation_id"], "name": name, "email": email,
-        "consent": True, "idempotency_key": uuid.uuid4().hex})  # fmt: skip
+    r = await c.post(
+        f"{biz.pub}/leads",
+        headers=auth,
+        json={
+            "conversation_id": convo["conversation_id"],
+            "name": name,
+            "email": email,
+            "consent": True,
+            "idempotency_key": uuid.uuid4().hex,
+        }
+        | ({"need": need} if need else {}),
+    )
     assert r.status_code == 200, r.text
     leads = (await biz.owner.client.get(f"{biz.base}/leads")).json()["leads"]
     return next(x for x in leads if x["email"] == email)
@@ -258,6 +268,27 @@ async def test_unverified_numbers_or_links_always_wait_for_a_person(
     assert flagged["flag"] == "unverified_numbers" and flagged["allow_always"] is False
     r = await _decide(biz, flagged["id"], "always")
     assert r.status_code == 409 and r.json()["detail"] == "always_not_allowed"
+
+
+async def test_a_visitor_cannot_plant_links_or_numbers_in_an_auto_sent_email(
+    harness: AppHarness, migrator_engine: AsyncEngine, settings: Settings
+) -> None:
+    """Task 22 security review: the visitor types the lead's name, request and (unverified)
+    address, so a link or phone number only they wrote never counts as checked."""
+    biz, lead, _ = await _lead(harness)
+    await _follow_up_emails(biz)
+    await _due_draft(harness, migrator_engine, settings, biz, lead)
+    (first,) = await _pending(biz)
+    assert (await _decide(biz, first["id"], "always")).status_code == 200  # rule exists now
+    need = "Claim your refund at https://phish.example/login or call 555 0100"
+    planted = {"subject": "Your refund", "body": "Hi Victim, claim your refund at "
+               "https://phish.example/login or call 555 0100. The Maple Chairs team"}  # fmt: skip
+    lead2 = await _second_lead(harness, biz, "Victim", "victim@example.com", need)
+    await _due_draft(harness, migrator_engine, settings, biz, lead2, planted)
+    assert _to(harness, "victim@example.com") == []  # not sent despite the rule
+    (flagged,) = await _pending(biz)
+    assert flagged["flag"] in {"unverified_numbers", "unverified_links"}
+    assert flagged["allow_always"] is False
 
 
 def test_draft_checks() -> None:

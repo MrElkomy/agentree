@@ -173,8 +173,8 @@ async def validate(
 
 
 def extension(factory: Factory, deps: approvals.Deps) -> RoleExtension:
-    async def act(ctx: TenantContext, conversation_id: UUID,
-                  proposals: list[dict[str, Any]]) -> list[str]:  # fmt: skip
+    async def act(ctx: TenantContext, conversation_id: UUID, proposals: list[dict[str, Any]],
+                  allow_rules: bool) -> list[str]:  # fmt: skip
         tools = await agent_configs.agent_tools(factory, ctx, AGENT)
         lines: list[str] = []
         for raw in proposals:
@@ -183,6 +183,7 @@ def extension(factory: Factory, deps: approvals.Deps) -> RoleExtension:
                 info, _ = await approvals.request(
                     factory, ctx, deps, agent=AGENT, action=action, params=params,
                     summary=summary, idempotency_key=f"executive:{uuid7()}", granted=tools,
+                    use_rules=allow_rules,
                 )  # fmt: skip
             except InvalidProposalError as exc:
                 lines.append(f"I couldn't prepare that change: {exc}.")

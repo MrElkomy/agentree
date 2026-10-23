@@ -145,6 +145,28 @@ async def test_always_allow_runs_later_proposals_at_once(harness: AppHarness) ->
     assert await _pending(biz) == []
 
 
+async def test_a_members_proposals_wait_even_under_a_rule(harness: AppHarness) -> None:
+    """Task 22 security review: a Member cannot use an Admin's "always allow" rule to make
+    Admin-only changes through the Executive Assistant."""
+    biz = await _executive(harness)
+    member = await invite_and_join(harness, biz.owner, biz.id, "member")
+    _fake(harness).replies.append(_action(action="set_agent_enabled", agent="technical_support",
+                                          enabled=False))  # fmt: skip
+    await _ask(biz, "Turn off Technical Support")
+    (pending,) = await _pending(biz)
+    await biz.owner.client.post(f"{biz.base}/approvals/{pending['id']}/decision",
+                                json={"decision": "always"})  # fmt: skip
+    _fake(harness).replies.append(_action(action="set_agent_enabled", agent="technical_support",
+                                          enabled=True))  # fmt: skip
+    r = await member.client.post(f"{biz.base}/agents/sales/console", json={
+        "message": "Turn it back on", "agent": "executive"})  # fmt: skip
+    assert r.status_code == 200, r.text
+    assert "Waiting for approval: Turn on the Technical Support." in r.json()["reply"]
+    assert (await _agents(biz))["technical_support"]["enabled"] is False
+    (waiting,) = await _pending(biz)
+    assert waiting["summary"] == "Turn on the Technical Support"
+
+
 async def test_a_demoted_approver_no_longer_authorizes(harness: AppHarness) -> None:
     biz = await _executive(harness)
     admin = await invite_and_join(harness, biz.owner, biz.id, "admin")
@@ -243,3 +265,17 @@ async def test_other_agents_cannot_propose(harness: AppHarness) -> None:
         "message": "Turn off support", "agent": "sales"})  # fmt: skip
     assert r.json()["reply"] == "Sure!"  # the marker is dropped, nothing is requested
     assert await _pending(biz) == []
+
+
+async def test_the_console_cannot_answer_into_a_visitor_conversation(harness: AppHarness) -> None:
+    """Task 22 security review: internal agents (the Executive's business state) must never
+    reply into a thread the visitor can read; visitor conversations are answered in the Inbox."""
+    biz = await _executive(harness)
+    c, auth = await _visitor(harness, biz)
+    _fake(harness).replies.append("Hello!")
+    conv = (await _say(c, biz, auth, "Hi", agent=SALES)).json()["conversation_id"]
+    r = await biz.owner.client.post(f"{biz.base}/agents/sales/console", json={
+        "message": "Who is on the team?", "agent": "executive", "conversation_id": conv})  # fmt: skip
+    assert r.status_code == 404
+    seen = (await c.get(f"{biz.pub}/conversations/{conv}/messages", headers=auth)).json()
+    assert [m["content"] for m in seen] == ["Hi", "Hello!"]
