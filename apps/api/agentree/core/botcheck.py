@@ -12,6 +12,7 @@ working). The token and the secret are never logged.
 
 import logging
 from enum import StrEnum
+from ipaddress import ip_address
 from typing import Protocol
 
 import httpx
@@ -22,6 +23,14 @@ SITEVERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
 ACTION = "guest_session"  # the browser renders the widget with this action
 MAX_TOKEN_LENGTH = 2048  # Turnstile tokens are at most 2048 characters
 TIMEOUT = httpx.Timeout(10.0, connect=5.0)
+
+
+def _is_ip(value: str) -> bool:
+    try:
+        ip_address(value)
+    except ValueError:
+        return False
+    return True
 
 
 class Verdict(StrEnum):
@@ -68,7 +77,7 @@ class TurnstileChallenge:
         if not token or len(token) > MAX_TOKEN_LENGTH:
             return Verdict.FAILED
         form = {"secret": self._secret, "response": token}
-        if remote_ip:
+        if remote_ip and _is_ip(remote_ip):  # optional; never a network or placeholder
             form["remoteip"] = remote_ip
         try:
             async with httpx.AsyncClient(

@@ -50,6 +50,13 @@ async def test_a_valid_token_passes_and_the_secret_goes_only_to_cloudflare() -> 
     assert seen == [{"secret": ["secret-key"], "response": ["tok"], "remoteip": ["203.0.113.9"]}]
 
 
+async def test_only_a_real_address_goes_to_cloudflare() -> None:
+    seen: list[dict[str, list[str]]] = []
+    for ip in ("2001:db8::/64", "unknown"):
+        assert await _turnstile(_ok(), seen=seen).verify("tok", ip) is Verdict.PASSED
+    assert all("remoteip" not in form for form in seen)
+
+
 @pytest.mark.parametrize("reply", [
     {"success": False, "error-codes": ["invalid-input-response"]},
     _ok(hostname="evil.example"),  # solved on another site
