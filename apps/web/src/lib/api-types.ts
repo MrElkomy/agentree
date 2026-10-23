@@ -2129,6 +2129,11 @@ export interface components {
             /** Content */
             content: string;
         };
+        /** GuestSessionIn */
+        GuestSessionIn: {
+            /** Challenge */
+            challenge?: string | null;
+        };
         /** GuestSessionOut */
         GuestSessionOut: {
             /** Token */
@@ -2590,6 +2595,8 @@ export interface components {
         PublicPageOut: {
             /** Slug */
             slug: string;
+            /** Challenge Site Key */
+            challenge_site_key?: string | null;
             /** Display Name */
             display_name: string;
             /** Bio */
@@ -4114,7 +4121,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["GuestSessionIn"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             201: {

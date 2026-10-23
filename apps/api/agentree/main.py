@@ -3,6 +3,7 @@
 import logging
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
+from urllib.parse import urlsplit
 
 from fastapi import FastAPI
 
@@ -16,6 +17,7 @@ from agentree.approvals.api import router as approvals_router
 from agentree.approvals.service import Deps as ApprovalDeps
 from agentree.audit.api import router as audit_router
 from agentree.core.body_limit import BodyLimitMiddleware
+from agentree.core.botcheck import BotChallenge, build_bot_challenge
 from agentree.core.config import Settings, get_settings
 from agentree.core.csrf import csrf_middleware
 from agentree.core.db import create_app_engine, create_session_factory
@@ -60,6 +62,7 @@ def create_app(
     mailer: EmailSender | None = None,
     llm_providers: dict[ProviderName, Callable[[], LLMProvider]] | None = None,
     push: PushSender | None = None,
+    bot_challenge: BotChallenge | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
     mailer = mailer or SmtpEmailSender(settings)
@@ -72,6 +75,12 @@ def create_app(
         key = settings.vapid_private_key
         push = build_push_sender(key.get_secret_value() if key else None,
                                  settings.vapid_subject or settings.public_base_url)  # fmt: skip
+    if bot_challenge is None:
+        secret = settings.turnstile_secret_key
+        bot_challenge = build_bot_challenge(
+            settings.turnstile_site_key, secret.get_secret_value() if secret else None,
+            urlsplit(settings.public_base_url).hostname or "",
+        )  # fmt: skip
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -87,6 +96,7 @@ def create_app(
         app.state.settings = settings
         app.state.mailer = mailer
         app.state.push = push
+        app.state.bot_challenge = bot_challenge
         app.state.vault = build_vault(settings)
         app.state.llm_providers = providers
         app.state.engine = engine

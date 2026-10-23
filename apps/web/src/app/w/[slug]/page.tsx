@@ -29,6 +29,7 @@ export default async function WidgetPage({ params }: Props) {
       leadCapture={page.lead_capture}
       retentionDays={page.retention_days ?? 30}
       customerMemory={page.customer_memory ?? true}
+      challengeSiteKey={page.challenge_site_key ?? null}
     />
   );
 }

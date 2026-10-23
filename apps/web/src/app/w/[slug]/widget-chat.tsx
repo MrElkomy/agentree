@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { GuestChat } from "@/components/guest-chat";
+import { registerChallenge } from "@/lib/bot-challenge";
 import { useClientValue } from "@/lib/use-client-value";
 
 function close() {
@@ -17,13 +18,16 @@ export function WidgetChat({
   leadCapture,
   retentionDays,
   customerMemory,
+  challengeSiteKey,
 }: {
   slug: string;
   displayName: string;
   leadCapture: boolean;
   retentionDays: number;
   customerMemory: boolean;
+  challengeSiteKey: string | null;
 }) {
+  registerChallenge(slug, challengeSiteKey);
   const framed = useClientValue(() => window.parent !== window, false);
 
   useEffect(() => {

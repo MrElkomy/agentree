@@ -56,8 +56,22 @@ All return 429 `busy`. The business budget is consumed before the AI call (a fai
 - The existing Origin check applies to public POSTs: they must come from our own web origin (the public page, or the widget iframe served by us). A customer's site cannot call the API directly — it embeds our iframe (TD-17).
 - The web app must set `Content-Security-Policy: frame-ancestors <widget_origins>` on the widget iframe page using `/widget-config` (web PR).
 
+## Bot challenge (Task 22, U-16)
+- `POST /sessions` takes `{"challenge": "<Cloudflare Turnstile token>"}`. When
+  `AGENTREE_TURNSTILE_SITE_KEY` and `AGENTREE_TURNSTILE_SECRET_KEY` are set, the token is verified
+  server-side (`agentree/core/botcheck.py`) and accepted only when Cloudflare says it is valid,
+  was solved on our host (`public_base_url`) and for the `guest_session` action.
+- Order: per-IP session limit, then the challenge, then the per-business daily limit, so unsolved
+  requests cannot use up a business's sessions and every call to Cloudflare is rate limited.
+- Missing or bad token: 403 `challenge_failed`. Cloudflare unreachable: 429 `busy` (fail
+  closed; existing sessions keep working). Tokens and the secret are never logged.
+- `GET /api/public/{slug}` returns `challenge_site_key` (public). The page and the widget load
+  Turnstile only when it is set, with `appearance: interaction-only`, so most visitors see
+  nothing. Only opening a session is challenged; chat turns stay under the session limits.
+- Required in production (startup refuses without both keys); optional in staging and dev.
+
 ## Not in this slice
-Bot challenge (U-16), provisional customer profile / email OTP (3.4), streaming, lead capture, human handoff, custom domains (excluded from MVP).
+Provisional customer profile / email OTP (3.4), streaming, lead capture, human handoff, custom domains (excluded from MVP).
 
 ## Leads (Task 11)
 `POST /chat` may return `lead_suggestion` (prefill only, from details the visitor wrote).

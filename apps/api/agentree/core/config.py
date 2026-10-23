@@ -88,6 +88,11 @@ class Settings(BaseSettings):
     # How often the worker looks for AI keys that went down, to alert Owners and Admins.
     outage_alert_interval_seconds: int = Field(default=60, ge=15)
 
+    # Bot challenge for new public guest sessions (U-16): Cloudflare Turnstile site and secret
+    # keys. Both unset disables the challenge (development, tests); required in production.
+    turnstile_site_key: str | None = None
+    turnstile_secret_key: SecretStr | None = None
+
     # BYOK vault master key: base64 of 32 random bytes. Required to store/read provider keys.
     master_key: SecretStr | None = None
     master_key_id: str = "k1"
@@ -118,10 +123,20 @@ class Settings(BaseSettings):
             problems.append("mail_from must use a real sending domain")
         if self.master_key is None:
             problems.append("master_key is required")
+        if self.environment is Environment.PRODUCTION and not (
+            self.turnstile_site_key and self.turnstile_secret_key
+        ):
+            problems.append("turnstile_site_key and turnstile_secret_key are required")
         if self.llm_demo_mode:
             problems.append("llm_demo_mode must be false")
         if problems:
             raise ValueError(f"insecure {self.environment} configuration: " + "; ".join(problems))
+        return self
+
+    @model_validator(mode="after")
+    def _turnstile_keys_come_together(self) -> "Settings":
+        if bool(self.turnstile_site_key) != bool(self.turnstile_secret_key):
+            raise ValueError("set both turnstile_site_key and turnstile_secret_key, or neither")
         return self
 
     @model_validator(mode="after")

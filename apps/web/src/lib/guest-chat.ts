@@ -25,6 +25,7 @@ import {
   type GuestSession,
   type LeadSuggestion,
 } from "./api";
+import { ChallengeError, challengeToken } from "./bot-challenge";
 import { StreamInterruptedError, streamApi, type StreamHandlers } from "./stream";
 
 export const MAX_GUEST_MESSAGE = 1000;
@@ -76,6 +77,7 @@ function write(key: string, value: string | null) {
 export const hasGuestConversation = (slug: string) =>
   read(tokenKey(slug)) !== null && read(convKey(slug)) !== null;
 
+const CHALLENGE_FAILED = "We couldn't check that you're a person. Please try again.";
 const GUEST_MESSAGES: Record<string, string> = {
   busy: "We're getting a lot of messages — please try again in a moment.",
   agent_unavailable: "The assistant is unavailable right now.",
@@ -90,6 +92,7 @@ const GUEST_MESSAGES: Record<string, string> = {
   idempotency_conflict: "Please send the form again.",
   resolve_not_allowed: "Only the team can close this conversation.",
   conversation_state: "The team is handling this conversation right now.",
+  challenge_failed: CHALLENGE_FAILED,
   invalid_code: "That code didn't work. Check it, or ask for a new one.",
 };
 
@@ -136,6 +139,7 @@ export function guestErrorMessage(err: unknown): string {
     const known = GUEST_MESSAGES[err.code];
     if (known) return known;
   }
+  if (err instanceof ChallengeError) return CHALLENGE_FAILED;
   return "Something went wrong. Please try again.";
 }
 
@@ -144,7 +148,8 @@ const base = (slug: string) => `/api/public/${encodeURIComponent(slug)}`;
 const opts = (guestToken?: string) => ({ guestToken });
 
 async function newToken(slug: string): Promise<string> {
-  const s = await api<GuestSession>(`${base(slug)}/sessions`, "POST", undefined, opts());
+  const challenge = await challengeToken(slug);
+  const s = await api<GuestSession>(`${base(slug)}/sessions`, "POST", { challenge }, opts());
   write(tokenKey(slug), s.token);
   return s.token;
 }
