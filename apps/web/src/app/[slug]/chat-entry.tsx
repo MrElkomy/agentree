@@ -76,7 +76,7 @@ export function ChatEntry({
               <span dir="auto" className="font-semibold">
                 {chatWith(agent.name)}
               </span>
-              <span className="text-sm text-white/80">
+              <span className="text-sm text-white">
                 {active ? "Hide the conversation" : (ENTRY_HINT[agent.role] ?? "Get an answer now.")}
               </span>
             </span>

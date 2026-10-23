@@ -38,7 +38,38 @@ container, so the real Turnstile check is a staging step for the PO (B6, needs T
 ## B7 — Shared-host review
 See `SHARED_HOST_REVIEW.md`.
 
+## B4/B5 — Batch 2: end-to-end journeys and reliability (2026-10-23)
+Most journeys were already covered by the existing E2E specs (agents, approvals, hours and pause,
+Data Analyst upload, Executive Assistant, email reports, inbox and legal hold, leads, public page
+and widget, reliability). Added:
+
+| Test | Result |
+|---|---|
+| Two businesses in the UI: an owner gets "Business not available" for every page of a business they are not a member of | Pass |
+| Phone (390×844): dashboard, inbox, leads, knowledge, AI team, approvals, analytics, members fit without sideways scrolling | Pass |
+| Accessibility (axe, WCAG 2 A/AA, serious and critical): sign-in (phone and desktop), the dashboard pages above, public page, widget | **2 defects found and fixed** (below) |
+| Arabic message on the public page is shown right to left | Pass |
+| Worker: one pass of every job against the E2E database | Pass (exit 0, no errors) |
+| Large spreadsheets in the analysis sandbox (50k, 150k, 200k rows, up to 7 MB XLSX) | **1 defect found and fixed** (below); peak child memory 154 MB at 200k rows |
+
+### Defects found in batch 2
+| ID | Defect | Severity | Fix | Regression test |
+|---|---|---|---|---|
+| T22-01 | Data Analyst queries with GROUP BY / ORDER BY failed (`query_failed`) on tables above ~100k rows: SQLite spilled the sort to a temporary file, which the sandbox forbids | Medium | `PRAGMA temp_store = MEMORY` (no file writes, still under the child's memory limit) | `test_large_tables_sort_inside_the_sandbox` (fails without the fix) |
+| T22-02 | Sideways-scrolling tables (Analytics day by day, agent outcomes, members) could not be reached by keyboard | Medium (accessibility) | Scroll areas are focusable labelled regions | E2E accessibility scan |
+| T22-03 | Low-contrast hint text on the public page chat button (white at 80 % on brand blue) | Low (accessibility) | Full white | E2E accessibility scan |
+
+### Memory and time at the limits (local, one CPU core)
+Peak memory of the sandbox child: 58 MB (50k rows), 122 MB (150k), 154 MB (200k). The API process
+itself used about 70 MB in this test, so the 384 MB api container has room. A query at 200k rows
+takes about 14 s of CPU (the file is parsed again for every query); the child's CPU limit is
+20 s, so on a slower server the largest files may answer "too complex". To watch on staging with a
+real large file (B6).
+
 ## Next
-B4 new E2E journeys, B5 reliability (incl. large XLSX memory), B6 staging checklist (PO), B8
-release-readiness documents. PO decisions: verified recipients for automatic follow-ups (SR-01),
-Turnstile keys, separate production server (SH-01), read-only server checks SH-04..SH-08.
+- Batch 3 (B6): staging checklist done by the PO after deploying batches 1–2, including a real
+  large spreadsheet, real emails, phones, and a primary key that fails over to the backup.
+- Batch 4 (B8): privacy notice and terms, customer key-setup guide, assisted-setup runbook, backup
+  restore drill, monitoring alerts, pilot checklist.
+- Open with the PO: Turnstile keys (reminder set for 2026-10-24); server upgrade instead of a
+  separate server (PO decision 2026-10-23; SH-01 stays open, mitigations SH-02..SH-09 proposed).

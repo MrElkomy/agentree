@@ -159,6 +159,9 @@ def query(kind: str, data: bytes, sql: str) -> dict[str, Any]:
     statement = validate_sql(sql)
     names, types, rows = load(kind, data)
     conn = sqlite3.connect(":memory:")
+    # Large GROUP BY / ORDER BY sorts spill to temporary files by default, and the child may not
+    # write files at all (RLIMIT_FSIZE=0): keep them in memory, under the child's memory limit.
+    conn.execute("PRAGMA temp_store = MEMORY")
     cols = ", ".join(f'"{n}" {t.upper()}' for n, t in zip(names, types, strict=True))
     # Column names are reduced to word characters by _column_names, then quoted; values are
     # bound parameters. Nothing from the file is ever spliced into SQL as text.

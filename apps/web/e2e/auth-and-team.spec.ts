@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { logIn, logOut, runId, signUp, verifyFromEmail } from "./helpers";
+import { a11yScan as scan, logIn, logOut, runId, signUp, verifyFromEmail } from "./helpers";
 import { linkFromEmail } from "./mailpit";
 
 const run = runId();
@@ -18,6 +18,7 @@ test("wrong password shows a generic error", async ({ page }) => {
   await logIn(page, `nobody-${run}@example.com`);
   await expect(page.getByRole("alert").filter({ hasText: "don't match" })).toBeVisible();
   await expect(page).toHaveURL(/\/login$/);
+  await scan(page, "/login (desktop)");
 });
 
 test("owner creates a business and invites a member who joins", async ({ browser }) => {
@@ -113,3 +114,47 @@ test("sign-in never redirects to another site", async ({ page }) => {
   await expect(page).toHaveURL(/\/dashboard$/);
   expect(new URL(page.url()).host).not.toContain("evil.example");
 });
+
+test("each business stays private; dashboard pages fit a phone and pass an accessibility scan", async ({
+  browser,
+}) => {
+  // Task 22 (B4): two tenants in the UI, a 390×844 phone and axe (WCAG 2 A/AA, serious+ issues).
+  // Reuses the accounts above: sign-up is limited to 10 per IP per hour.
+  const memberContext = await browser.newContext();
+  const member = await memberContext.newPage();
+  await member.goto("/login");
+  await logIn(member, memberEmail);
+  await expect(member).toHaveURL(/\/dashboard$/);
+  await member.getByLabel("Business name").fill(`Second Shop ${run}`);
+  await member.getByRole("button", { name: "Create business" }).click();
+  await expect(member).toHaveURL(/\/b\/[0-9a-f-]{36}$/);
+  const secondUrl = new URL(member.url()).pathname;
+  await memberContext.close();
+
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const owner = await phone.newPage();
+  await owner.goto("/login");
+  await scan(owner, "/login");
+  await logIn(owner, ownerEmail);
+  await expect(owner).toHaveURL(/\/dashboard$/);
+
+  // The owner of the first business is not a member of the second: nothing of it is shown.
+  for (const path of [secondUrl, `${secondUrl}/leads`, `${secondUrl}/inbox`, `${secondUrl}/analytics`]) {
+    await owner.goto(path);
+    await expect(owner.getByRole("heading", { name: "Business not available" })).toBeVisible();
+    await expect(owner.getByText(`Second Shop ${run}`)).toHaveCount(0);
+  }
+
+  // Their own business, on a phone.
+  await owner.goto("/dashboard");
+  await owner.getByRole("link", { name: new RegExp(businessName) }).click();
+  await expect(owner).toHaveURL(/\/b\/[0-9a-f-]{36}$/);
+  const base = new URL(owner.url()).pathname;
+  for (const path of ["", "/inbox", "/leads", "/knowledge", "/agents", "/approvals", "/analytics", "/members"]) {
+    await owner.goto(`${base}${path}`);
+    await expect(owner.getByRole("heading", { level: 1 }).first()).toBeVisible();
+    await scan(owner, `${base}${path}`);
+  }
+  await phone.close();
+});
+
