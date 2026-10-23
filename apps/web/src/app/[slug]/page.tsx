@@ -121,6 +121,11 @@ export default async function PublicBusinessPage({ params }: Props) {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/brand/agentree-wordmark.svg" alt="Agentree" className="h-3.5 w-auto" />
         </p>
+        <p className="mt-2">
+          <a href="/privacy" className="underline">
+            Privacy
+          </a>
+        </p>
       </footer>
     </div>
   );

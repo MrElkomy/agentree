@@ -81,6 +81,7 @@ test("owner publishes a public page; visitors chat privately; widget is framable
 
   await v1.getByRole("button", { name: "Chat with our Sales Agent" }).click();
   await expect(v1.getByText("You're chatting with an AI assistant.")).toBeVisible();
+  await expect(v1.getByTestId("guest-chat").getByRole("link", { name: "Privacy" })).toHaveAttribute("href", "/privacy");
   await v1.getByLabel("Message", { exact: true }).fill("How much is the Cedar desk?");
   await v1.keyboard.press("Enter");
   await expect(v1.getByTestId("guest-user")).toHaveText("How much is the Cedar desk?");

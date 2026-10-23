@@ -66,10 +66,13 @@ takes about 14 s of CPU (the file is parsed again for every query); the child's 
 20 s, so on a slower server the largest files may answer "too complex". To watch on staging with a
 real large file (B6).
 
+## B8 — Batch 3: release readiness (2026-10-23)
+- `/privacy` and `/terms` pages (draft text for PO approval), linked from sign-up, the public
+  page footer and the chat (public page and widget), with the AI disclosure and retention.
+- `docs/operations/CUSTOMER_KEY_GUIDE.md`, `ONBOARDING_RUNBOOK.md`, `MONITORING.md` (gaps and
+  proposals), `PILOT_CHECKLIST.md` (the four final gates with status and evidence).
+
 ## Next
-- Batch 3 (B6): staging checklist done by the PO after deploying batches 1–2, including a real
-  large spreadsheet, real emails, phones, and a primary key that fails over to the backup.
-- Batch 4 (B8): privacy notice and terms, customer key-setup guide, assisted-setup runbook, backup
-  restore drill, monitoring alerts, pilot checklist.
-- Open with the PO: Turnstile keys (reminder set for 2026-10-24); server upgrade instead of a
-  separate server (PO decision 2026-10-23; SH-01 stays open, mitigations SH-02..SH-09 proposed).
+- Last batch (B6, PO): manual staging checklist, real failover with low-budget keys, restore drill.
+- PO decisions: legal text approval, support address, monitoring proposals, proposed deferrals,
+  Turnstile keys, production stack on the upgraded server.
