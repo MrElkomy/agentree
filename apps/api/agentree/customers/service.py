@@ -205,6 +205,24 @@ async def _profile_for_session(
     return profile
 
 
+async def is_verified_email(factory: Factory, ctx: TenantContext, email: str) -> bool:
+    """True when a visitor of this business proved they own `email` with a code (Task 22)."""
+    try:
+        email = normalize_email(email)
+    except InvalidEmailError:
+        return False
+    async with tenant_session(factory, ctx) as session:
+        found = (
+            await session.execute(
+                select(CustomerProfile.id).where(
+                    CustomerProfile.business_id == ctx.business_id,
+                    CustomerProfile.email == email,
+                    CustomerProfile.verified_at.is_not(None))
+            )
+        ).first()  # fmt: skip
+    return found is not None
+
+
 async def identity(factory: Factory, ctx: TenantContext, guest_session_id: UUID) -> Identity:
     async with tenant_session(factory, ctx) as session:
         profile = await _linked(session, ctx, guest_session_id)

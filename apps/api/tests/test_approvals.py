@@ -45,11 +45,23 @@ def _deps(h: AppHarness) -> approvals.Deps:
     return approvals.Deps(h.app.state.settings, h.mailer, h.push)
 
 
+async def _confirm_email(migrator_engine: AsyncEngine, biz: Biz, email: str) -> None:
+    """A verified customer profile for `email`, as the identity code flow leaves it."""
+    async with migrator_engine.begin() as conn:
+        await conn.execute(text(
+            "INSERT INTO customer_profiles (id, business_id, email, verified_at, created_at, "
+            "last_seen_at) VALUES (:id, :b, :e, now(), now(), now()) ON CONFLICT DO NOTHING"),
+            {"id": uuid.uuid4(), "b": biz.id, "e": email})  # fmt: skip
+
+
 async def _due_draft(
     h: AppHarness, migrator_engine: AsyncEngine, settings: Settings, biz: Biz,
-    lead: dict[str, Any], draft: dict[str, str] | str = DRAFT,
+    lead: dict[str, Any], draft: dict[str, str] | str = DRAFT, *, confirmed: bool = True,
 ) -> int:  # fmt: skip
-    """Make the lead's first-contact task due and run the reminders job with drafting on."""
+    """Make the lead's first-contact task due and run the reminders job with drafting on.
+    `confirmed`: the visitor proved the lead's address with a code (else drafts are flagged)."""
+    if confirmed:
+        await _confirm_email(migrator_engine, biz, lead["email"])
     (task,) = await _tasks(biz.owner, biz, lead["id"])
     await _make_due(migrator_engine, task["id"])
     _fake(h).replies.append(draft if isinstance(draft, str) else json.dumps(draft))
@@ -289,6 +301,25 @@ async def test_a_visitor_cannot_plant_links_or_numbers_in_an_auto_sent_email(
     (flagged,) = await _pending(biz)
     assert flagged["flag"] in {"unverified_numbers", "unverified_links"}
     assert flagged["allow_always"] is False
+
+
+async def test_an_unconfirmed_address_always_waits_for_a_person(
+    harness: AppHarness, migrator_engine: AsyncEngine, settings: Settings
+) -> None:
+    """PO decision 2026-10-23 (SR-01): anyone can type someone else's address, so a follow-up to
+    an address the visitor did not confirm with a code is never sent without a person reading it."""
+    biz, lead, _ = await _lead(harness)
+    await _follow_up_emails(biz)
+    await _due_draft(harness, migrator_engine, settings, biz, lead)
+    (first,) = await _pending(biz)
+    assert (await _decide(biz, first["id"], "always")).status_code == 200  # rule exists now
+    lead2 = await _second_lead(harness, biz, "Omar", "o@example.com")
+    await _due_draft(harness, migrator_engine, settings, biz, lead2, confirmed=False)
+    assert _to(harness, "o@example.com") == []  # not sent despite the rule
+    (flagged,) = await _pending(biz)
+    assert flagged["flag"] == "unverified_recipient" and flagged["allow_always"] is False
+    assert (await _decide(biz, flagged["id"], "once")).status_code == 200  # a person may send it
+    assert len(_to(harness, "o@example.com")) == 1
 
 
 def test_draft_checks() -> None:
