@@ -195,7 +195,12 @@ function MembersTable({
 
   return (
     <>
-      <div className="relative overflow-x-auto rounded-lg border border-line bg-surface">
+      <div
+        role="region"
+        aria-label="Members"
+        tabIndex={0}
+        className="relative overflow-x-auto rounded-lg border border-line bg-surface"
+      >
         <table className="w-full text-left text-sm">
           <thead className="border-b border-line bg-paper text-ink-muted">
             <tr>

@@ -119,7 +119,12 @@ export default function AnalyticsPage() {
             {shown.days.length === 0 ? (
               <p className="text-ink-muted">No days counted yet for this month.</p>
             ) : (
-              <div className="overflow-x-auto rounded-lg border border-line bg-surface">
+              <div
+                role="region"
+                aria-labelledby="daily-heading"
+                tabIndex={0}
+                className="overflow-x-auto rounded-lg border border-line bg-surface"
+              >
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-line text-left">

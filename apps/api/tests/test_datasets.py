@@ -211,3 +211,16 @@ async def test_only_the_analyst_queries_and_only_its_own_tables(harness: AppHarn
     r = await a.owner.client.post(f"{a.base}/agents/sales/console", json={"message": "Hi"})
     assert r.status_code == 200
     assert "a_sales" not in _system(harness) and "<<SQL" not in _system(harness)
+
+
+async def test_large_tables_sort_inside_the_sandbox() -> None:
+    """Task 22 (B5): a big GROUP BY / ORDER BY used to spill to a temporary file, which the
+    sandboxed child may not write, so it failed with `query_failed` above ~100k rows."""
+    from agentree.knowledge import files
+
+    lines = ["customer,amount"] + [f"Customer {i % 40000},{i % 97}" for i in range(120_000)]
+    data = "\n".join(lines).encode()
+    sql = "SELECT customer, SUM(amount) AS total FROM data GROUP BY customer ORDER BY total DESC"
+    result, error = await files._tables("csv", data, {"mode": "query", "sql": sql})
+    assert error is None and result is not None
+    assert len(result["rows"]) == tables.MAX_RESULT_ROWS and result["truncated"] is True

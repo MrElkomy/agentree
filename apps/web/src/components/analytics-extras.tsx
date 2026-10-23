@@ -32,7 +32,12 @@ export function AgentOutcomes({ summary }: { summary: AnalyticsSummary }) {
       {summary.agents.length === 0 ? (
         <p className="text-ink-muted">No visitor conversations answered by an agent this month yet.</p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-line bg-surface">
+        <div
+          role="region"
+          aria-labelledby="agent-outcomes"
+          tabIndex={0}
+          className="overflow-x-auto rounded-lg border border-line bg-surface"
+        >
           <table className="w-full text-sm" data-testid="agent-outcomes">
             <thead>
               <tr className="border-b border-line text-left">

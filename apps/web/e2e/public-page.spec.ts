@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import { expect, test, type Page } from "@playwright/test";
-import { logIn, replyDone, runId, signUp, verifyFromEmail } from "./helpers";
+import { a11yScan, logIn, replyDone, runId, signUp, verifyFromEmail } from "./helpers";
 
 // Runs against the dev stack with AGENTREE_LLM_DEMO_MODE=true (canned replies, no real key).
 const DEMO_REPLY_START = "This is a demo reply";
@@ -101,6 +101,16 @@ test("owner publishes a public page; visitors chat privately; widget is framable
   await expect(v2.getByTestId("guest-chat")).toBeVisible();
   await expect(v2.getByTestId("guest-user")).toHaveCount(0);
   await expect(v2.getByText("How much is the Cedar desk?")).toHaveCount(0);
+  await a11yScan(v2, "public page");
+
+  // Task 22 (B4): an Arabic message reads right to left; the reply shows up as usual.
+  await v2.getByLabel("Message", { exact: true }).fill("بكام المكتب؟");
+  await v2.keyboard.press("Enter");
+  const arabic = v2.getByTestId("guest-user");
+  await expect(arabic).toHaveText("بكام المكتب؟");
+  expect(await arabic.evaluate((el) => el.matches(":dir(rtl)") || !!el.querySelector(":dir(rtl)"))).toBe(true);
+  await expect(v2.getByTestId("guest-assistant")).toContainText(DEMO_REPLY_START);
+  await replyDone(v2);
 
   // Widget iframe page: compact chat; framing allowed only for the listed websites.
   const widgetResponse = await v2.goto(`/w/${slug}`);
@@ -109,6 +119,7 @@ test("owner publishes a public page; visitors chat privately; widget is framable
   expect(widgetResponse!.headers()["x-frame-options"]).toBeUndefined();
   await expect(v2.getByTestId("widget-name")).toHaveText(businessName);
   await expect(v2.getByTestId("guest-chat")).toBeVisible();
+  await a11yScan(v2, "widget");
 
   // The embed snippet on an allowed website: launcher opens the chat iframe; it closes from
   // inside the iframe (postMessage) and with Escape.

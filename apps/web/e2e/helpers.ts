@@ -1,3 +1,4 @@
+import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page } from "@playwright/test";
 import { linkFromEmail } from "./mailpit";
 
@@ -34,4 +35,16 @@ export async function logOut(page: Page) {
 /** Waits until no chat on the page is still streaming a reply (it is saved only at the end). */
 export async function replyDone(page: Page) {
   await expect(page.locator('[aria-busy="true"]')).toHaveCount(0);
+}
+
+/** No horizontal scrolling and no serious or critical WCAG 2 A/AA violations. */
+export async function a11yScan(page: Page, label: string) {
+  await page.waitForLoadState("networkidle");
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  expect(overflow, `${label} scrolls sideways`).toBeLessThanOrEqual(1);
+  const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
+  const serious = results.violations
+    .filter((v) => v.impact === "serious" || v.impact === "critical")
+    .map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`);
+  expect(serious, `${label} accessibility`).toEqual([]);
 }
