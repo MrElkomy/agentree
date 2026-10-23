@@ -32,6 +32,7 @@ from agentree.approvals import service as approvals
 from agentree.core.email import OutgoingEmail, branded_email, send_safely
 from agentree.core.email_layout import EmailContent, clean_text
 from agentree.core.vault import Vault
+from agentree.customers import service as customers
 from agentree.knowledge import service as knowledge
 from agentree.leads import follow_ups
 from agentree.leads.models import Lead
@@ -156,6 +157,10 @@ async def propose(
     # wrote flags the draft: it then waits for a person, even under "always allow".
     sources = [e.body for e in entries] + [e.title for e in entries] + [business.name]
     flag = check_draft(subject, body, sources=sources)
+    if flag is None and not await customers.is_verified_email(factory, ctx, email):
+        # Anyone can type someone else's address: an unconfirmed one never gets an email that
+        # was not read by a person first (PO decision 2026-10-23, security review SR-01).
+        flag = "unverified_recipient"
     info, _created = await approvals.request(
         factory, ctx, deps, agent=AGENT, action=ACTION,
         params={"lead_id": str(lead_id), "to": email, "subject": subject, "body": body},

@@ -39,6 +39,8 @@ export const ERROR_LABEL: Record<string, string> = {
 export const FLAG_LABEL: Record<string, string> = {
   unverified_numbers: "This draft mentions a number (price, date, discount…) that isn't in your knowledge base. Check it before sending.",
   unverified_links: "This draft contains a link that isn't in your knowledge base. Check it before sending.",
+  unverified_recipient:
+    "The visitor hasn't confirmed this email address with a code, so it may not be theirs. Check before sending.",
 };
 
 export const DECISION_LABEL: Record<string, string> = {

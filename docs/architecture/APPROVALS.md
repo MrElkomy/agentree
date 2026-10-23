@@ -59,9 +59,12 @@ already have taken effect.
 - **Draft:** the business's own AI key (BYOK, primary then backup) writes it from the lead's
   request and the Sales Agent's published knowledge. Both are untrusted data inside delimiters,
   and the output must be JSON, otherwise it is refused (never repaired).
-- **Flag:** every number and link in the draft must appear in that knowledge, the request, the
-  lead's name or the business name (`cited_numbers_ok`, link allowlist). Otherwise the request is
-  flagged (`unverified_numbers` / `unverified_links`) and always waits for a person.
+- **Flag:** every number and link in the draft must appear in the published knowledge or the
+  business name (`cited_numbers_ok`, link allowlist); the visitor's own name and request do not
+  count (Task 22, SR-01). Otherwise the request is flagged (`unverified_numbers` /
+  `unverified_links`). A draft to an address the visitor did not confirm with the identity code is
+  flagged `unverified_recipient` (PO decision 2026-10-23). Flagged requests always wait for a
+  person, even under "always allow".
 - **Send:** only if the lead still exists (`lead_deleted`), is still *new* (`lead_contacted`)
   and has the same address (`lead_changed`). Replies go to the member who approved it, or who
   created the rule (an owner if that person left). The footer tells the lead why they got it.

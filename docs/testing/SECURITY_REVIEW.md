@@ -8,7 +8,7 @@ Nothing here was tested against the live server.
 
 | ID | Finding | Severity | Status |
 |---|---|---|---|
-| SR-01 | Visitor-planted links/numbers count as "checked" in follow-up email drafts (spam/phishing from our mail domain, auto-sent under "always allow") | Medium | Fixed in Task 22c |
+| SR-01 | Visitor-planted links/numbers count as "checked" in follow-up email drafts (spam/phishing from our mail domain, auto-sent under "always allow") | Medium | Fixed in Task 22c; unconfirmed recipients wait for a person (Task 22d) |
 | SR-02 | A Member can make Admin-only changes through the Executive Assistant once an "always allow" rule exists | Medium | Fixed in Task 22c |
 | SR-03 | Open redirect after sign-in: `/login?next=/%09/evil.example` (browsers drop the tab) | Low–Medium | Fixed in Task 22c |
 | SR-04 | Per-IP limits count single IPv6 addresses, so one /64 rotates past them; business-wide counters can then be exhausted | Low (Medium before the bot challenge) | Fixed in Task 22c (/64 buckets) + bot challenge (Task 22b) |
@@ -31,8 +31,9 @@ No Critical or High findings.
 - **Fix:** only the business's published knowledge and name back links and numbers. Anything
   else flags the draft, and flagged drafts always wait for a person.
 - **Regression test:** `test_a_visitor_cannot_plant_links_or_numbers_in_an_auto_sent_email`.
-- **Open product question (PO):** the recipient address is not verified. Should automatic
-  follow-up emails ("always allow") go only to addresses verified by the visitor's email code?
+- **PO decision 2026-10-23 (Task 22d):** automatic follow-up emails go only to addresses the
+  visitor confirmed with the identity code; any other draft is flagged `unverified_recipient`
+  and waits for a person. Test: `test_an_unconfirmed_address_always_waits_for_a_person`.
 
 ### SR-02 — Executive Assistant rules let a Member act as an Admin (Medium)
 - **Reproduce:** an Admin chooses "Always allow" for `set_agent_enabled`. A Member opens the
