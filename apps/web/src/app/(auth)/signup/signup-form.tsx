@@ -105,6 +105,17 @@ export function SignupForm() {
         <Button type="submit" busy={busy}>
           Create account
         </Button>
+        <p className="text-xs text-ink-muted">
+          By creating an account you agree to our{" "}
+          <Link href="/terms" className="font-semibold text-brand underline-offset-4 hover:underline">
+            terms
+          </Link>{" "}
+          and{" "}
+          <Link href="/privacy" className="font-semibold text-brand underline-offset-4 hover:underline">
+            privacy notice
+          </Link>
+          . You pay your AI provider for usage with your own keys.
+        </p>
       </form>
       <p className="mt-8 text-sm text-ink-muted">
         Already have an account?{" "}

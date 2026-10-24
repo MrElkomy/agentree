@@ -291,7 +291,12 @@ export function GuestChat({
           <p>
             {status === "human_active"
               ? `You're chatting with the ${teamName}.`
-              : "You're chatting with an AI assistant."}
+              : "You're chatting with an AI assistant."}{" "}
+            Chats are deleted after {retentionDays} days.{" "}
+            {/* New tab: in the widget this page runs inside the business's website. */}
+            <a href="/privacy" target="_blank" rel="noopener noreferrer" className="font-semibold underline">
+              Privacy
+            </a>
           </p>
           <div className="flex flex-wrap items-center gap-3">
             {canResolve && turns.length && !busy ? (

@@ -158,3 +158,17 @@ test("each business stays private; dashboard pages fit a phone and pass an acces
   await phone.close();
 });
 
+
+test("privacy notice and terms are public and linked from sign-up", async ({ page }) => {
+  // Task 22 (final gate 2): linked from sign-up, the public page and the chat.
+  await page.goto("/signup");
+  await page.getByRole("link", { name: "privacy notice" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Privacy notice" })).toBeVisible();
+  await expect(page.getByText("You are talking to AI.")).toBeVisible();
+  await scan(page, "/privacy");
+  await page.goto("/signup");
+  await page.getByRole("link", { name: "terms" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Terms" })).toBeVisible();
+  await expect(page.getByText("Your AI keys and costs")).toBeVisible();
+  await scan(page, "/terms");
+});

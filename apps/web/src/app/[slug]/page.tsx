@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { cache } from "react";
@@ -120,6 +121,11 @@ export default async function PublicBusinessPage({ params }: Props) {
           Powered by
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/brand/agentree-wordmark.svg" alt="Agentree" className="h-3.5 w-auto" />
+        </p>
+        <p className="mt-2">
+          <Link href="/privacy" className="underline">
+            Privacy
+          </Link>
         </p>
       </footer>
     </div>
